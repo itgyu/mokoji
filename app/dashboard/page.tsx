@@ -2,13 +2,14 @@
 
 export const dynamic = 'force-dynamic'
 
-import { useState, useEffect } from 'react'
-import { useRouter, useSearchParams } from 'next/navigation'
+import { useState, useEffect, Suspense } from 'react'
+import { useRouter } from 'next/navigation'
 import { useAuth } from '@/contexts/AuthContext'
 import { signOut } from 'firebase/auth'
 import { auth, db } from '@/lib/firebase'
 import { collection, query, where, getDocs, doc, getDoc, updateDoc, onSnapshot } from 'firebase/firestore'
 import { Home, Users, Calendar, User, MapPin, Bell, Settings } from 'lucide-react'
+import ScheduleDeepLink from '@/components/ScheduleDeepLink'
 
 type Page = 'home' | 'category' | 'mycrew' | 'myprofile'
 
@@ -60,7 +61,6 @@ interface Organization {
 export default function DashboardPage() {
   const { user, userProfile, loading } = useAuth()
   const router = useRouter()
-  const searchParams = useSearchParams()
   const [currentPage, setCurrentPage] = useState<Page>('home')
   const [schedules, setSchedules] = useState<Schedule[]>([])
   const [members, setMembers] = useState<Member[]>([])
@@ -159,19 +159,6 @@ export default function DashboardPage() {
       document.body.style.overflow = 'unset'
     }
   }, [selectedSchedule])
-
-  // URL 파라미터로 공유된 일정 자동 열기
-  useEffect(() => {
-    const scheduleId = searchParams.get('schedule')
-    if (scheduleId && schedules.length > 0 && !selectedSchedule) {
-      const schedule = schedules.find(s => s.id === scheduleId)
-      if (schedule) {
-        setSelectedSchedule(schedule)
-        // URL 파라미터 제거하여 깔끔하게 유지
-        router.replace('/dashboard', { scroll: false })
-      }
-    }
-  }, [searchParams, schedules, selectedSchedule, router])
 
   const fetchOrganizations = async () => {
     try {
@@ -990,6 +977,15 @@ It's Campers와 함께하는 캠핑 일정에 참여하세요!
 
   return (
     <div className="min-h-screen bg-gray-50 pb-28 max-w-md mx-auto">
+      {/* URL 파라미터로 공유된 일정 자동 열기 */}
+      <Suspense fallback={null}>
+        <ScheduleDeepLink
+          schedules={schedules}
+          selectedSchedule={selectedSchedule}
+          setSelectedSchedule={setSelectedSchedule}
+        />
+      </Suspense>
+
       {/* Home Page */}
       {currentPage === 'home' && (
         <div>
