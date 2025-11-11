@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect } from 'react'
+import { useEffect, useState } from 'react'
 import { useSearchParams, useRouter } from 'next/navigation'
 
 interface Schedule {
@@ -21,18 +21,33 @@ export default function ScheduleDeepLink({
 }: ScheduleDeepLinkProps) {
   const searchParams = useSearchParams()
   const router = useRouter()
+  const [targetScheduleId, setTargetScheduleId] = useState<string | null>(null)
 
+  // URL에서 scheduleId를 가져와서 저장
   useEffect(() => {
     const scheduleId = searchParams.get('schedule')
-    if (scheduleId && schedules.length > 0 && !selectedSchedule) {
-      const schedule = schedules.find(s => s.id === scheduleId)
+    if (scheduleId && !targetScheduleId) {
+      console.log('🔗 Deep link detected:', scheduleId)
+      setTargetScheduleId(scheduleId)
+      // URL 파라미터를 즉시 제거하여 깔끔하게 유지
+      router.replace('/dashboard', { scroll: false })
+    }
+  }, [searchParams, targetScheduleId, router])
+
+  // schedules가 로드되면 해당 일정 열기
+  useEffect(() => {
+    if (targetScheduleId && schedules.length > 0 && !selectedSchedule) {
+      console.log('📅 Looking for schedule:', targetScheduleId)
+      const schedule = schedules.find(s => s.id === targetScheduleId)
       if (schedule) {
+        console.log('✅ Schedule found, opening modal')
         setSelectedSchedule(schedule)
-        // URL 파라미터 제거하여 깔끔하게 유지
-        router.replace('/dashboard', { scroll: false })
+        setTargetScheduleId(null) // 성공적으로 열었으면 초기화
+      } else {
+        console.log('⚠️ Schedule not found in loaded schedules')
       }
     }
-  }, [searchParams, schedules, selectedSchedule, router, setSelectedSchedule])
+  }, [targetScheduleId, schedules, selectedSchedule, setSelectedSchedule])
 
   return null
 }
