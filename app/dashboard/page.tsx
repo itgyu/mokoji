@@ -7,9 +7,13 @@ import { useRouter } from 'next/navigation'
 import { useAuth } from '@/contexts/AuthContext'
 import { signOut } from 'firebase/auth'
 import { auth, db } from '@/lib/firebase'
-import { collection, query, where, getDocs, doc, getDoc, updateDoc, onSnapshot } from 'firebase/firestore'
+import { collection, query, where, getDocs, doc, getDoc, updateDoc, onSnapshot, addDoc, arrayUnion } from 'firebase/firestore'
 import { Home, Users, Calendar, User, MapPin, Bell, Settings } from 'lucide-react'
+import { uploadToS3 } from '@/lib/s3-utils'
 import ScheduleDeepLink from '@/components/ScheduleDeepLink'
+import { getCities, getDistricts } from '@/lib/locations'
+import ImageCropModal from '@/components/ImageCropModal'
+import { CREW_CATEGORIES } from '@/lib/constants'
 
 type Page = 'home' | 'category' | 'mycrew' | 'myprofile'
 
@@ -53,9 +57,15 @@ interface Organization {
   id: string
   name: string
   description: string
-  category: string
+  categories: string[]  // 다중 카테고리 지원
+  ownerUid: string      // 크루장 UID
+  ownerName: string     // 크루장 이름
   avatar?: string
   memberCount?: number
+  subtitle?: string
+  createdAt: string
+  // 기존 데이터 호환을 위한 optional
+  category?: string
 }
 
 export default function DashboardPage() {
@@ -65,6 +75,7 @@ export default function DashboardPage() {
   const [schedules, setSchedules] = useState<Schedule[]>([])
   const [members, setMembers] = useState<Member[]>([])
   const [organizations, setOrganizations] = useState<Organization[]>([])
+  const [recommendedOrgs, setRecommendedOrgs] = useState<Organization[]>([])
   const [selectedOrg, setSelectedOrg] = useState<Organization | null>(null)
   const [selectedSchedule, setSelectedSchedule] = useState<Schedule | null>(null)
   const [showMemberList, setShowMemberList] = useState(false)
@@ -87,8 +98,28 @@ export default function DashboardPage() {
     gender: '',
     birthdate: '',
     location: '',
-    mbti: ''
+    mbti: '',
+    interestCategories: [] as string[]
   })
+  const [selectedCity, setSelectedCity] = useState('')
+  const [selectedDistrict, setSelectedDistrict] = useState('')
+  const [selectedCityForMemberEdit, setSelectedCityForMemberEdit] = useState('')
+  const [selectedDistrictForMemberEdit, setSelectedDistrictForMemberEdit] = useState('')
+  const [editingOrg, setEditingOrg] = useState<Organization | null>(null)
+  const [orgForm, setOrgForm] = useState({
+    name: '',
+    subtitle: '',
+    description: '',
+    categories: [] as string[]  // 다중 카테고리
+  })
+  const [showCreateCrew, setShowCreateCrew] = useState(false)  // 크루 생성 모달
+  const [orgAvatarFile, setOrgAvatarFile] = useState<File | null>(null)
+  const [myProfileAvatarFile, setMyProfileAvatarFile] = useState<File | null>(null)
+
+  // 이미지 크롭 관련 상태
+  const [cropImageUrl, setCropImageUrl] = useState<string | null>(null)
+  const [cropType, setCropType] = useState<'org' | 'profile' | null>(null)
+
   const [showCreateSchedule, setShowCreateSchedule] = useState(false)
   const [createScheduleForm, setCreateScheduleForm] = useState({
     title: '',
@@ -109,6 +140,7 @@ export default function DashboardPage() {
   })
   const [managingParticipants, setManagingParticipants] = useState(false)
   const [commentText, setCommentText] = useState('')
+  const [uploadingAvatar, setUploadingAvatar] = useState(false)
 
   useEffect(() => {
     if (!loading && !user) {
@@ -121,6 +153,13 @@ export default function DashboardPage() {
       fetchOrganizations()
     }
   }, [user])
+
+  // 추천 크루 가져오기
+  useEffect(() => {
+    if (user && userProfile) {
+      fetchRecommendedOrganizations()
+    }
+  }, [user, userProfile])
 
   useEffect(() => {
     console.log('🔄 useEffect [user, selectedOrg] 실행됨')
@@ -149,7 +188,21 @@ export default function DashboardPage() {
 
   // 모달 열릴 때 백그라운드 스크롤 방지
   useEffect(() => {
-    if (selectedSchedule) {
+    const isAnyModalOpen =
+      selectedSchedule ||
+      showMemberList ||
+      showCreateSchedule ||
+      editingSchedule ||
+      editingMember ||
+      editingMemberInfo ||
+      selectedAvatarUrl ||
+      managingParticipants ||
+      editingMyProfile ||
+      editingOrg ||
+      cropImageUrl ||
+      showCreateCrew
+
+    if (isAnyModalOpen) {
       document.body.style.overflow = 'hidden'
     } else {
       document.body.style.overflow = 'unset'
@@ -158,7 +211,20 @@ export default function DashboardPage() {
     return () => {
       document.body.style.overflow = 'unset'
     }
-  }, [selectedSchedule])
+  }, [
+    selectedSchedule,
+    showMemberList,
+    showCreateSchedule,
+    editingSchedule,
+    editingMember,
+    editingMemberInfo,
+    selectedAvatarUrl,
+    managingParticipants,
+    editingMyProfile,
+    editingOrg,
+    cropImageUrl,
+    showCreateCrew
+  ])
 
   const fetchOrganizations = async () => {
     try {
@@ -227,6 +293,66 @@ export default function DashboardPage() {
     }
   }
 
+  const fetchRecommendedOrganizations = async () => {
+    try {
+      if (!user || !userProfile) return
+
+      console.log('🔍 추천 크루 검색 시작')
+      console.log('  - 사용자 위치:', userProfile.location)
+      console.log('  - 관심 카테고리:', userProfile.interestCategories)
+
+      // 사용자의 관심 카테고리와 위치 확인
+      const userInterests = userProfile.interestCategories || []
+      const userLocation = userProfile.location || ''
+
+      if (userInterests.length === 0) {
+        console.log('⚠️ 사용자의 관심 카테고리가 없습니다.')
+        setRecommendedOrgs([])
+        return
+      }
+
+      // 사용자가 이미 가입한 크루 ID 가져오기
+      const userOrgIds = userProfile.organizations || []
+      console.log('  - 이미 가입한 크루:', userOrgIds)
+
+      // 모든 organizations 가져오기
+      const orgsRef = collection(db, 'organizations')
+      const orgsSnapshot = await getDocs(orgsRef)
+
+      const recommended: Organization[] = []
+      orgsSnapshot.forEach((doc) => {
+        const org = { id: doc.id, ...doc.data() } as Organization
+
+        // 이미 가입한 크루는 제외
+        if (userOrgIds.includes(org.id)) {
+          return
+        }
+
+        // 카테고리 매칭 (org.categories 또는 구버전 org.category)
+        const orgCategories = org.categories || (org.category ? [org.category] : [])
+        const hasMatchingCategory = orgCategories.some(cat => userInterests.includes(cat))
+
+        // 위치 매칭 (정확히 일치하거나 시작 부분이 같은 경우)
+        // 예: "서울 강남구"와 "서울 강남구 삼성동"은 매칭
+        const hasMatchingLocation = userLocation && (
+          org.description?.includes(userLocation) ||
+          userLocation.startsWith(org.description?.split(' ')[0] || '')
+        )
+
+        // 카테고리가 일치하고 위치 정보가 있으면 추천
+        if (hasMatchingCategory) {
+          recommended.push(org)
+          console.log(`  ✅ 추천: ${org.name} - 카테고리: ${orgCategories.join(', ')}`)
+        }
+      })
+
+      console.log(`\n🎯 총 ${recommended.length}개의 크루를 추천합니다.`)
+      setRecommendedOrgs(recommended)
+    } catch (error) {
+      console.error('Error fetching recommended organizations:', error)
+    }
+  }
+
   const fetchSchedules = (orgId: string) => {
     try {
       console.log('📡 fetchSchedules 시작 - orgId:', orgId)
@@ -274,10 +400,12 @@ export default function DashboardPage() {
       const userProfilesSnapshot = await getDocs(userProfilesRef)
 
       const memberUids: string[] = []
+      const userProfilesMap: { [uid: string]: any } = {}
       userProfilesSnapshot.forEach((doc) => {
         const data = doc.data()
         if (data.organizations && Array.isArray(data.organizations) && data.organizations.includes(orgId)) {
           memberUids.push(doc.id)
+          userProfilesMap[doc.id] = data
         }
       })
       console.log(`✅ userProfiles에서 찾은 멤버 UID: ${memberUids.length}개`)
@@ -297,7 +425,13 @@ export default function DashboardPage() {
         const data = doc.data()
         if (memberUids.includes(data.uid)) {
           console.log(`✅ ${data.name}: joinDate=${data.joinDate}, role=${data.role}, isCaptain=${data.isCaptain}, isStaff=${data.isStaff}`)
-          fetchedMembers.push({ id: doc.id, ...data } as Member)
+          // userProfiles에서 location 정보 가져와서 병합
+          const userProfile = userProfilesMap[data.uid]
+          fetchedMembers.push({
+            id: doc.id,
+            ...data,
+            location: userProfile?.location || undefined
+          } as Member)
         }
       })
 
@@ -401,6 +535,15 @@ export default function DashboardPage() {
 
       if (userProfileSnap.exists()) {
         const data = userProfileSnap.data()
+
+        // 지역 정보 파싱 (예: "서울특별시 강남구" -> city: "서울특별시", district: "강남구")
+        const locationParts = (data.location || '').split(' ')
+        const city = locationParts[0] || ''
+        const district = locationParts[1] || ''
+
+        setSelectedCityForMemberEdit(city)
+        setSelectedDistrictForMemberEdit(district)
+
         setEditForm({
           name: member.name || '',
           gender: data.gender || '',
@@ -409,6 +552,9 @@ export default function DashboardPage() {
           mbti: data.mbti || ''
         })
       } else {
+        setSelectedCityForMemberEdit('')
+        setSelectedDistrictForMemberEdit('')
+
         setEditForm({
           name: member.name || '',
           gender: '',
@@ -462,19 +608,69 @@ export default function DashboardPage() {
     }
   }
 
+  const handleChangeAvatar = async (file: File) => {
+    if (!user) return
+
+    setUploadingAvatar(true)
+    try {
+      // S3에 업로드
+      const avatarUrl = await uploadToS3(file, `avatars/${user.uid}`)
+
+      // userProfiles 업데이트
+      const userProfileRef = doc(db, 'userProfiles', user.uid)
+      await updateDoc(userProfileRef, { avatar: avatarUrl })
+
+      // members 컬렉션도 아바타 업데이트
+      const membersRef = collection(db, 'members')
+      const membersQuery = query(membersRef, where('uid', '==', user.uid))
+      const membersSnapshot = await getDocs(membersQuery)
+
+      const memberUpdatePromises = membersSnapshot.docs.map(doc =>
+        updateDoc(doc.ref, { avatar: avatarUrl })
+      )
+      await Promise.all(memberUpdatePromises)
+
+      // 페이지 새로고침
+      window.location.reload()
+    } catch (error) {
+      console.error('Error updating avatar:', error)
+      alert('프로필 사진 변경 중 오류가 발생했습니다.')
+    } finally {
+      setUploadingAvatar(false)
+    }
+  }
+
   const handleUpdateMyProfile = async () => {
     if (!user) return
 
+    // 관심 카테고리 검증
+    if (myProfileForm.interestCategories.length === 0) {
+      alert('최소 1개 이상의 관심 카테고리를 선택해주세요.')
+      return
+    }
+
     try {
-      // userProfiles 업데이트
-      const userProfileRef = doc(db, 'userProfiles', user.uid)
-      await updateDoc(userProfileRef, {
+      console.log('🔄 프로필 수정 시작')
+      console.log('  - User UID:', user.uid)
+      console.log('  - 폼 데이터:', myProfileForm)
+
+      // Update 객체 생성 (아바타 제외)
+      const updateData: any = {
         name: myProfileForm.name,
         gender: myProfileForm.gender,
         birthdate: myProfileForm.birthdate,
         location: myProfileForm.location,
-        mbti: myProfileForm.mbti.toUpperCase()
-      })
+        mbti: myProfileForm.mbti.toUpperCase(),
+        interestCategories: myProfileForm.interestCategories
+      }
+
+      console.log('💾 Firestore 업데이트 데이터:', updateData)
+
+      // userProfiles 업데이트
+      const userProfileRef = doc(db, 'userProfiles', user.uid)
+      console.log('📝 userProfiles 업데이트 중...')
+      await updateDoc(userProfileRef, updateData)
+      console.log('✅ userProfiles 업데이트 완료')
 
       // members 컬렉션도 이름 업데이트
       const membersRef = collection(db, 'members')
@@ -495,6 +691,160 @@ export default function DashboardPage() {
       console.error('Error updating my profile:', error)
       alert('프로필 수정 중 오류가 발생했습니다.')
     }
+  }
+
+  const handleOpenOrgEdit = (org: Organization) => {
+    setEditingOrg(org)
+    setOrgForm({
+      name: org.name,
+      subtitle: org.subtitle || '',
+      description: org.description,
+      categories: org.categories || (org.category ? [org.category] : [])  // 기존 데이터 호환
+    })
+    setOrgAvatarFile(null)
+  }
+
+  const handleUpdateOrg = async () => {
+    if (!editingOrg) return
+
+    try {
+      let avatarUrl = editingOrg.avatar || ''
+
+      // 새 이미지가 선택된 경우 S3에 업로드
+      if (orgAvatarFile) {
+        avatarUrl = await uploadToS3(orgAvatarFile, `organizations/${editingOrg.id}`)
+      }
+
+      // Update 객체 생성 - undefined 값 제외
+      const updateData: any = {
+        name: orgForm.name,
+        description: orgForm.description,
+        avatar: avatarUrl,
+        categories: orgForm.categories  // 다중 카테고리
+      }
+
+      // subtitle은 값이 있을 때만 추가
+      if (orgForm.subtitle && orgForm.subtitle.trim()) {
+        updateData.subtitle = orgForm.subtitle
+      }
+
+      // organizations 컬렉션 업데이트
+      const orgRef = doc(db, 'organizations', editingOrg.id)
+      await updateDoc(orgRef, updateData)
+
+      alert('크루 정보가 수정되었습니다.')
+      setEditingOrg(null)
+      setOrgAvatarFile(null)
+
+      // 크루 목록 새로고침
+      await fetchOrganizations()
+    } catch (error) {
+      console.error('Error updating organization:', error)
+      alert('크루 정보 수정 중 오류가 발생했습니다.')
+    }
+  }
+
+  const handleCreateCrew = async () => {
+    if (!user || !userProfile) return
+
+    // 필수값 검증
+    if (!orgForm.name.trim()) {
+      alert('크루 이름을 입력해주세요.')
+      return
+    }
+    if (!orgForm.description.trim()) {
+      alert('크루 설명을 입력해주세요.')
+      return
+    }
+    if (orgForm.categories.length === 0) {
+      alert('최소 1개 이상의 카테고리를 선택해주세요.')
+      return
+    }
+
+    try {
+      // 1. 먼저 크루 문서 생성 (ID 얻기 위해)
+      const orgData: any = {
+        name: orgForm.name,
+        description: orgForm.description,
+        categories: orgForm.categories,
+        ownerUid: user.uid,
+        ownerName: userProfile.name,
+        createdAt: new Date().toISOString(),
+        avatar: ''
+      }
+
+      if (orgForm.subtitle && orgForm.subtitle.trim()) {
+        orgData.subtitle = orgForm.subtitle
+      }
+
+      console.log('🆕 크루 생성 시작:', orgData)
+
+      const docRef = await addDoc(collection(db, 'organizations'), orgData)
+      console.log('✅ 크루 문서 생성 완료:', docRef.id)
+
+      // 2. 이미지가 있으면 S3에 업로드하고 URL 업데이트
+      if (orgAvatarFile) {
+        const avatarUrl = await uploadToS3(orgAvatarFile, `organizations/${docRef.id}`)
+        await updateDoc(docRef, { avatar: avatarUrl })
+        console.log('✅ 크루 아바타 업로드 완료:', avatarUrl)
+      }
+
+      // 3. 사용자 프로필의 organizations 배열에 추가
+      const userProfileRef = doc(db, 'userProfiles', user.uid)
+      await updateDoc(userProfileRef, {
+        organizations: arrayUnion(docRef.id)
+      })
+      console.log('✅ 사용자 프로필에 크루 추가 완료')
+
+      alert('크루가 생성되었습니다!')
+      setShowCreateCrew(false)
+      setOrgForm({ name: '', subtitle: '', description: '', categories: [] })
+      setOrgAvatarFile(null)
+
+      // 크루 목록 새로고침
+      await fetchOrganizations()
+
+      // 새로 생성한 크루를 선택
+      const newOrg = await getDoc(docRef)
+      if (newOrg.exists()) {
+        setSelectedOrg({ id: newOrg.id, ...newOrg.data() } as Organization)
+      }
+    } catch (error) {
+      console.error('❌ 크루 생성 실패:', error)
+      alert('크루 생성 중 오류가 발생했습니다.')
+    }
+  }
+
+  // 이미지 파일 선택 시 크롭 모달 열기
+  const handleImageSelect = (file: File, type: 'org' | 'profile') => {
+    const reader = new FileReader()
+    reader.onload = () => {
+      setCropImageUrl(reader.result as string)
+      setCropType(type)
+    }
+    reader.readAsDataURL(file)
+  }
+
+  // 크롭 완료 시 처리
+  const handleCropComplete = (croppedBlob: Blob) => {
+    // Blob을 File로 변환
+    const file = new File([croppedBlob], 'cropped-image.jpg', { type: 'image/jpeg' })
+
+    if (cropType === 'org') {
+      setOrgAvatarFile(file)
+    } else if (cropType === 'profile') {
+      setMyProfileAvatarFile(file)
+    }
+
+    // 크롭 모달 닫기
+    setCropImageUrl(null)
+    setCropType(null)
+  }
+
+  // 크롭 취소
+  const handleCropCancel = () => {
+    setCropImageUrl(null)
+    setCropType(null)
   }
 
   const handleCreateSchedule = async () => {
@@ -750,7 +1100,7 @@ It's Campers와 함께하는 캠핑 일정에 참여하세요!
       case '일반모임':
         return 'bg-gray-100 text-gray-700'
       default:
-        return 'bg-emerald-100 text-emerald-700' // 기본값 (기존 데이터용)
+        return 'bg-blue-50 text-[#3182F6]' // 기본값 (기존 데이터용)
     }
   }
 
@@ -904,9 +1254,9 @@ It's Campers와 함께하는 캠핑 일정에 참여하세요!
 
   if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-emerald-50 to-teal-50">
+      <div className="min-h-screen flex items-center justify-center bg-[#F9FAFB]">
         <div className="text-center">
-          <div className="animate-spin rounded-full h-16 w-16 border-t-4 border-b-4 border-emerald-500 mx-auto mb-4"></div>
+          <div className="animate-spin rounded-full h-16 w-16 border-t-4 border-b-4 border-[#3182F6] mx-auto mb-4"></div>
           <p className="text-gray-600">로딩 중...</p>
         </div>
       </div>
@@ -988,70 +1338,98 @@ It's Campers와 함께하는 캠핑 일정에 참여하세요!
 
       {/* Home Page */}
       {currentPage === 'home' && (
-        <div>
-          <header className="sticky top-0 bg-white shadow-sm z-10 safe-top">
-            <div className="px-5 py-4 flex justify-between items-center">
-              <div className="flex items-center gap-2">
-                <MapPin className="w-6 h-6 text-emerald-600" />
-                <span className="font-bold text-xl">{profile.location}</span>
+        <div className="bg-[#F9FAFB]">
+          {/* 토스 스타일 헤더 */}
+          <header className="sticky top-0 bg-white z-10 safe-top">
+            <div className="px-5 py-6 flex justify-between items-center border-b border-gray-100">
+              <div className="flex items-center gap-3">
+                <MapPin className="w-7 h-7 text-[#3182F6]" strokeWidth={2.5} />
+                <span className="font-bold text-2xl tracking-tight text-[#191F28]">{profile.location}</span>
               </div>
-              <div className="flex gap-2">
-                <button className="p-3 hover:bg-gray-100 rounded-full active:scale-95 transition-transform">
-                  <Bell className="w-6 h-6" />
+              <div className="flex gap-1">
+                <button className="p-3 hover:bg-gray-50 rounded-xl active:scale-95 transition-all">
+                  <Bell className="w-6 h-6 text-[#4E5968]" strokeWidth={2} />
                 </button>
-                <button className="p-3 hover:bg-gray-100 rounded-full active:scale-95 transition-transform">
-                  <Settings className="w-6 h-6" />
+                <button className="p-3 hover:bg-gray-50 rounded-xl active:scale-95 transition-all">
+                  <Settings className="w-6 h-6 text-[#4E5968]" strokeWidth={2} />
                 </button>
               </div>
             </div>
           </header>
 
-          <div className="px-5 py-4 space-y-4">
-            <div className="bg-white rounded-2xl p-6 shadow-sm">
-              <h2 className="text-xl font-bold mb-3 flex items-center gap-2">
-                <Home className="w-6 h-6" />
-                내 지역 모임
-              </h2>
-              <p className="text-gray-600 text-base leading-relaxed">
+          <div className="px-5 py-6 space-y-5">
+            {/* 내 지역 모임 카드 - 토스 스타일 */}
+            <div className="bg-white rounded-3xl p-7 shadow-sm border border-gray-100">
+              <div className="flex items-center gap-3 mb-4">
+                <div className="w-12 h-12 bg-gradient-to-br from-blue-50 to-indigo-50 rounded-2xl flex items-center justify-center">
+                  <Home className="w-6 h-6 text-[#3182F6]" strokeWidth={2.5} />
+                </div>
+                <h2 className="text-2xl font-bold tracking-tight text-[#191F28]">내 지역 모임</h2>
+              </div>
+              <p className="text-[#6B7684] text-base leading-relaxed font-medium">
                 내 지역과 관심사를 기반으로<br />
                 맞춤 모임을 추천해드립니다.
               </p>
             </div>
 
-            <div className="bg-white rounded-2xl p-6 shadow-sm">
-              <div className="flex justify-between items-center mb-5">
-                <h2 className="text-xl font-bold flex items-center gap-2">
-                  <Calendar className="w-6 h-6" />
-                  다가오는 일정
-                </h2>
+            {/* 다가오는 일정 섹션 - 토스 스타일 */}
+            <div className="bg-white rounded-3xl p-7 shadow-sm border border-gray-100">
+              <div className="flex justify-between items-center mb-6">
+                <div className="flex items-center gap-3">
+                  <div className="w-12 h-12 bg-gradient-to-br from-blue-50 to-indigo-50 rounded-2xl flex items-center justify-center">
+                    <Calendar className="w-6 h-6 text-[#3182F6]" strokeWidth={2.5} />
+                  </div>
+                  <h2 className="text-2xl font-bold tracking-tight text-[#191F28]">다가오는 일정</h2>
+                </div>
                 <button
                   onClick={() => setCurrentPage('mycrew')}
-                  className="text-emerald-600 text-sm font-bold hover:underline active:scale-95 transition-transform px-2 py-1"
+                  className="text-[#3182F6] text-sm font-bold hover:text-[#1B64DA] active:scale-95 transition-all px-3 py-2 rounded-lg hover:bg-blue-50"
                 >
                   전체보기 →
                 </button>
               </div>
               {mySchedules.length === 0 ? (
-                <p className="text-gray-400 text-center py-8">참여 중인 일정이 없습니다.</p>
+                <div className="text-center py-12">
+                  <div className="text-6xl mb-4">📅</div>
+                  <p className="text-[#191F28] font-bold text-xl mb-2">등록된 일정이 없어요</p>
+                  <p className="text-[#6B7684] text-base font-medium">첫 일정을 만들어보세요</p>
+                </div>
               ) : (
-                <div className="space-y-4">
+                <div className="space-y-3">
                   {mySchedules.slice(0, 3).map((schedule) => (
                     <div
                       key={schedule.id}
-                      className="border-2 border-gray-200 rounded-2xl p-5 active:border-emerald-500 active:scale-[0.98] transition-all cursor-pointer"
+                      onClick={() => setSelectedSchedule(schedule)}
+                      className="bg-[#F9FAFB] rounded-2xl p-6 hover:bg-[#F2F4F6] active:scale-[0.98] transition-all cursor-pointer border border-transparent hover:border-[#3182F6]/20"
                     >
-                      <div className="flex justify-between items-start mb-3">
-                        <h3 className="font-bold text-lg">{schedule.title}</h3>
-                        <span className={`text-xs px-3 py-1.5 rounded-full font-semibold ${getTypeColor(schedule.type)}`}>
+                      <div className="flex justify-between items-start mb-4">
+                        <h3 className="font-bold text-xl tracking-tight text-[#191F28] leading-tight">{schedule.title}</h3>
+                        <span className={`text-xs px-3 py-1.5 rounded-full font-bold ${getTypeColor(schedule.type)}`}>
                           {schedule.type}
                         </span>
                       </div>
-                      <p className="text-base text-gray-600 mb-1">📅 {formatDateWithYear(schedule.date)} {schedule.time}</p>
-                      <p className="text-base text-gray-600 mb-1">📍 {schedule.location}</p>
-                      <p className="text-base text-gray-600 mb-1">🎯 벙주: {schedule.createdBy}</p>
-                      <p className="text-base text-gray-600 mt-3">
-                        👥 {schedule.participants?.length || 0}/{schedule.maxParticipants}명
-                      </p>
+                      <div className="space-y-2.5">
+                        <p className="text-[#4E5968] text-base font-medium flex items-center gap-2">
+                          <span className="text-lg">📅</span>
+                          <span>{formatDateWithYear(schedule.date)} {schedule.time}</span>
+                        </p>
+                        <p className="text-[#4E5968] text-base font-medium flex items-center gap-2">
+                          <span className="text-lg">📍</span>
+                          <span>{schedule.location}</span>
+                        </p>
+                        <p className="text-[#4E5968] text-base font-medium flex items-center gap-2">
+                          <span className="text-lg">🎯</span>
+                          <span>벙주: {schedule.createdBy}</span>
+                        </p>
+                        <div className="flex items-center justify-between pt-2 mt-2 border-t border-gray-200">
+                          <p className="text-[#8B95A1] text-sm font-bold">
+                            👥 참여 인원
+                          </p>
+                          <p className="text-[#191F28] text-lg font-bold">
+                            {schedule.participants?.length || 0}<span className="text-[#8B95A1]">/{schedule.maxParticipants}</span>
+                          </p>
+                        </div>
+                      </div>
                     </div>
                   ))}
                 </div>
@@ -1061,58 +1439,177 @@ It's Campers와 함께하는 캠핑 일정에 참여하세요!
         </div>
       )}
 
-      {/* Category Page */}
+      {/* Category Page - 토스 스타일 */}
       {currentPage === 'category' && (
-        <div>
-          <header className="sticky top-0 bg-white shadow-sm z-10 safe-top">
-            <div className="px-5 py-4 flex justify-between items-center">
-              <div className="flex items-center gap-2">
-                <MapPin className="w-6 h-6 text-emerald-600" />
-                <span className="font-bold text-xl">{profile.location}</span>
+        <div className="bg-[#F9FAFB] min-h-screen">
+          <header className="sticky top-0 bg-white z-10 safe-top border-b border-gray-100">
+            <div className="px-6 py-6 flex justify-between items-center">
+              <div className="flex items-center gap-3">
+                <MapPin className="w-7 h-7 text-[#3182F6]" strokeWidth={2.5} />
+                <span className="font-bold text-2xl tracking-tight text-[#191F28]">{profile.location}</span>
               </div>
-              <div className="flex gap-2">
-                <button className="p-3 hover:bg-gray-100 rounded-full active:scale-95 transition-transform">
-                  <Bell className="w-6 h-6" />
+              <div className="flex gap-1">
+                <button className="p-3 hover:bg-gray-50 rounded-xl active:scale-95 transition-all">
+                  <Bell className="w-6 h-6 text-[#4E5968]" strokeWidth={2} />
                 </button>
-                <button className="p-3 hover:bg-gray-100 rounded-full active:scale-95 transition-transform">
-                  <Settings className="w-6 h-6" />
+                <button className="p-3 hover:bg-gray-50 rounded-xl active:scale-95 transition-all">
+                  <Settings className="w-6 h-6 text-[#4E5968]" strokeWidth={2} />
                 </button>
               </div>
             </div>
           </header>
 
-          <div className="p-4">
-            <h2 className="text-2xl font-bold mb-4">카테고리</h2>
-            <div className="space-y-3">
-              {[
-                { icon: '⛺', title: '캠핑', desc: '오토캠핑, 백패킹, 노지캠핑' },
-                { icon: '🏃', title: '러닝', desc: '조깅, 마라톤, 트레일 러닝' },
-                { icon: '📚', title: '독서', desc: '독서 모임, 작가와의 만남' }
-              ].map((category, index) => (
-                <div key={index} className="bg-white rounded-xl p-6 shadow-sm hover:shadow-md transition-shadow cursor-pointer">
-                  <h3 className="text-xl font-bold mb-2">
-                    <span className="mr-2">{category.icon}</span>
-                    {category.title}
+          <div className="px-5 py-6">
+            <h2 className="text-2xl font-bold tracking-tight text-[#191F28] mb-5">크루 찾기</h2>
+
+            {/* 추천 크루 섹션 */}
+            {recommendedOrgs.length > 0 && (
+              <div className="mb-6">
+                <div className="flex items-center justify-between mb-3 px-1">
+                  <h3 className="text-lg font-bold tracking-tight text-[#191F28]">
+                    ✨ 나를 위한 추천 크루
                   </h3>
-                  <p className="text-gray-600 text-sm">{category.desc}</p>
+                  <span className="text-xs font-bold text-[#3182F6] bg-blue-50 px-3 py-1 rounded-full">
+                    {recommendedOrgs.length}개
+                  </span>
                 </div>
-              ))}
+                <div className="space-y-3">
+                  {recommendedOrgs.map((org) => (
+                    <div
+                      key={org.id}
+                      onClick={() => {
+                        setSelectedOrg(org)
+                        setCurrentPage('mycrew')
+                      }}
+                      className="bg-white rounded-2xl p-5 shadow-sm border border-gray-100 hover:border-[#3182F6] hover:shadow-md transition-all cursor-pointer active:scale-[0.98]"
+                    >
+                      <div className="flex items-center gap-4">
+                        <div className="w-14 h-14 rounded-2xl overflow-hidden flex-shrink-0 bg-gray-100">
+                          {org.avatar ? (
+                            <img src={org.avatar} alt={org.name} className="w-full h-full object-cover" />
+                          ) : (
+                            <div className="w-full h-full flex items-center justify-center text-2xl">⛺</div>
+                          )}
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          {org.subtitle && (
+                            <p className="text-xs font-bold text-[#8B95A1] mb-1 truncate">{org.subtitle}</p>
+                          )}
+                          <h4 className="text-lg font-bold tracking-tight text-[#191F28] mb-1 truncate">
+                            {org.name}
+                          </h4>
+                          <div className="flex items-center gap-2 flex-wrap">
+                            {(org.categories || [org.category]).filter(Boolean).map((cat, idx) => (
+                              <span key={idx} className="inline-flex items-center px-2 py-1 bg-[#F2F4F6] text-[#4E5968] text-xs rounded-lg font-medium">
+                                {cat}
+                              </span>
+                            ))}
+                          </div>
+                        </div>
+                        <div className="text-[#3182F6] text-xl">→</div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* 전체 크루 목록 */}
+            <div className="mb-6">
+              <div className="flex items-center justify-between mb-3 px-1">
+                <h3 className="text-lg font-bold tracking-tight text-[#191F28]">
+                  🌟 {profile.location} 전체 크루
+                </h3>
+                <span className="text-xs font-bold text-[#6B7684] bg-gray-100 px-3 py-1 rounded-full">
+                  {organizations.length}개
+                </span>
+              </div>
+              {organizations.length === 0 ? (
+                <div className="bg-white rounded-2xl p-8 text-center">
+                  <div className="text-5xl mb-3">⛺</div>
+                  <p className="text-base font-bold text-[#191F28] mb-1">아직 크루가 없어요</p>
+                  <p className="text-sm text-[#6B7684]">첫 번째 크루를 만들어보세요!</p>
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  {organizations.map((org) => (
+                    <div
+                      key={org.id}
+                      onClick={() => {
+                        setSelectedOrg(org)
+                        setCurrentPage('mycrew')
+                      }}
+                      className="bg-white rounded-2xl p-5 shadow-sm border border-gray-100 hover:border-[#3182F6] hover:shadow-md transition-all cursor-pointer active:scale-[0.98]"
+                    >
+                      <div className="flex items-center gap-4">
+                        <div className="w-14 h-14 rounded-2xl overflow-hidden flex-shrink-0 bg-gray-100">
+                          {org.avatar ? (
+                            <img src={org.avatar} alt={org.name} className="w-full h-full object-cover" />
+                          ) : (
+                            <div className="w-full h-full flex items-center justify-center text-2xl">⛺</div>
+                          )}
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          {org.subtitle && (
+                            <p className="text-xs font-bold text-[#8B95A1] mb-1 truncate">{org.subtitle}</p>
+                          )}
+                          <h4 className="text-lg font-bold tracking-tight text-[#191F28] mb-1 truncate">
+                            {org.name}
+                          </h4>
+                          <div className="flex items-center gap-2 flex-wrap">
+                            {(org.categories || [org.category]).filter(Boolean).map((cat, idx) => (
+                              <span key={idx} className="inline-flex items-center px-2 py-1 bg-[#F2F4F6] text-[#4E5968] text-xs rounded-lg font-medium">
+                                {cat}
+                              </span>
+                            ))}
+                          </div>
+                        </div>
+                        <div className="text-[#3182F6] text-xl">→</div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
+
+            {/* 크루 생성 버튼 - 하단으로 이동 */}
+            <button
+              onClick={() => {
+                setShowCreateCrew(true)
+                setOrgForm({ name: '', subtitle: '', description: '', categories: [] })
+                setOrgAvatarFile(null)
+              }}
+              className="w-full bg-gradient-to-r from-[#3182F6] to-[#2563EB] rounded-2xl p-6 shadow-lg hover:shadow-xl transition-all active:scale-[0.98] text-white"
+            >
+              <div className="flex items-center justify-between">
+                <div className="text-left">
+                  <h3 className="text-xl font-bold mb-1">새 크루 만들기</h3>
+                  <p className="text-sm opacity-90">나만의 크루를 시작하세요</p>
+                </div>
+                <div className="text-4xl">➕</div>
+              </div>
+            </button>
           </div>
         </div>
       )}
 
-      {/* My Crew Page */}
+      {/* My Crew Page - 토스 스타일 */}
       {currentPage === 'mycrew' && !selectedOrg && (
-        <div>
-          <div className="bg-gradient-to-r from-emerald-500 to-teal-500 text-white p-6">
-            <h1 className="text-2xl font-bold tracking-wide">MY CREW</h1>
-            <p className="text-sm opacity-90 mt-1">가입한 크루 목록</p>
-          </div>
+        <div className="bg-[#F9FAFB] min-h-screen">
+          {/* 헤더 */}
+          <header className="sticky top-0 bg-white z-10 safe-top border-b border-gray-100">
+            <div className="px-6 py-6">
+              <h1 className="text-2xl font-bold tracking-tight text-[#191F28]">내 크루</h1>
+              <p className="text-sm text-[#8B95A1] mt-1">가입한 크루 목록</p>
+            </div>
+          </header>
 
-          <div className="p-4 space-y-3">
+          <div className="px-5 py-6 space-y-3">
             {organizations.length === 0 ? (
-              <p className="text-gray-400 text-center py-8">가입한 크루가 없습니다.</p>
+              <div className="text-center py-16">
+                <div className="text-6xl mb-4">⛺</div>
+                <p className="text-base font-bold text-[#8B95A1]">가입한 크루가 없습니다</p>
+              </div>
             ) : (
               organizations.map((org) => (
                 <div
@@ -1121,25 +1618,41 @@ It's Campers와 함께하는 캠핑 일정에 참여하세요!
                     console.log('🖱️ 크루 선택됨:', org.name, 'ID:', org.id)
                     setSelectedOrg(org)
                   }}
-                  className="bg-white rounded-xl p-6 shadow-sm hover:shadow-md transition-shadow cursor-pointer"
+                  className="bg-white rounded-2xl p-6 shadow-sm border border-gray-100 hover:border-[#3182F6] hover:shadow-md transition-all cursor-pointer active:scale-[0.98]"
                 >
                   <div className="flex items-center gap-4">
-                    <div className="w-16 h-16 bg-gradient-to-br from-emerald-500 to-teal-500 rounded-full flex items-center justify-center text-3xl overflow-hidden">
-                      {org.avatar ? (
-                        <img src={org.avatar} alt={org.name} className="w-full h-full object-cover" />
-                      ) : (
-                        '⛺'
+                    <div className="w-16 h-16 bg-gradient-to-br from-blue-50 to-indigo-50 rounded-2xl flex items-center justify-center text-3xl overflow-hidden flex-shrink-0">
+                      <img
+                        src={org.avatar || '/default-avatar.svg'}
+                        alt={org.name}
+                        className="w-full h-full object-cover"
+                        onError={(e) => {
+                          const target = e.target as HTMLImageElement
+                          if (target.src !== `${window.location.origin}/default-avatar.svg`) {
+                            target.src = '/default-avatar.svg'
+                          }
+                        }}
+                      />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      {org.subtitle && (
+                        <p className="text-xs font-bold text-[#8B95A1] mb-1 truncate">{org.subtitle}</p>
                       )}
-                    </div>
-                    <div className="flex-1">
-                      <h3 className="text-xl font-bold mb-1">{org.name}</h3>
-                      <p className="text-sm text-gray-600">{org.description || org.category}</p>
-                      <p className="text-xs text-emerald-600 mt-1">
-                        👥 {orgMemberCounts[org.id] !== undefined ? orgMemberCounts[org.id] : '계산중...'}명
+                      <h3 className="text-xl font-bold tracking-tight text-[#191F28] mb-1 truncate">{org.name}</h3>
+                      <p className="text-sm text-[#6B7684] mb-2 truncate">{org.description || org.category}</p>
+                      <div className="inline-flex items-center gap-1.5 bg-[#F2F4F6] px-3 py-1 rounded-lg">
+                        <span className="text-sm">👥</span>
+                        <span className="text-sm font-bold text-[#191F28]">
+                          {orgMemberCounts[org.id] !== undefined ? orgMemberCounts[org.id] : '...'}명
+                        </span>
                         {console.log('화면 렌더링:', org.name, 'ID:', org.id, '카운트:', orgMemberCounts[org.id], '전체:', orgMemberCounts)}
-                      </p>
+                      </div>
                     </div>
-                    <div className="text-gray-400">→</div>
+                    <div className="text-[#8B95A1] flex-shrink-0">
+                      <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                        <polyline points="9 18 15 12 9 6"></polyline>
+                      </svg>
+                    </div>
                   </div>
                 </div>
               ))
@@ -1148,53 +1661,76 @@ It's Campers와 함께하는 캠핑 일정에 참여하세요!
         </div>
       )}
 
-      {/* Crew Detail Page */}
+      {/* Crew Detail Page - 토스 스타일 */}
       {currentPage === 'mycrew' && selectedOrg && (
-        <div>
-          <div className="bg-gradient-to-r from-emerald-500 to-teal-500 text-white p-6">
-            <button
-              onClick={() => setSelectedOrg(null)}
-              className="text-white text-2xl mb-4"
-            >
-              ←
-            </button>
-            <p className="text-sm opacity-90 mb-1 tracking-wide">OUTDOOR LIFE</p>
-            <h1 className="text-2xl font-bold tracking-wide">{selectedOrg.name.toUpperCase()}</h1>
-            <div className="grid grid-cols-3 gap-3 mt-6">
+        <div className="bg-[#F9FAFB] min-h-screen">
+          {/* 헤더 */}
+          <header className="sticky top-0 bg-white z-10 safe-top border-b border-gray-100">
+            <div className="px-6 py-6">
+              <div className="flex items-center justify-between mb-3">
+                <button
+                  onClick={() => setSelectedOrg(null)}
+                  className="text-[#191F28] text-2xl p-2 hover:bg-gray-50 rounded-xl active:scale-95 transition-all -ml-2"
+                >
+                  ←
+                </button>
+                {userProfile?.role === 'captain' && (
+                  <button
+                    onClick={() => handleOpenOrgEdit(selectedOrg)}
+                    className="px-4 py-2 bg-[#F2F4F6] text-[#191F28] text-sm font-semibold rounded-xl hover:bg-[#E5E8EB] active:scale-95 transition-all"
+                  >
+                    ⚙️ 크루 정보 수정
+                  </button>
+                )}
+              </div>
+              {selectedOrg.subtitle && (
+                <p className="text-sm font-bold text-[#8B95A1] mb-1">{selectedOrg.subtitle}</p>
+              )}
+              <h1 className="text-2xl font-bold tracking-tight text-[#191F28]">{selectedOrg.name}</h1>
+            </div>
+
+            {/* 통계 카드 */}
+            <div className="px-6 pb-6 grid grid-cols-3 gap-3">
               <button
                 onClick={() => setScheduleFilter('all')}
-                className={`rounded-xl p-4 text-center transition-all ${
-                  scheduleFilter === 'all' ? 'bg-white/20 border-2 border-white/50' : 'bg-white/10 hover:bg-white/15'
+                className={`rounded-2xl p-4 text-center transition-all ${
+                  scheduleFilter === 'all'
+                    ? 'bg-[#3182F6] text-white shadow-md'
+                    : 'bg-[#F2F4F6] text-[#191F28] hover:bg-[#E5E8EB]'
                 }`}
               >
-                <div className="text-3xl font-bold">{upcomingSchedules.length}</div>
-                <div className="text-sm mt-1">전체</div>
+                <div className="text-3xl font-bold tracking-tight">{upcomingSchedules.length}</div>
+                <div className="text-xs font-bold mt-1 opacity-80">전체</div>
               </button>
               <button
                 onClick={() => setScheduleFilter('joined')}
-                className={`rounded-xl p-4 text-center transition-all ${
-                  scheduleFilter === 'joined' ? 'bg-white/20 border-2 border-white/50' : 'bg-white/10 hover:bg-white/15'
+                className={`rounded-2xl p-4 text-center transition-all ${
+                  scheduleFilter === 'joined'
+                    ? 'bg-[#3182F6] text-white shadow-md'
+                    : 'bg-[#F2F4F6] text-[#191F28] hover:bg-[#E5E8EB]'
                 }`}
               >
-                <div className="text-3xl font-bold">{mySchedules.length}</div>
-                <div className="text-sm mt-1">참여 일정</div>
+                <div className="text-3xl font-bold tracking-tight">{mySchedules.length}</div>
+                <div className="text-xs font-bold mt-1 opacity-80">참여 일정</div>
               </button>
               <button
                 onClick={() => setScheduleFilter('not-joined')}
-                className={`rounded-xl p-4 text-center transition-all ${
-                  scheduleFilter === 'not-joined' ? 'bg-white/20 border-2 border-white/50' : 'bg-white/10 hover:bg-white/15'
+                className={`rounded-2xl p-4 text-center transition-all ${
+                  scheduleFilter === 'not-joined'
+                    ? 'bg-[#3182F6] text-white shadow-md'
+                    : 'bg-[#F2F4F6] text-[#191F28] hover:bg-[#E5E8EB]'
                 }`}
               >
-                <div className="text-3xl font-bold">{upcomingSchedules.length - mySchedules.length}</div>
-                <div className="text-sm mt-1">미참여 일정</div>
+                <div className="text-3xl font-bold tracking-tight">{upcomingSchedules.length - mySchedules.length}</div>
+                <div className="text-xs font-bold mt-1 opacity-80">미참여</div>
               </button>
             </div>
-          </div>
+          </header>
 
-          <div className="p-4 space-y-4">
+          <div className="px-5 py-6 space-y-6">
             {/* 다가오는 일정 */}
             <div>
-              <h3 className="text-lg font-bold text-gray-900 mb-3 px-2">다가오는 일정</h3>
+              <h3 className="text-lg font-bold tracking-tight text-[#191F28] mb-4">다가오는 일정</h3>
               <div className="space-y-3">
                 {(() => {
                   let filteredSchedules = upcomingSchedules
@@ -1205,7 +1741,12 @@ It's Campers와 함께하는 캠핑 일정에 참여하세요!
                   }
 
                   if (filteredSchedules.length === 0) {
-                    return <p className="text-gray-400 text-center py-8">다가오는 일정이 없습니다.</p>
+                    return (
+                      <div className="text-center py-16">
+                        <div className="text-6xl mb-4">📅</div>
+                        <p className="text-base font-bold text-[#8B95A1]">다가오는 일정이 없습니다</p>
+                      </div>
+                    )
                   }
 
                   return filteredSchedules.map((schedule) => {
@@ -1214,24 +1755,36 @@ It's Campers와 함께하는 캠핑 일정에 참여하세요!
                     <div
                       key={schedule.id}
                       onClick={() => setSelectedSchedule(schedule)}
-                      className={`bg-white rounded-xl p-5 shadow-sm hover:shadow-md transition-shadow cursor-pointer ${
-                        isParticipating ? 'border-2 border-emerald-500' : ''
+                      className={`bg-white rounded-2xl p-5 shadow-sm border transition-all cursor-pointer active:scale-[0.98] ${
+                        isParticipating ? 'border-[#3182F6] shadow-md' : 'border-gray-100 hover:border-[#3182F6] hover:shadow-md'
                       }`}
                     >
-                      <div className="flex justify-between items-start mb-3">
-                        <h3 className="font-bold text-lg">{schedule.title}</h3>
-                        <span className={`text-xs px-3 py-1 rounded-full font-semibold ${getTypeColor(schedule.type)}`}>
+                      <div className="flex justify-between items-start mb-4">
+                        <h3 className="font-bold text-lg tracking-tight text-[#191F28] flex-1">{schedule.title}</h3>
+                        <span className={`text-xs px-3 py-1.5 rounded-lg font-bold ${getTypeColor(schedule.type)}`}>
                           {schedule.type}
                         </span>
                       </div>
-                      <div className="space-y-2 text-sm text-gray-600">
-                        <p>📅 {formatDateWithYear(schedule.date)} {schedule.time}</p>
-                        <p>📍 {schedule.location}</p>
-                        <p>👥 {schedule.participants?.length || 0}/{schedule.maxParticipants}명</p>
-                        <p>🎯 벙주: {schedule.createdBy}</p>
+                      <div className="space-y-2 text-sm text-[#6B7684]">
+                        <p className="flex items-center gap-2">
+                          <span>📅</span>
+                          <span className="font-medium">{formatDateWithYear(schedule.date)} {schedule.time}</span>
+                        </p>
+                        <p className="flex items-center gap-2">
+                          <span>📍</span>
+                          <span className="font-medium">{schedule.location}</span>
+                        </p>
+                        <p className="flex items-center gap-2">
+                          <span>👥</span>
+                          <span className="font-medium">{schedule.participants?.length || 0}/{schedule.maxParticipants}명</span>
+                        </p>
+                        <p className="flex items-center gap-2">
+                          <span>🎯</span>
+                          <span className="font-medium">벙주: {schedule.createdBy}</span>
+                        </p>
                       </div>
                       {isParticipating && (
-                        <div className="mt-3 text-xs bg-emerald-50 text-emerald-700 px-3 py-2 rounded-lg font-semibold text-center">
+                        <div className="mt-4 text-xs bg-[#E8F5E9] text-[#2E7D32] px-3 py-2 rounded-xl font-bold text-center">
                           ✓ 참여 중
                         </div>
                       )}
@@ -1283,13 +1836,13 @@ It's Campers와 함께하는 캠핑 일정에 참여하세요!
           <div className="fixed bottom-32 right-5 flex flex-col gap-4 z-30">
             <button
               onClick={() => setShowMemberList(true)}
-              className="w-16 h-16 bg-white border-2 border-emerald-500 text-emerald-600 rounded-full shadow-lg active:scale-95 transition-transform flex items-center justify-center"
+              className="w-16 h-16 bg-white border-2 border-[#3182F6] text-[#3182F6] rounded-full shadow-lg active:scale-95 transition-transform flex items-center justify-center"
             >
               <Users className="w-7 h-7" />
             </button>
             <button
               onClick={() => setShowCreateSchedule(true)}
-              className="w-16 h-16 bg-gradient-to-r from-emerald-500 to-teal-500 text-white rounded-full shadow-lg text-3xl font-bold active:scale-95 transition-transform"
+              className="w-16 h-16 bg-[#3182F6] hover:bg-[#1B64DA] text-white rounded-full shadow-lg text-3xl font-bold active:scale-95 transition-transform"
             >
               +
             </button>
@@ -1301,7 +1854,7 @@ It's Campers와 함께하는 캠핑 일정에 참여하세요!
       {showMemberList && (
         <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
           <div className="bg-white rounded-2xl max-w-md w-full max-h-[80vh] overflow-hidden flex flex-col">
-            <div className="bg-gradient-to-r from-emerald-500 to-teal-500 text-white p-6">
+            <div className="bg-[#3182F6] text-white p-6">
               <div className="flex justify-between items-center mb-2">
                 <div className="flex items-center gap-3">
                   <h2 className="text-2xl font-bold">CREW MEMBERS</h2>
@@ -1410,20 +1963,31 @@ It's Campers와 함께하는 캠핑 일정에 참여하세요!
                         className="bg-gray-50 rounded-lg p-4 flex items-center gap-3"
                       >
                         <div
-                          onClick={() => member.avatar && setSelectedAvatarUrl(member.avatar)}
-                          className={`w-12 h-12 rounded-full bg-gradient-to-br from-emerald-500 to-teal-500 flex items-center justify-center text-white text-xl overflow-hidden ${member.avatar ? 'cursor-pointer hover:ring-2 hover:ring-emerald-400' : ''}`}
+                          onClick={(e) => {
+                            const img = e.currentTarget.querySelector('img')
+                            if (img && img.src && !img.src.includes('default-avatar.svg')) {
+                              setSelectedAvatarUrl(img.src)
+                            }
+                          }}
+                          className="w-12 h-12 rounded-full flex items-center justify-center overflow-hidden cursor-pointer hover:ring-2 hover:ring-[#3182F6] bg-gray-200"
                         >
-                          {member.avatar ? (
-                            <img src={member.avatar} alt={member.name} className="w-full h-full object-cover" />
-                          ) : (
-                            '👤'
-                          )}
+                          <img
+                            src={member.avatar || '/default-avatar.svg'}
+                            alt={member.name}
+                            className="w-full h-full object-cover"
+                            onError={(e) => {
+                              const target = e.target as HTMLImageElement
+                              if (target.src !== `${window.location.origin}/default-avatar.svg`) {
+                                target.src = '/default-avatar.svg'
+                              }
+                            }}
+                          />
                         </div>
                         <div className="flex-1">
                           <div className="flex items-center gap-2">
                             <span className="font-bold">{member.name}</span>
                             {member.isCaptain && (
-                              <span className="text-xs bg-emerald-500 text-white px-2 py-0.5 rounded-full">
+                              <span className="text-xs bg-[#3182F6] text-white px-2 py-0.5 rounded-full">
                                 크루장
                               </span>
                             )}
@@ -1434,11 +1998,14 @@ It's Campers와 함께하는 캠핑 일정에 참여하세요!
                             )}
                           </div>
                           <p className="text-xs text-gray-500 mt-1">가입일: {member.joinDate}</p>
+                          {(member as any).location && (
+                            <p className="text-xs text-gray-500 mt-0.5">지역: {(member as any).location}</p>
+                          )}
                           <p className="text-xs text-gray-600 mt-0.5">
                             {daysSinceLastParticipation === null ? (
                               <span className="text-red-500">참여 이력 없음</span>
                             ) : daysSinceLastParticipation === 0 ? (
-                              <span className="text-emerald-600 font-semibold">오늘 참여</span>
+                              <span className="text-[#3182F6] font-semibold">오늘 참여</span>
                             ) : (
                               <span className={daysSinceLastParticipation >= 90 ? 'text-red-500' : daysSinceLastParticipation >= 60 ? 'text-orange-500' : 'text-gray-600'}>
                                 마지막 참여: {daysSinceLastParticipation}일 전
@@ -1452,7 +2019,7 @@ It's Campers와 함께하는 캠핑 일정에 참여하세요!
                           <div className="flex gap-1">
                             <button
                               onClick={() => handleOpenMemberInfoEdit(member)}
-                              className="px-2 py-1 text-xs bg-emerald-500 text-white rounded-lg hover:bg-emerald-600"
+                              className="px-2 py-1 text-xs bg-[#3182F6] text-white rounded-lg hover:bg-[#1B64DA]"
                             >
                               수정
                             </button>
@@ -1480,65 +2047,87 @@ It's Campers와 함께하는 캠핑 일정에 참여하세요!
         </div>
       )}
 
-      {/* 일정 상세 모달 */}
+      {/* 일정 상세 모달 - 토스 스타일 */}
       {selectedSchedule && (
         <div
-          className="fixed inset-0 bg-black/50 z-50 flex items-start justify-center p-4 py-8 overflow-y-auto"
+          className="fixed inset-0 bg-black/60 z-50 flex items-end sm:items-center justify-center overflow-y-auto"
           onClick={(e) => {
             if (e.target === e.currentTarget) {
               setSelectedSchedule(null)
             }
           }}
         >
-          <div className="bg-white rounded-2xl max-w-md w-full overflow-hidden my-auto">
-            <div className="bg-gradient-to-r from-emerald-500 to-teal-500 text-white p-6">
-              <div className="flex justify-between items-center mb-2">
-                <h2 className="text-2xl font-bold">{selectedSchedule.title}</h2>
-                <button
-                  onClick={() => setSelectedSchedule(null)}
-                  className="text-white text-2xl hover:opacity-80"
-                >
-                  ×
-                </button>
-              </div>
-              <span className="text-xs bg-white/20 px-3 py-1 rounded-full">
-                {selectedSchedule.type}
-              </span>
+          <div className="bg-white rounded-t-3xl sm:rounded-3xl max-w-lg w-full overflow-hidden my-auto shadow-2xl animate-slideUp">
+            {/* 드래그 핸들 */}
+            <div className="flex justify-center pt-3 pb-2 sm:hidden">
+              <div className="w-10 h-1 bg-gray-300 rounded-full"></div>
             </div>
 
-            <div className="p-6 space-y-4 max-h-[70vh] overflow-y-auto">
-              <div>
-                <div className="text-sm text-gray-500 mb-1">📅 일시</div>
-                <div className="font-semibold">{formatDateWithYear(selectedSchedule.date)} {selectedSchedule.time}</div>
+            {/* 헤더 */}
+            <div className="px-6 pt-5 pb-4 border-b border-gray-100">
+              <div className="flex justify-between items-start mb-3">
+                <div className="flex-1">
+                  <h2 className="text-2xl font-bold tracking-tight text-[#191F28] leading-tight mb-2">
+                    {selectedSchedule.title}
+                  </h2>
+                  <span className="inline-block text-xs font-bold bg-[#F2F4F6] text-[#4E5968] px-3 py-1.5 rounded-lg">
+                    {selectedSchedule.type}
+                  </span>
+                </div>
+                <button
+                  onClick={() => setSelectedSchedule(null)}
+                  className="p-2 hover:bg-gray-100 rounded-xl active:scale-95 transition-all -mr-2"
+                >
+                  <span className="text-2xl text-[#8B95A1]">×</span>
+                </button>
+              </div>
+            </div>
+
+            <div className="px-6 py-5 space-y-6 max-h-[70vh] overflow-y-auto">
+              {/* 일정 정보 카드 */}
+              <div className="bg-[#F9FAFB] rounded-2xl p-5 space-y-4">
+                <div>
+                  <div className="text-sm font-bold text-[#8B95A1] mb-2">📅 일시</div>
+                  <div className="text-base font-bold text-[#191F28]">
+                    {formatDateWithYear(selectedSchedule.date)} {selectedSchedule.time}
+                  </div>
+                </div>
+
+                <div className="h-px bg-[#E5E8EB]"></div>
+
+                <div>
+                  <div className="text-sm font-bold text-[#8B95A1] mb-2">📍 장소</div>
+                  <div className="text-base font-bold text-[#191F28]">{selectedSchedule.location}</div>
+                </div>
+
+                <div className="h-px bg-[#E5E8EB]"></div>
+
+                <div>
+                  <div className="text-sm font-bold text-[#8B95A1] mb-2">🎯 벙주</div>
+                  <div className="text-base font-bold text-[#191F28]">{selectedSchedule.createdBy || '정보 없음'}</div>
+                </div>
               </div>
 
+              {/* 참여 인원 섹션 */}
               <div>
-                <div className="text-sm text-gray-500 mb-1">📍 장소</div>
-                <div className="font-semibold">{selectedSchedule.location}</div>
-              </div>
-
-              <div>
-                <div className="text-sm text-gray-500 mb-1">🎯 벙주</div>
-                <div className="font-semibold">{selectedSchedule.createdBy || '정보 없음'}</div>
-              </div>
-
-              <div>
-                <div className="text-sm text-gray-500 mb-1">👥 참여 인원</div>
-                <div className="font-semibold">
-                  {selectedSchedule.participants?.length || 0} / {selectedSchedule.maxParticipants}명
+                <div className="flex items-center justify-between mb-3">
+                  <div className="text-base font-bold text-[#191F28]">👥 참여 인원</div>
+                  <div className="text-base font-bold text-[#3182F6]">
+                    {selectedSchedule.participants?.length || 0} / {selectedSchedule.maxParticipants}명
+                  </div>
                 </div>
                 {selectedSchedule.participants && selectedSchedule.participants.length > 0 && (
-                  <div className="mt-2 flex flex-wrap gap-2">
+                  <div className="flex flex-wrap gap-2">
                     {selectedSchedule.participants.map((name) => (
-                      <div key={name} className="text-xs bg-gray-100 px-3 py-2 rounded flex items-center gap-2">
-                        <span>{name}</span>
+                      <div key={name} className="bg-[#F2F4F6] px-4 py-2.5 rounded-xl flex items-center gap-2 hover:bg-[#E5E8EB] transition-colors">
+                        <span className="text-sm font-bold text-[#191F28]">{name}</span>
                         {(userProfile?.role === 'captain' || userProfile?.role === 'staff' || selectedSchedule.createdByUid === user?.uid) && (
                           <button
                             onClick={(e) => {
                               e.stopPropagation()
                               handleRemoveParticipant(selectedSchedule, name)
                             }}
-                            className="text-red-500 hover:text-red-700 font-bold text-base min-w-[20px] min-h-[20px] flex items-center justify-center"
+                            className="text-[#8B95A1] hover:text-red-500 font-bold text-lg leading-none active:scale-95 transition-all"
                           >
                             ×
                           </button>
@@ -1553,50 +2142,55 @@ It's Campers와 함께하는 캠핑 일정에 참여하세요!
                       e.stopPropagation()
                       setManagingParticipants(!managingParticipants)
                     }}
-                    className="mt-2 text-sm text-emerald-600 hover:underline font-medium py-1"
+                    className="mt-3 text-sm text-[#3182F6] hover:text-[#1B64DA] font-bold py-1 active:scale-95 transition-all"
                   >
-                    {managingParticipants ? '관리 종료' : '참석자 추가하기'}
+                    {managingParticipants ? '관리 종료' : '+ 참석자 추가하기'}
                   </button>
                 )}
                 {managingParticipants && members.filter(m => !selectedSchedule.participants?.includes(m.name)).length > 0 && (
-                  <div className="mt-2 p-3 bg-gray-50 rounded max-h-40 overflow-y-auto">
-                    <div className="text-xs text-gray-600 mb-2">멤버를 클릭하여 추가:</div>
-                    {members.filter(m => !selectedSchedule.participants?.includes(m.name)).map(member => (
-                      <button
-                        key={member.id}
-                        onClick={(e) => {
-                          e.stopPropagation()
-                          handleAddParticipant(selectedSchedule, member.name)
-                        }}
-                        className="text-sm bg-white px-3 py-2 rounded mr-2 mb-2 hover:bg-emerald-50 border border-gray-300 active:scale-95 transition-transform"
-                      >
-                        + {member.name}
-                      </button>
-                    ))}
+                  <div className="mt-3 p-4 bg-[#F9FAFB] rounded-2xl max-h-40 overflow-y-auto">
+                    <div className="text-xs font-bold text-[#8B95A1] mb-3">멤버를 클릭하여 추가</div>
+                    <div className="flex flex-wrap gap-2">
+                      {members.filter(m => !selectedSchedule.participants?.includes(m.name)).map(member => (
+                        <button
+                          key={member.id}
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            handleAddParticipant(selectedSchedule, member.name)
+                          }}
+                          className="text-sm font-bold bg-white px-4 py-2 rounded-xl hover:bg-[#3182F6] hover:text-white border border-[#E5E8EB] active:scale-95 transition-all"
+                        >
+                          + {member.name}
+                        </button>
+                      ))}
+                    </div>
                   </div>
                 )}
               </div>
 
               {/* 댓글 섹션 */}
-              <div className="border-t pt-4">
-                <div className="text-sm font-medium text-gray-700 mb-2">💬 댓글 ({selectedSchedule.comments?.length || 0})</div>
+              <div className="border-t border-gray-100 pt-6">
+                <div className="flex items-center gap-2 mb-4">
+                  <span className="text-base font-bold text-[#191F28]">💬 댓글</span>
+                  <span className="text-sm font-bold text-[#8B95A1]">({selectedSchedule.comments?.length || 0})</span>
+                </div>
                 {selectedSchedule.comments && selectedSchedule.comments.length > 0 && (
-                  <div className="space-y-2 mb-3 max-h-64 overflow-y-auto">
+                  <div className="space-y-3 mb-4 max-h-64 overflow-y-auto">
                     {selectedSchedule.comments.map((comment, index) => (
-                      <div key={`${comment.id}-${index}`} className="bg-gray-50 p-2 rounded text-sm relative">
-                        <div className="flex justify-between items-start">
-                          <div className="font-bold text-xs text-emerald-600">{comment.userName || '익명'}</div>
+                      <div key={`${comment.id}-${index}`} className="bg-[#F9FAFB] p-4 rounded-2xl">
+                        <div className="flex justify-between items-start mb-2">
+                          <div className="font-bold text-sm text-[#3182F6]">{comment.userName || '익명'}</div>
                           {(comment.userUid === user?.uid || userProfile?.role === 'captain' || userProfile?.role === 'staff') && (
                             <button
                               onClick={() => handleDeleteComment(selectedSchedule, comment.id)}
-                              className="text-gray-400 hover:text-red-500 text-lg leading-none"
+                              className="text-[#8B95A1] hover:text-red-500 text-xl leading-none active:scale-95 transition-all"
                             >
                               ×
                             </button>
                           )}
                         </div>
-                        <div className="mt-1">{comment.text}</div>
-                        <div className="text-xs text-gray-400 mt-1">
+                        <div className="text-sm text-[#191F28] leading-relaxed mb-2">{comment.text}</div>
+                        <div className="text-xs font-medium text-[#8B95A1]">
                           {new Date(comment.createdAt).toLocaleString('ko-KR', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
                         </div>
                       </div>
@@ -1610,11 +2204,11 @@ It's Campers와 함께하는 캠핑 일정에 참여하세요!
                     onChange={(e) => setCommentText(e.target.value)}
                     onKeyPress={(e) => e.key === 'Enter' && handleAddComment(selectedSchedule)}
                     placeholder="댓글을 입력하세요..."
-                    className="flex-1 px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-emerald-500"
+                    className="flex-1 px-4 py-3 border-2 border-[#E5E8EB] rounded-xl text-sm focus:border-[#3182F6] focus:outline-none transition-colors"
                   />
                   <button
                     onClick={() => handleAddComment(selectedSchedule)}
-                    className="px-4 py-2 bg-emerald-500 text-white rounded-lg text-sm font-semibold hover:bg-emerald-600"
+                    className="px-5 py-3 bg-[#3182F6] text-white rounded-xl text-sm font-bold hover:bg-[#1B64DA] active:scale-95 transition-all"
                   >
                     등록
                   </button>
@@ -1622,10 +2216,10 @@ It's Campers와 함께하는 캠핑 일정에 참여하세요!
               </div>
 
               {/* 카카오톡 공유하기 버튼 */}
-              <div className="pt-4 border-t">
+              <div className="border-t border-gray-100 pt-5">
                 <button
                   onClick={() => handleShareSchedule(selectedSchedule)}
-                  className="w-full bg-gradient-to-r from-yellow-400 to-yellow-500 text-gray-900 py-3 rounded-lg font-bold hover:from-yellow-500 hover:to-yellow-600 transition-all active:scale-95 flex items-center justify-center gap-2 shadow-md"
+                  className="w-full bg-[#FEE500] text-[#191F28] py-4 rounded-2xl font-bold hover:bg-[#FDD835] transition-all active:scale-[0.98] flex items-center justify-center gap-2 shadow-sm"
                 >
                   <span className="text-xl">💬</span>
                   <span>카카오톡 공유하기</span>
@@ -1634,7 +2228,7 @@ It's Campers와 함께하는 캠핑 일정에 참여하세요!
 
               {/* 마스터(크루장/운영진) 또는 벙주만 수정/삭제 가능 */}
               {(userProfile?.role === 'captain' || userProfile?.role === 'staff' || selectedSchedule.createdByUid === user?.uid) && (
-                <div className="pt-4 flex gap-2 border-t">
+                <div className="flex gap-3">
                   <button
                     onClick={() => {
                       setEditScheduleForm({
@@ -1648,27 +2242,27 @@ It's Campers와 함께하는 캠핑 일정에 참여하세요!
                       setEditingSchedule(selectedSchedule)
                       setSelectedSchedule(null)
                     }}
-                    className="flex-1 bg-blue-500 text-white py-2 rounded-lg font-semibold hover:bg-blue-600 transition-colors text-sm"
+                    className="flex-1 bg-[#3182F6] text-white py-3.5 rounded-xl font-bold hover:bg-[#1B64DA] transition-all active:scale-[0.98] text-sm"
                   >
                     ✏️ 수정
                   </button>
                   <button
                     onClick={() => handleDeleteSchedule(selectedSchedule)}
-                    className="flex-1 bg-red-500 text-white py-2 rounded-lg font-semibold hover:bg-red-600 transition-colors text-sm"
+                    className="flex-1 bg-[#F2F4F6] text-[#F04452] py-3.5 rounded-xl font-bold hover:bg-[#FFE5E8] transition-all active:scale-[0.98] text-sm"
                   >
                     🗑️ 삭제
                   </button>
                 </div>
               )}
 
-              <div className="pt-4">
+              <div>
                 {selectedSchedule.participants?.includes(profile.name) ? (
                   <button
                     onClick={() => {
                       handleToggleParticipation(selectedSchedule)
                       setSelectedSchedule(null)
                     }}
-                    className="w-full bg-red-500 text-white py-3 rounded-lg font-semibold hover:bg-red-600 transition-colors"
+                    className="w-full bg-[#F2F4F6] text-[#F04452] py-4 rounded-2xl font-bold hover:bg-[#FFE5E8] transition-all active:scale-[0.98]"
                   >
                     참여 취소
                   </button>
@@ -1678,7 +2272,7 @@ It's Campers와 함께하는 캠핑 일정에 참여하세요!
                       handleToggleParticipation(selectedSchedule)
                       setSelectedSchedule(null)
                     }}
-                    className="w-full bg-gradient-to-r from-emerald-500 to-teal-500 text-white py-3 rounded-lg font-semibold hover:from-emerald-600 hover:to-teal-600 transition-colors"
+                    className="w-full bg-[#3182F6] text-white py-4 rounded-2xl font-bold hover:bg-[#1B64DA] disabled:bg-[#E5E8EB] disabled:text-[#8B95A1] transition-all active:scale-[0.98]"
                     disabled={selectedSchedule.participants.length >= selectedSchedule.maxParticipants}
                   >
                     {selectedSchedule.participants.length >= selectedSchedule.maxParticipants ? '정원 초과' : '참여하기'}
@@ -1690,73 +2284,132 @@ It's Campers와 함께하는 캠핑 일정에 참여하세요!
         </div>
       )}
 
-      {/* My Profile Page */}
+      {/* My Profile Page - 토스 스타일 */}
       {currentPage === 'myprofile' && (
-        <div>
-          <div className="bg-gradient-to-r from-emerald-500 to-teal-500 text-white p-6">
-            <h1 className="text-2xl font-bold tracking-wide">MY PAGE</h1>
-          </div>
+        <div className="bg-[#F9FAFB] min-h-screen pb-20">
+          {/* 헤더 */}
+          <header className="sticky top-0 bg-white z-10 safe-top border-b border-gray-100">
+            <div className="px-6 py-6">
+              <h1 className="text-2xl font-bold tracking-tight text-[#191F28]">내 정보</h1>
+            </div>
+          </header>
 
-          <div className="p-4">
-            <div className="bg-white rounded-xl p-6 shadow-sm">
+          <div className="px-5 py-6 space-y-4">
+            {/* 프로필 카드 */}
+            <div className="bg-white rounded-2xl p-6 shadow-sm border border-gray-100">
               <div className="text-center mb-6">
-                <div className="w-24 h-24 mx-auto mb-4 bg-gradient-to-br from-emerald-500 to-teal-500 rounded-full flex items-center justify-center text-4xl overflow-hidden">
-                  {profile.avatar ? (
-                    <img src={profile.avatar} alt={profile.name} className="w-full h-full object-cover" />
-                  ) : (
-                    '👤'
-                  )}
+                <div className="relative w-24 h-24 mx-auto mb-4 group">
+                  <div className="w-full h-full bg-gradient-to-br from-blue-50 to-indigo-50 rounded-full flex items-center justify-center text-4xl overflow-hidden">
+                    <img
+                      src={profile.avatar || '/default-avatar.svg'}
+                      alt={profile.name}
+                      className="w-full h-full object-cover"
+                      onError={(e) => {
+                        const target = e.target as HTMLImageElement
+                        if (target.src !== `${window.location.origin}/default-avatar.svg`) {
+                          target.src = '/default-avatar.svg'
+                        }
+                      }}
+                    />
+                  </div>
+                  {/* Hover 시 나타나는 변경 버튼 */}
+                  <label className="absolute inset-0 bg-black/50 rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer">
+                    <input
+                      type="file"
+                      accept="image/*"
+                      className="hidden"
+                      disabled={uploadingAvatar}
+                      onChange={(e) => {
+                        const file = e.target.files?.[0]
+                        if (file) {
+                          handleChangeAvatar(file)
+                        }
+                      }}
+                    />
+                    <span className="text-white text-sm font-bold">
+                      {uploadingAvatar ? '업로드 중...' : '사진 변경'}
+                    </span>
+                  </label>
                 </div>
-                <h2 className="text-2xl font-bold mb-1">{profile.name}</h2>
-                <p className="text-gray-600 text-sm">{profile.email}</p>
+                <h2 className="text-2xl font-bold tracking-tight text-[#191F28] mb-2">{profile.name}</h2>
+                <p className="text-sm text-[#8B95A1]">{profile.email}</p>
               </div>
 
-              <div className="bg-gray-50 rounded-lg p-4 space-y-3">
+              {/* 정보 섹션 */}
+              <div className="bg-[#F9FAFB] rounded-2xl p-5 space-y-4">
                 <div>
-                  <div className="text-xs text-gray-500 mb-1">생년월일</div>
-                  <div className="font-semibold">{profile.birthdate}</div>
+                  <div className="text-xs font-bold text-[#8B95A1] mb-2">생년월일</div>
+                  <div className="text-base font-bold text-[#191F28]">{profile.birthdate}</div>
                 </div>
+                <div className="h-px bg-[#E5E8EB]"></div>
                 <div>
-                  <div className="text-xs text-gray-500 mb-1">성별</div>
-                  <div className="font-semibold">{profile.gender}</div>
+                  <div className="text-xs font-bold text-[#8B95A1] mb-2">성별</div>
+                  <div className="text-base font-bold text-[#191F28]">{profile.gender}</div>
                 </div>
+                <div className="h-px bg-[#E5E8EB]"></div>
                 <div>
-                  <div className="text-xs text-gray-500 mb-1">지역</div>
-                  <div className="font-semibold">{profile.location}</div>
+                  <div className="text-xs font-bold text-[#8B95A1] mb-2">지역</div>
+                  <div className="text-base font-bold text-[#191F28]">{profile.location}</div>
                 </div>
+                <div className="h-px bg-[#E5E8EB]"></div>
                 <div>
-                  <div className="text-xs text-gray-500 mb-1">MBTI</div>
-                  <div className="font-semibold">{profile.mbti || '-'}</div>
+                  <div className="text-xs font-bold text-[#8B95A1] mb-2">MBTI</div>
+                  <div className="text-base font-bold text-[#191F28]">{profile.mbti || '-'}</div>
                 </div>
+                <div className="h-px bg-[#E5E8EB]"></div>
                 <div>
-                  <div className="text-xs text-gray-500 mb-1">가입일</div>
-                  <div className="font-semibold">{profile.joinDate}</div>
+                  <div className="text-xs font-bold text-[#8B95A1] mb-2">관심 카테고리</div>
+                  <div className="flex flex-wrap gap-2">
+                    {(profile.interestCategories || []).length > 0 ? (
+                      profile.interestCategories.map((category, idx) => (
+                        <span key={idx} className="inline-flex items-center px-3 py-1 bg-[#3182F6] text-white text-xs rounded-full font-medium">
+                          {category}
+                        </span>
+                      ))
+                    ) : (
+                      <span className="text-base font-bold text-[#191F28]">-</span>
+                    )}
+                  </div>
+                </div>
+                <div className="h-px bg-[#E5E8EB]"></div>
+                <div>
+                  <div className="text-xs font-bold text-[#8B95A1] mb-2">가입일</div>
+                  <div className="text-base font-bold text-[#191F28]">{profile.joinDate}</div>
                 </div>
               </div>
+            </div>
 
-              <div className="flex gap-2 mt-6">
-                <button
-                  onClick={() => {
-                    setMyProfileForm({
-                      name: profile.name,
-                      gender: profile.gender,
-                      birthdate: profile.birthdate,
-                      location: profile.location,
-                      mbti: profile.mbti || ''
-                    })
-                    setEditingMyProfile(true)
-                  }}
-                  className="flex-1 bg-emerald-500 text-white py-3 rounded-lg font-semibold hover:bg-emerald-600"
-                >
-                  ✏️ 정보 수정
-                </button>
-                <button
-                  onClick={handleLogout}
-                  className="flex-1 bg-red-500 text-white py-3 rounded-lg font-semibold hover:bg-red-600"
-                >
-                  🚪 로그아웃
-                </button>
-              </div>
+            {/* 액션 버튼 */}
+            <div className="space-y-3">
+              <button
+                onClick={() => {
+                  // 지역 정보 파싱 (예: "서울특별시 강남구" -> city: "서울특별시", district: "강남구")
+                  const locationParts = profile.location?.split(' ') || []
+                  const city = locationParts[0] || ''
+                  const district = locationParts[1] || ''
+
+                  setMyProfileForm({
+                    name: profile.name,
+                    gender: profile.gender,
+                    birthdate: profile.birthdate,
+                    location: profile.location,
+                    mbti: profile.mbti || '',
+                    interestCategories: profile.interestCategories || []
+                  })
+                  setSelectedCity(city)
+                  setSelectedDistrict(district)
+                  setEditingMyProfile(true)
+                }}
+                className="w-full bg-[#3182F6] text-white py-4 rounded-2xl font-bold hover:bg-[#1B64DA] active:scale-[0.98] transition-all"
+              >
+                ✏️ 정보 수정
+              </button>
+              <button
+                onClick={handleLogout}
+                className="w-full bg-[#F2F4F6] text-[#F04452] py-4 rounded-2xl font-bold hover:bg-[#FFE5E8] active:scale-[0.98] transition-all"
+              >
+                🚪 로그아웃
+              </button>
             </div>
           </div>
         </div>
@@ -1796,7 +2449,7 @@ It's Campers와 함께하는 캠핑 일정에 참여하세요!
             <div className="p-6 space-y-3">
               <button
                 onClick={() => handleUpdateMemberRole(editingMember, 'captain')}
-                className="w-full py-3 bg-emerald-500 text-white rounded-lg font-semibold hover:bg-emerald-600 transition-colors"
+                className="w-full py-3 bg-[#3182F6] text-white rounded-lg font-semibold hover:bg-[#1B64DA] transition-colors"
               >
                 크루장으로 변경
               </button>
@@ -1827,9 +2480,10 @@ It's Campers와 함께하는 캠핑 일정에 참여하세요!
       {editingMemberInfo && (
         <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
           <div className="bg-white rounded-2xl max-w-md w-full max-h-[80vh] overflow-hidden flex flex-col">
-            <div className="bg-gradient-to-r from-emerald-500 to-teal-500 text-white p-6">
+            <div className="bg-[#3182F6] text-white p-6">
               <h2 className="text-xl font-bold">멤버 정보 수정</h2>
               <p className="text-sm opacity-90 mt-1">{editingMemberInfo.name}</p>
+              <p className="text-xs opacity-75 mt-1">로그인 계정: {editingMemberInfo.email}</p>
             </div>
 
             <div className="p-6 space-y-4 overflow-y-auto flex-1">
@@ -1839,7 +2493,7 @@ It's Campers와 함께하는 캠핑 일정에 참여하세요!
                   type="text"
                   value={editForm.name}
                   onChange={(e) => setEditForm({ ...editForm, name: e.target.value })}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500"
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#3182F6]"
                 />
               </div>
 
@@ -1848,7 +2502,7 @@ It's Campers와 함께하는 캠핑 일정에 참여하세요!
                 <select
                   value={editForm.gender}
                   onChange={(e) => setEditForm({ ...editForm, gender: e.target.value })}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500"
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#3182F6]"
                 >
                   <option value="">선택</option>
                   <option value="남">남</option>
@@ -1862,19 +2516,42 @@ It's Campers와 함께하는 캠핑 일정에 참여하세요!
                   type="date"
                   value={editForm.birthdate}
                   onChange={(e) => setEditForm({ ...editForm, birthdate: e.target.value })}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500"
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#3182F6]"
                 />
               </div>
 
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">지역 *</label>
-                <input
-                  type="text"
-                  value={editForm.location}
-                  onChange={(e) => setEditForm({ ...editForm, location: e.target.value })}
-                  placeholder="서울 강남구"
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500"
-                />
+                <div className="grid grid-cols-2 gap-2">
+                  <select
+                    value={selectedCityForMemberEdit}
+                    onChange={(e) => {
+                      setSelectedCityForMemberEdit(e.target.value)
+                      setSelectedDistrictForMemberEdit('') // Reset district when city changes
+                      setEditForm({ ...editForm, location: e.target.value })
+                    }}
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#3182F6]"
+                  >
+                    <option value="">시/도</option>
+                    {getCities().map(city => (
+                      <option key={city} value={city}>{city}</option>
+                    ))}
+                  </select>
+                  <select
+                    value={selectedDistrictForMemberEdit}
+                    onChange={(e) => {
+                      setSelectedDistrictForMemberEdit(e.target.value)
+                      setEditForm({ ...editForm, location: `${selectedCityForMemberEdit} ${e.target.value}` })
+                    }}
+                    disabled={!selectedCityForMemberEdit}
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#3182F6] disabled:bg-gray-100 disabled:cursor-not-allowed"
+                  >
+                    <option value="">구/군</option>
+                    {selectedCityForMemberEdit && getDistricts(selectedCityForMemberEdit).map(district => (
+                      <option key={district} value={district}>{district}</option>
+                    ))}
+                  </select>
+                </div>
               </div>
 
               <div>
@@ -1885,7 +2562,7 @@ It's Campers와 함께하는 캠핑 일정에 참여하세요!
                   onChange={(e) => setEditForm({ ...editForm, mbti: e.target.value })}
                   placeholder="ENFP"
                   maxLength={4}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500"
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#3182F6]"
                 />
               </div>
             </div>
@@ -1893,7 +2570,7 @@ It's Campers와 함께하는 캠핑 일정에 참여하세요!
             <div className="p-6 border-t flex gap-3">
               <button
                 onClick={handleUpdateMemberInfo}
-                className="flex-1 py-3 bg-gradient-to-r from-emerald-500 to-teal-500 text-white rounded-lg font-semibold hover:from-emerald-600 hover:to-teal-600 transition-colors"
+                className="flex-1 py-3 bg-[#3182F6] text-white rounded-lg font-semibold hover:bg-[#1B64DA] transition-colors"
               >
                 저장
               </button>
@@ -1908,11 +2585,328 @@ It's Campers와 함께하는 캠핑 일정에 참여하세요!
         </div>
       )}
 
+      {/* 크루 정보 수정 모달 */}
+      {editingOrg && (
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl max-w-md w-full max-h-[80vh] overflow-hidden flex flex-col">
+            <div className="bg-[#3182F6] text-white p-6">
+              <h2 className="text-xl font-bold">크루 정보 수정</h2>
+              <p className="text-sm opacity-90 mt-1">{editingOrg.name}</p>
+            </div>
+
+            <div className="p-6 space-y-4 overflow-y-auto flex-1">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">크루명 *</label>
+                <input
+                  type="text"
+                  value={orgForm.name}
+                  onChange={(e) => setOrgForm({ ...orgForm, name: e.target.value })}
+                  placeholder="우리 크루"
+                  required
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#3182F6]"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">크루 소제목</label>
+                <input
+                  type="text"
+                  value={orgForm.subtitle}
+                  onChange={(e) => setOrgForm({ ...orgForm, subtitle: e.target.value })}
+                  placeholder="함께하는 아웃도어 라이프"
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#3182F6]"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">크루 설명 *</label>
+                <textarea
+                  value={orgForm.description}
+                  onChange={(e) => setOrgForm({ ...orgForm, description: e.target.value })}
+                  placeholder="크루 소개를 입력하세요"
+                  required
+                  rows={3}
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#3182F6]"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">카테고리 * (중복 선택 가능)</label>
+                <div className="grid grid-cols-2 gap-2 max-h-48 overflow-y-auto p-2 border border-gray-300 rounded-lg">
+                  {CREW_CATEGORIES.map((category) => (
+                    <label
+                      key={category}
+                      className="flex items-center gap-2 p-2 rounded hover:bg-gray-50 cursor-pointer"
+                    >
+                      <input
+                        type="checkbox"
+                        checked={orgForm.categories.includes(category)}
+                        onChange={(e) => {
+                          if (e.target.checked) {
+                            setOrgForm({ ...orgForm, categories: [...orgForm.categories, category] })
+                          } else {
+                            setOrgForm({ ...orgForm, categories: orgForm.categories.filter(c => c !== category) })
+                          }
+                        }}
+                        className="w-4 h-4 text-[#3182F6] border-gray-300 rounded focus:ring-[#3182F6]"
+                      />
+                      <span className="text-sm text-gray-700">{category}</span>
+                    </label>
+                  ))}
+                </div>
+                {orgForm.categories.length > 0 && (
+                  <div className="mt-2 flex flex-wrap gap-1">
+                    {orgForm.categories.map((cat) => (
+                      <span key={cat} className="inline-flex items-center gap-1 px-2 py-1 bg-[#3182F6] text-white text-xs rounded-full">
+                        {cat}
+                        <button
+                          type="button"
+                          onClick={() => setOrgForm({ ...orgForm, categories: orgForm.categories.filter(c => c !== cat) })}
+                          className="hover:text-red-200"
+                        >
+                          ✕
+                        </button>
+                      </span>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">크루 메인사진</label>
+                <div className="space-y-2">
+                  {orgAvatarFile && (
+                    <div className="p-3 bg-gray-50 rounded-lg border border-gray-200 flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <span className="text-2xl">📷</span>
+                        <span className="text-sm text-gray-700">{orgAvatarFile.name}</span>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => setOrgAvatarFile(null)}
+                        className="text-red-500 text-sm font-medium"
+                      >
+                        삭제
+                      </button>
+                    </div>
+                  )}
+                  <div className="flex gap-2">
+                    <label className="flex-1 py-2.5 px-4 bg-white border border-gray-300 text-gray-700 rounded-lg font-medium text-center cursor-pointer hover:bg-gray-50 active:scale-95 transition-all">
+                      📸 사진 촬영
+                      <input
+                        type="file"
+                        accept="image/*"
+                        capture="environment"
+                        onChange={(e) => {
+                          const file = e.target.files?.[0]
+                          if (file) handleImageSelect(file, 'org')
+                        }}
+                        className="hidden"
+                      />
+                    </label>
+                    <label className="flex-1 py-2.5 px-4 bg-white border border-gray-300 text-gray-700 rounded-lg font-medium text-center cursor-pointer hover:bg-gray-50 active:scale-95 transition-all">
+                      🖼️ 갤러리
+                      <input
+                        type="file"
+                        accept="image/*"
+                        onChange={(e) => {
+                          const file = e.target.files?.[0]
+                          if (file) handleImageSelect(file, 'org')
+                        }}
+                        className="hidden"
+                      />
+                    </label>
+                  </div>
+                  <p className="text-xs text-gray-500">※ 5MB 이하 권장</p>
+                </div>
+              </div>
+            </div>
+
+            <div className="p-6 border-t flex gap-3">
+              <button
+                onClick={handleUpdateOrg}
+                className="flex-1 py-3 bg-[#3182F6] text-white rounded-lg font-semibold hover:bg-[#1B64DA] transition-colors"
+              >
+                저장
+              </button>
+              <button
+                onClick={() => {
+                  setEditingOrg(null)
+                  setOrgAvatarFile(null)
+                }}
+                className="flex-1 py-3 bg-gray-200 text-gray-700 rounded-lg font-semibold hover:bg-gray-300 transition-colors"
+              >
+                취소
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 크루 생성 모달 */}
+      {showCreateCrew && (
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl max-w-md w-full max-h-[80vh] overflow-hidden flex flex-col">
+            <div className="bg-gradient-to-r from-[#3182F6] to-[#2563EB] text-white p-6">
+              <h2 className="text-xl font-bold">새 크루 만들기</h2>
+              <p className="text-sm opacity-90 mt-1">나만의 캠핑 크루를 시작하세요</p>
+            </div>
+
+            <div className="p-6 space-y-4 overflow-y-auto flex-1">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">크루명 *</label>
+                <input
+                  type="text"
+                  value={orgForm.name}
+                  onChange={(e) => setOrgForm({ ...orgForm, name: e.target.value })}
+                  placeholder="예: 서울 캠핑 크루"
+                  required
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#3182F6]"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">크루 소제목</label>
+                <input
+                  type="text"
+                  value={orgForm.subtitle}
+                  onChange={(e) => setOrgForm({ ...orgForm, subtitle: e.target.value })}
+                  placeholder="예: 함께하는 아웃도어 라이프"
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#3182F6]"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">크루 설명 *</label>
+                <textarea
+                  value={orgForm.description}
+                  onChange={(e) => setOrgForm({ ...orgForm, description: e.target.value })}
+                  placeholder="크루 소개를 입력하세요"
+                  required
+                  rows={3}
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#3182F6]"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">카테고리 * (중복 선택 가능)</label>
+                <div className="grid grid-cols-2 gap-2 max-h-48 overflow-y-auto p-2 border border-gray-300 rounded-lg">
+                  {CREW_CATEGORIES.map((category) => (
+                    <label
+                      key={category}
+                      className="flex items-center gap-2 p-2 rounded hover:bg-gray-50 cursor-pointer"
+                    >
+                      <input
+                        type="checkbox"
+                        checked={orgForm.categories.includes(category)}
+                        onChange={(e) => {
+                          if (e.target.checked) {
+                            setOrgForm({ ...orgForm, categories: [...orgForm.categories, category] })
+                          } else {
+                            setOrgForm({ ...orgForm, categories: orgForm.categories.filter(c => c !== category) })
+                          }
+                        }}
+                        className="w-4 h-4 text-[#3182F6] border-gray-300 rounded focus:ring-[#3182F6]"
+                      />
+                      <span className="text-sm text-gray-700">{category}</span>
+                    </label>
+                  ))}
+                </div>
+                {orgForm.categories.length > 0 && (
+                  <div className="mt-2 flex flex-wrap gap-1">
+                    {orgForm.categories.map((cat) => (
+                      <span key={cat} className="inline-flex items-center gap-1 px-2 py-1 bg-[#3182F6] text-white text-xs rounded-full">
+                        {cat}
+                        <button
+                          type="button"
+                          onClick={() => setOrgForm({ ...orgForm, categories: orgForm.categories.filter(c => c !== cat) })}
+                          className="hover:text-red-200"
+                        >
+                          ✕
+                        </button>
+                      </span>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">크루 메인사진</label>
+                <div className="space-y-2">
+                  {orgAvatarFile && (
+                    <div className="p-3 bg-gray-50 rounded-lg border border-gray-200 flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <span className="text-2xl">📷</span>
+                        <span className="text-sm text-gray-700">{orgAvatarFile.name}</span>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => setOrgAvatarFile(null)}
+                        className="text-red-500 text-sm font-medium"
+                      >
+                        삭제
+                      </button>
+                    </div>
+                  )}
+                  <div className="flex gap-2">
+                    <label className="flex-1 py-2.5 px-4 bg-white border border-gray-300 text-gray-700 rounded-lg font-medium text-center cursor-pointer hover:bg-gray-50 active:scale-95 transition-all">
+                      📸 사진 촬영
+                      <input
+                        type="file"
+                        accept="image/*"
+                        capture="environment"
+                        onChange={(e) => {
+                          const file = e.target.files?.[0]
+                          if (file) handleImageSelect(file, 'org')
+                        }}
+                        className="hidden"
+                      />
+                    </label>
+                    <label className="flex-1 py-2.5 px-4 bg-white border border-gray-300 text-gray-700 rounded-lg font-medium text-center cursor-pointer hover:bg-gray-50 active:scale-95 transition-all">
+                      🖼️ 갤러리
+                      <input
+                        type="file"
+                        accept="image/*"
+                        onChange={(e) => {
+                          const file = e.target.files?.[0]
+                          if (file) handleImageSelect(file, 'org')
+                        }}
+                        className="hidden"
+                      />
+                    </label>
+                  </div>
+                  <p className="text-xs text-gray-500">※ 5MB 이하 권장</p>
+                </div>
+              </div>
+            </div>
+
+            <div className="p-6 border-t flex gap-3">
+              <button
+                onClick={handleCreateCrew}
+                className="flex-1 py-3 bg-gradient-to-r from-[#3182F6] to-[#2563EB] text-white rounded-lg font-semibold hover:opacity-90 transition-opacity"
+              >
+                크루 생성
+              </button>
+              <button
+                onClick={() => {
+                  setShowCreateCrew(false)
+                  setOrgForm({ name: '', subtitle: '', description: '', categories: [] })
+                  setOrgAvatarFile(null)
+                }}
+                className="flex-1 py-3 bg-gray-200 text-gray-700 rounded-lg font-semibold hover:bg-gray-300 transition-colors"
+              >
+                취소
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* 내 프로필 수정 모달 */}
       {editingMyProfile && (
         <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
           <div className="bg-white rounded-2xl max-w-md w-full max-h-[80vh] overflow-hidden flex flex-col">
-            <div className="bg-gradient-to-r from-emerald-500 to-teal-500 text-white p-6">
+            <div className="bg-[#3182F6] text-white p-6">
               <h2 className="text-xl font-bold">내 프로필 수정</h2>
             </div>
 
@@ -1923,7 +2917,7 @@ It's Campers와 함께하는 캠핑 일정에 참여하세요!
                   type="text"
                   value={myProfileForm.name}
                   onChange={(e) => setMyProfileForm({ ...myProfileForm, name: e.target.value })}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500"
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#3182F6]"
                 />
               </div>
 
@@ -1932,7 +2926,7 @@ It's Campers와 함께하는 캠핑 일정에 참여하세요!
                 <select
                   value={myProfileForm.gender}
                   onChange={(e) => setMyProfileForm({ ...myProfileForm, gender: e.target.value })}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500"
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#3182F6]"
                 >
                   <option value="">선택</option>
                   <option value="남">남</option>
@@ -1946,19 +2940,42 @@ It's Campers와 함께하는 캠핑 일정에 참여하세요!
                   type="date"
                   value={myProfileForm.birthdate}
                   onChange={(e) => setMyProfileForm({ ...myProfileForm, birthdate: e.target.value })}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500"
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#3182F6]"
                 />
               </div>
 
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">지역 *</label>
-                <input
-                  type="text"
-                  value={myProfileForm.location}
-                  onChange={(e) => setMyProfileForm({ ...myProfileForm, location: e.target.value })}
-                  placeholder="서울 강남구"
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500"
-                />
+                <div className="grid grid-cols-2 gap-2">
+                  <select
+                    value={selectedCity}
+                    onChange={(e) => {
+                      setSelectedCity(e.target.value)
+                      setSelectedDistrict('') // Reset district when city changes
+                      setMyProfileForm({ ...myProfileForm, location: e.target.value })
+                    }}
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#3182F6]"
+                  >
+                    <option value="">시/도</option>
+                    {getCities().map(city => (
+                      <option key={city} value={city}>{city}</option>
+                    ))}
+                  </select>
+                  <select
+                    value={selectedDistrict}
+                    onChange={(e) => {
+                      setSelectedDistrict(e.target.value)
+                      setMyProfileForm({ ...myProfileForm, location: `${selectedCity} ${e.target.value}` })
+                    }}
+                    disabled={!selectedCity}
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#3182F6] disabled:bg-gray-100 disabled:cursor-not-allowed"
+                  >
+                    <option value="">구/군</option>
+                    {selectedCity && getDistricts(selectedCity).map(district => (
+                      <option key={district} value={district}>{district}</option>
+                    ))}
+                  </select>
+                </div>
               </div>
 
               <div>
@@ -1969,15 +2986,65 @@ It's Campers와 함께하는 캠핑 일정에 참여하세요!
                   onChange={(e) => setMyProfileForm({ ...myProfileForm, mbti: e.target.value })}
                   placeholder="ENFP"
                   maxLength={4}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500"
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#3182F6]"
                 />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  관심 크루 카테고리 * (중복 선택 가능)
+                </label>
+                <div className="grid grid-cols-3 gap-2 max-h-48 overflow-y-auto p-3 border border-gray-300 rounded-lg bg-gray-50">
+                  {CREW_CATEGORIES.map((category) => (
+                    <label key={category} className="flex items-center gap-2 p-2 rounded hover:bg-white cursor-pointer transition-colors">
+                      <input
+                        type="checkbox"
+                        checked={myProfileForm.interestCategories.includes(category)}
+                        onChange={(e) => {
+                          if (e.target.checked) {
+                            setMyProfileForm({
+                              ...myProfileForm,
+                              interestCategories: [...myProfileForm.interestCategories, category]
+                            })
+                          } else {
+                            setMyProfileForm({
+                              ...myProfileForm,
+                              interestCategories: myProfileForm.interestCategories.filter(c => c !== category)
+                            })
+                          }
+                        }}
+                        className="w-4 h-4 text-[#3182F6] border-gray-300 rounded focus:ring-[#3182F6]"
+                      />
+                      <span className="text-sm text-gray-700">{category}</span>
+                    </label>
+                  ))}
+                </div>
+                {myProfileForm.interestCategories.length > 0 && (
+                  <div className="mt-2 flex flex-wrap gap-1">
+                    {myProfileForm.interestCategories.map((cat) => (
+                      <span key={cat} className="inline-flex items-center gap-1 px-2 py-1 bg-[#3182F6] text-white text-xs rounded-full">
+                        {cat}
+                        <button
+                          type="button"
+                          onClick={() => setMyProfileForm({
+                            ...myProfileForm,
+                            interestCategories: myProfileForm.interestCategories.filter(c => c !== cat)
+                          })}
+                          className="hover:text-red-200"
+                        >
+                          ✕
+                        </button>
+                      </span>
+                    ))}
+                  </div>
+                )}
               </div>
             </div>
 
             <div className="p-6 border-t flex gap-3">
               <button
                 onClick={handleUpdateMyProfile}
-                className="flex-1 py-3 bg-gradient-to-r from-emerald-500 to-teal-500 text-white rounded-lg font-semibold hover:from-emerald-600 hover:to-teal-600 transition-colors"
+                className="flex-1 py-3 bg-[#3182F6] text-white rounded-lg font-semibold hover:bg-[#1B64DA] transition-colors"
               >
                 저장
               </button>
@@ -2109,7 +3176,7 @@ It's Campers와 함께하는 캠핑 일정에 참여하세요!
       {showCreateSchedule && (
         <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
           <div className="bg-white rounded-2xl max-w-md w-full max-h-[80vh] overflow-hidden flex flex-col">
-            <div className="bg-gradient-to-r from-emerald-500 to-teal-500 text-white p-6">
+            <div className="bg-[#3182F6] text-white p-6">
               <div className="flex justify-between items-center mb-2">
                 <h2 className="text-2xl font-bold">일정 생성</h2>
                 <button
@@ -2130,7 +3197,7 @@ It's Campers와 함께하는 캠핑 일정에 참여하세요!
                   value={createScheduleForm.title}
                   onChange={(e) => setCreateScheduleForm({ ...createScheduleForm, title: e.target.value })}
                   placeholder="예: 한강 캠핑"
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500"
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#3182F6]"
                 />
               </div>
 
@@ -2149,7 +3216,7 @@ It's Campers와 함께하는 캠핑 일정에 참여하세요!
                     setCreateScheduleForm({ ...createScheduleForm, date: formattedDate })
                   }}
                   min={new Date().toISOString().split('T')[0]}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500"
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#3182F6]"
                 />
                 {createScheduleForm.date && (
                   <p className="text-sm text-gray-600 mt-1">선택된 날짜: {createScheduleForm.date}</p>
@@ -2162,7 +3229,7 @@ It's Campers와 함께하는 캠핑 일정에 참여하세요!
                   type="time"
                   value={createScheduleForm.time}
                   onChange={(e) => setCreateScheduleForm({ ...createScheduleForm, time: e.target.value })}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500"
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#3182F6]"
                 />
               </div>
 
@@ -2173,7 +3240,7 @@ It's Campers와 함께하는 캠핑 일정에 참여하세요!
                   value={createScheduleForm.location}
                   onChange={(e) => setCreateScheduleForm({ ...createScheduleForm, location: e.target.value })}
                   placeholder="예: 한강공원 뚝섬유원지"
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500"
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#3182F6]"
                 />
               </div>
 
@@ -2182,7 +3249,7 @@ It's Campers와 함께하는 캠핑 일정에 참여하세요!
                 <select
                   value={createScheduleForm.type}
                   onChange={(e) => setCreateScheduleForm({ ...createScheduleForm, type: e.target.value })}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500"
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#3182F6]"
                 >
                   <option value="">선택</option>
                   <option value="오토캠핑">오토캠핑</option>
@@ -2199,7 +3266,7 @@ It's Campers와 함께하는 캠핑 일정에 참여하세요!
                   value={createScheduleForm.maxParticipants}
                   onChange={(e) => setCreateScheduleForm({ ...createScheduleForm, maxParticipants: parseInt(e.target.value) })}
                   min="1"
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500"
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#3182F6]"
                 />
               </div>
             </div>
@@ -2208,7 +3275,7 @@ It's Campers와 함께하는 캠핑 일정에 참여하세요!
               <button
                 onClick={handleCreateSchedule}
                 disabled={!createScheduleForm.title || !createScheduleForm.date || !createScheduleForm.time || !createScheduleForm.location || !createScheduleForm.type}
-                className="flex-1 py-3 bg-gradient-to-r from-emerald-500 to-teal-500 text-white rounded-lg font-semibold hover:from-emerald-600 hover:to-teal-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                className="flex-1 py-3 bg-[#3182F6] text-white rounded-lg font-semibold hover:bg-[#1B64DA] transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 생성
               </button>
@@ -2223,8 +3290,8 @@ It's Campers와 함께하는 캠핑 일정에 참여하세요!
         </div>
       )}
 
-      {/* Bottom Navigation */}
-      <nav className="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 z-20 safe-bottom">
+      {/* Bottom Navigation - 토스 스타일 */}
+      <nav className="fixed bottom-0 left-0 right-0 bg-white border-t border-[#E5E8EB] z-20 safe-bottom shadow-[0_-2px_10px_rgba(0,0,0,0.03)]">
         <div className="max-w-md mx-auto flex">
           {[
             { id: 'home' as Page, icon: Home, label: '홈' },
@@ -2246,16 +3313,27 @@ It's Campers와 함께하는 캠핑 일정에 참여하세요!
                   setSelectedOrg(organizations[0])
                 }
               }}
-              className={`flex-1 py-4 flex flex-col items-center gap-1.5 active:scale-95 transition-all ${
-                currentPage === id ? 'text-emerald-600' : 'text-gray-400'
+              className={`flex-1 py-3 flex flex-col items-center gap-1 active:scale-95 transition-all ${
+                currentPage === id ? 'text-[#3182F6]' : 'text-[#8B95A1]'
               }`}
             >
-              <Icon className="w-7 h-7" strokeWidth={currentPage === id ? 2.5 : 2} />
-              <span className={`text-xs ${currentPage === id ? 'font-semibold' : ''}`}>{label}</span>
+              <Icon className="w-6 h-6" strokeWidth={currentPage === id ? 2.5 : 2} />
+              <span className={`text-[10px] ${currentPage === id ? 'font-bold' : 'font-medium'}`}>{label}</span>
             </button>
           ))}
         </div>
       </nav>
+
+      {/* 이미지 크롭 모달 */}
+      {cropImageUrl && (
+        <ImageCropModal
+          imageUrl={cropImageUrl}
+          onComplete={handleCropComplete}
+          onCancel={handleCropCancel}
+          aspectRatio={1}
+          title={cropType === 'org' ? '크루 메인사진 자르기' : '프로필 사진 자르기'}
+        />
+      )}
     </div>
   )
 }

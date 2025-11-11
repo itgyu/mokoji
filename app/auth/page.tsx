@@ -8,8 +8,10 @@ import {
   sendPasswordResetEmail
 } from 'firebase/auth'
 import { collection, addDoc, doc, setDoc, serverTimestamp } from 'firebase/firestore'
-import { ref, uploadBytes, getDownloadURL } from 'firebase/storage'
-import { auth, db, storage } from '@/lib/firebase'
+import { auth, db } from '@/lib/firebase'
+import { getCities, getDistricts } from '@/lib/locations'
+import { uploadToS3 } from '@/lib/s3-utils'
+import { CREW_CATEGORIES } from '@/lib/constants'
 
 type AuthStep = 'email' | 'login' | 'signup' | 'forgot-password'
 
@@ -26,8 +28,11 @@ export default function AuthPage() {
   const [gender, setGender] = useState('')
   const [birthdate, setBirthdate] = useState('')
   const [location, setLocation] = useState('')
+  const [selectedCity, setSelectedCity] = useState('')
+  const [selectedDistrict, setSelectedDistrict] = useState('')
   const [mbti, setMbti] = useState('')
   const [avatarFile, setAvatarFile] = useState<File | null>(null)
+  const [interestCategories, setInterestCategories] = useState<string[]>([])
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -51,15 +56,21 @@ export default function AuthPage() {
     setError('')
     setLoading(true)
 
+    // 관심 카테고리 검증
+    if (interestCategories.length === 0) {
+      setError('최소 1개 이상의 관심 카테고리를 선택해주세요.')
+      setLoading(false)
+      return
+    }
+
     try {
       const userCredential = await createUserWithEmailAndPassword(auth, email, password)
       const user = userCredential.user
 
       let avatarUrl = ''
       if (avatarFile) {
-        const storageRef = ref(storage, `avatars/${user.uid}`)
-        await uploadBytes(storageRef, avatarFile)
-        avatarUrl = await getDownloadURL(storageRef)
+        // S3에 아바타 업로드
+        avatarUrl = await uploadToS3(avatarFile, `avatars/${user.uid}`)
       }
 
       // 1. members 컬렉션에 기본 정보 저장
@@ -83,6 +94,7 @@ export default function AuthPage() {
         location,
         mbti: mbti.toUpperCase(),
         avatar: avatarUrl,
+        interestCategories: interestCategories,
         createdAt: serverTimestamp()
       })
 
@@ -246,14 +258,38 @@ export default function AuthPage() {
 
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">지역 *</label>
-                <input
-                  type="text"
-                  value={location}
-                  onChange={(e) => setLocation(e.target.value)}
-                  placeholder="서울 강남구"
-                  required
-                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500"
-                />
+                <div className="grid grid-cols-2 gap-2">
+                  <select
+                    value={selectedCity}
+                    onChange={(e) => {
+                      setSelectedCity(e.target.value)
+                      setSelectedDistrict('') // Reset district when city changes
+                      setLocation(e.target.value)
+                    }}
+                    required
+                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500"
+                  >
+                    <option value="">시/도</option>
+                    {getCities().map(city => (
+                      <option key={city} value={city}>{city}</option>
+                    ))}
+                  </select>
+                  <select
+                    value={selectedDistrict}
+                    onChange={(e) => {
+                      setSelectedDistrict(e.target.value)
+                      setLocation(`${selectedCity} ${e.target.value}`)
+                    }}
+                    disabled={!selectedCity}
+                    required
+                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 disabled:bg-gray-100 disabled:cursor-not-allowed"
+                  >
+                    <option value="">구/군</option>
+                    {selectedCity && getDistricts(selectedCity).map(district => (
+                      <option key={district} value={district}>{district}</option>
+                    ))}
+                  </select>
+                </div>
               </div>
 
               <div>
@@ -266,6 +302,47 @@ export default function AuthPage() {
                   maxLength={4}
                   className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500"
                 />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  관심 크루 카테고리 * (중복 선택 가능)
+                </label>
+                <div className="grid grid-cols-3 gap-2 max-h-48 overflow-y-auto p-3 border border-gray-300 rounded-lg bg-gray-50">
+                  {CREW_CATEGORIES.map((category) => (
+                    <label key={category} className="flex items-center gap-2 p-2 rounded hover:bg-white cursor-pointer transition-colors">
+                      <input
+                        type="checkbox"
+                        checked={interestCategories.includes(category)}
+                        onChange={(e) => {
+                          if (e.target.checked) {
+                            setInterestCategories([...interestCategories, category])
+                          } else {
+                            setInterestCategories(interestCategories.filter(c => c !== category))
+                          }
+                        }}
+                        className="w-4 h-4 text-emerald-500 border-gray-300 rounded focus:ring-emerald-500"
+                      />
+                      <span className="text-sm text-gray-700">{category}</span>
+                    </label>
+                  ))}
+                </div>
+                {interestCategories.length > 0 && (
+                  <div className="mt-2 flex flex-wrap gap-1">
+                    {interestCategories.map((cat) => (
+                      <span key={cat} className="inline-flex items-center gap-1 px-2 py-1 bg-emerald-500 text-white text-xs rounded-full">
+                        {cat}
+                        <button
+                          type="button"
+                          onClick={() => setInterestCategories(interestCategories.filter(c => c !== cat))}
+                          className="hover:text-red-200"
+                        >
+                          ✕
+                        </button>
+                      </span>
+                    ))}
+                  </div>
+                )}
               </div>
 
               <div>

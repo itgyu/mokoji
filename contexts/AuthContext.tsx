@@ -17,6 +17,8 @@ export interface UserProfile {
   avatar?: string
   joinDate: string
   role?: 'member' | 'staff' | 'captain'
+  interestCategories?: string[]
+  organizations?: string[]
 }
 
 interface AuthContextType {
@@ -105,7 +107,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           mbti: userProfileData.mbti || memberData.mbti || '-',
           avatar: memberData.avatar || userProfileData.avatar,
           joinDate: memberData.joinDate,
-          role: memberData.isCaptain ? 'captain' : (memberData.isStaff ? 'staff' : 'member')
+          role: memberData.isCaptain ? 'captain' : (memberData.isStaff ? 'staff' : 'member'),
+          interestCategories: userProfileData.interestCategories || [],
+          organizations: userProfileData.organizations || []
         })
 
         console.log('✅ 최종 프로필 설정 완료')
