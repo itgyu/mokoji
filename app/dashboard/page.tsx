@@ -680,9 +680,7 @@ It's Campers와 함께하는 캠핑 일정에 참여하세요!
     if (navigator.share) {
       try {
         await navigator.share({
-          title: `⛺ ${schedule.title}`,
           text: shareText,
-          url: scheduleUrl,
         })
       } catch (error) {
         // 사용자가 공유를 취소한 경우는 에러 처리 안함
