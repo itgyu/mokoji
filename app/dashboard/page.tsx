@@ -195,6 +195,12 @@ export default function DashboardPage() {
       console.log('가입한 크루 목록:', fetchedOrgs)
       setOrganizations(fetchedOrgs)
 
+      // 첫 번째 크루 자동 선택 (딥링크 지원을 위해)
+      if (fetchedOrgs.length > 0 && !selectedOrg) {
+        console.log('🎯 첫 번째 크루 자동 선택:', fetchedOrgs[0].name)
+        setSelectedOrg(fetchedOrgs[0])
+      }
+
       // 3. 각 크루의 멤버 수 가져오기 (userProfiles 사용)
       const counts: { [key: string]: number } = {}
 
