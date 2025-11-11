@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { useRouter } from 'next/navigation'
+import { useRouter, useSearchParams } from 'next/navigation'
 import { useAuth } from '@/contexts/AuthContext'
 import { signOut } from 'firebase/auth'
 import { auth, db } from '@/lib/firebase'
@@ -58,6 +58,7 @@ interface Organization {
 export default function DashboardPage() {
   const { user, userProfile, loading } = useAuth()
   const router = useRouter()
+  const searchParams = useSearchParams()
   const [currentPage, setCurrentPage] = useState<Page>('home')
   const [schedules, setSchedules] = useState<Schedule[]>([])
   const [members, setMembers] = useState<Member[]>([])
@@ -156,6 +157,19 @@ export default function DashboardPage() {
       document.body.style.overflow = 'unset'
     }
   }, [selectedSchedule])
+
+  // URL 파라미터로 공유된 일정 자동 열기
+  useEffect(() => {
+    const scheduleId = searchParams.get('schedule')
+    if (scheduleId && schedules.length > 0 && !selectedSchedule) {
+      const schedule = schedules.find(s => s.id === scheduleId)
+      if (schedule) {
+        setSelectedSchedule(schedule)
+        // URL 파라미터 제거하여 깔끔하게 유지
+        router.replace('/dashboard', { scroll: false })
+      }
+    }
+  }, [searchParams, schedules, selectedSchedule, router])
 
   const fetchOrganizations = async () => {
     try {
@@ -659,6 +673,9 @@ export default function DashboardPage() {
   }
 
   const handleShareSchedule = async (schedule: Schedule) => {
+    // 일정 상세 페이지 URL 생성
+    const scheduleUrl = `${window.location.origin}/dashboard?schedule=${schedule.id}`
+
     const shareText = `⛺ ${schedule.title}
 
 📅 일시: ${formatDateWithYear(schedule.date)} ${schedule.time}
@@ -666,7 +683,9 @@ export default function DashboardPage() {
 🎯 벙주: ${schedule.createdBy || '정보 없음'}
 👥 참여 인원: ${schedule.participants?.length || 0} / ${schedule.maxParticipants}명
 
-It's Campers와 함께하는 캠핑 일정에 참여하세요!`
+It's Campers와 함께하는 캠핑 일정에 참여하세요!
+
+🔗 일정 보기: ${scheduleUrl}`
 
     // Web Share API 사용 (모바일에서 카카오톡 포함 공유 가능)
     if (navigator.share) {
@@ -674,6 +693,7 @@ It's Campers와 함께하는 캠핑 일정에 참여하세요!`
         await navigator.share({
           title: `⛺ ${schedule.title}`,
           text: shareText,
+          url: scheduleUrl,
         })
       } catch (error) {
         // 사용자가 공유를 취소한 경우는 에러 처리 안함
