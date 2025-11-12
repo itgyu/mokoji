@@ -161,6 +161,31 @@ export default function DashboardPage() {
     }
   }, [user, userProfile])
 
+  // 홈 화면에서 모든 크루의 일정을 가져오기
+  useEffect(() => {
+    console.log('🔄 useEffect [user, organizations, currentPage, selectedOrg] 실행됨 (홈용)')
+    console.log('  - currentPage:', currentPage)
+    console.log('  - selectedOrg:', selectedOrg ? 'exists' : 'null')
+    console.log('  - organizations:', organizations.length)
+
+    let unsubscribe: (() => void) | undefined
+
+    // 홈 화면이고 특정 크루가 선택되지 않은 경우, 모든 크루의 일정을 가져옴
+    if (user && currentPage === 'home' && !selectedOrg && organizations.length > 0) {
+      console.log('✅ 홈 화면 조건 충족: 모든 크루의 일정 리스너 설정 시작...')
+      const orgIds = organizations.map(org => org.id)
+      unsubscribe = fetchAllUserSchedules(orgIds)
+    }
+
+    return () => {
+      if (unsubscribe) {
+        console.log('🔌 홈 화면 일정 리스너 해제')
+        unsubscribe()
+      }
+    }
+  }, [user, organizations, currentPage, selectedOrg])
+
+  // 특정 크루 선택 시 해당 크루의 일정과 멤버 가져오기
   useEffect(() => {
     console.log('🔄 useEffect [user, selectedOrg] 실행됨')
     console.log('  - user:', user ? user.uid : 'null')
@@ -386,6 +411,67 @@ export default function DashboardPage() {
       return unsubscribe
     } catch (error) {
       console.error('❌ Error setting up schedule listener:', error)
+      return () => {}
+    }
+  }
+
+  // 모든 크루의 일정을 가져오는 함수 (홈 화면용)
+  const fetchAllUserSchedules = (orgIds: string[]) => {
+    try {
+      console.log('📡 fetchAllUserSchedules 시작 - orgIds:', orgIds)
+
+      if (orgIds.length === 0) {
+        console.log('⚠️ 가입한 크루가 없어 일정을 불러올 수 없습니다.')
+        setSchedules([])
+        return () => {}
+      }
+
+      // 각 크루별로 리스너를 설정하고, 모든 일정을 합쳐서 관리
+      const unsubscribers: (() => void)[] = []
+      const allSchedulesMap = new Map<string, Schedule>()
+
+      orgIds.forEach((orgId) => {
+        const q = query(
+          collection(db, 'schedules'),
+          where('orgId', '==', orgId)
+        )
+
+        const unsubscribe = onSnapshot(q, (querySnapshot) => {
+          console.log(`🔔 크루 ${orgId}의 일정 업데이트: ${querySnapshot.size}개`)
+
+          // 해당 크루의 기존 일정 제거
+          allSchedulesMap.forEach((schedule, id) => {
+            if (schedule.orgId === orgId) {
+              allSchedulesMap.delete(id)
+            }
+          })
+
+          // 새로운 일정 추가
+          querySnapshot.forEach((doc) => {
+            const data = doc.data()
+            allSchedulesMap.set(doc.id, { id: doc.id, ...data } as Schedule)
+          })
+
+          // 전체 일정을 배열로 변환하여 상태 업데이트
+          const allSchedules = Array.from(allSchedulesMap.values())
+          console.log(`✅ 전체 일정 업데이트: ${allSchedules.length}개`)
+          setSchedules(allSchedules)
+        }, (error) => {
+          console.error(`❌ 크루 ${orgId} 일정 감지 오류:`, error)
+        })
+
+        unsubscribers.push(unsubscribe)
+      })
+
+      console.log(`✅ ${orgIds.length}개 크루의 일정 리스너 등록 완료`)
+
+      // 모든 리스너를 해제하는 함수 반환
+      return () => {
+        console.log('🔌 모든 일정 리스너 해제')
+        unsubscribers.forEach(unsub => unsub())
+      }
+    } catch (error) {
+      console.error('❌ Error setting up all schedules listeners:', error)
       return () => {}
     }
   }
