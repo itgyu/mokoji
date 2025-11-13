@@ -91,7 +91,8 @@ export default function DashboardPage() {
   const [currentPage, setCurrentPage] = useState<Page>('home')
   const [schedules, setSchedules] = useState<Schedule[]>([])
   const [members, setMembers] = useState<Member[]>([])
-  const [organizations, setOrganizations] = useState<Organization[]>([])
+  const [organizations, setOrganizations] = useState<Organization[]>([]) // 내가 가입한 크루
+  const [allOrganizations, setAllOrganizations] = useState<Organization[]>([]) // 모든 크루 (크루 찾기용)
   const [recommendedOrgs, setRecommendedOrgs] = useState<Organization[]>([])
   const [selectedOrg, setSelectedOrg] = useState<Organization | null>(null)
   const [selectedSchedule, setSelectedSchedule] = useState<Schedule | null>(null)
@@ -176,7 +177,8 @@ export default function DashboardPage() {
 
   useEffect(() => {
     if (user) {
-      fetchOrganizations()
+      fetchOrganizations() // 내가 가입한 크루
+      fetchAllOrganizations() // 모든 크루 (크루 찾기용)
     }
   }, [user])
 
@@ -344,23 +346,62 @@ export default function DashboardPage() {
     }
   }
 
+  // 모든 크루 가져오기 (크루 찾기용)
+  const fetchAllOrganizations = async () => {
+    try {
+      console.log('📥 모든 크루 데이터 가져오기 시작')
+
+      const orgsRef = collection(db, 'organizations')
+      const orgsSnapshot = await getDocs(orgsRef)
+
+      const allOrgs: Organization[] = []
+      orgsSnapshot.forEach((doc) => {
+        allOrgs.push({ id: doc.id, ...doc.data() } as Organization)
+      })
+
+      console.log(`✅ 총 ${allOrgs.length}개의 크루를 가져왔습니다`)
+      console.log('크루 목록:', allOrgs.map(org => ({
+        name: org.name,
+        hasLocation: !!org.location,
+        description: org.description
+      })))
+
+      setAllOrganizations(allOrgs)
+    } catch (error) {
+      console.error('Error fetching all organizations:', error)
+    }
+  }
+
   const fetchRecommendedOrganizations = async () => {
     try {
       if (!user || !userProfile) return
 
       console.log('🔍 추천 크루 검색 시작')
-      console.log('  - 사용자 위치:', userProfile.location)
       console.log('  - 관심 카테고리:', userProfile.interestCategories)
 
-      // 사용자의 관심 카테고리와 위치 확인
+      // 사용자의 관심 카테고리 확인
       const userInterests = userProfile.interestCategories || []
-      const userLocation = userProfile.location || ''
 
       if (userInterests.length === 0) {
         console.log('⚠️ 사용자의 관심 카테고리가 없습니다.')
         setRecommendedOrgs([])
         return
       }
+
+      // 사용자가 인증한 위치 확인
+      if (!userProfile.locations || userProfile.locations.length === 0) {
+        console.log('⚠️ 인증된 위치가 없습니다.')
+        setRecommendedOrgs([])
+        return
+      }
+
+      // 선택된 위치 또는 첫 번째 위치 가져오기
+      const selectedLocation = userProfile.locations.find(
+        loc => loc.id === userProfile.selectedLocationId
+      ) || userProfile.locations[0]
+
+      console.log('  - 인증된 위치:', `${selectedLocation.sigungu} ${selectedLocation.dong}`)
+      console.log('  - GPS 좌표:', { lat: selectedLocation.latitude, lng: selectedLocation.longitude })
 
       // 사용자가 이미 가입한 크루 ID 가져오기
       const userOrgIds = userProfile.organizations || []
@@ -370,7 +411,7 @@ export default function DashboardPage() {
       const orgsRef = collection(db, 'organizations')
       const orgsSnapshot = await getDocs(orgsRef)
 
-      const recommended: Organization[] = []
+      const recommended: OrganizationWithDistance[] = []
       orgsSnapshot.forEach((doc) => {
         const org = { id: doc.id, ...doc.data() } as Organization
 
@@ -383,19 +424,41 @@ export default function DashboardPage() {
         const orgCategories = org.categories || (org.category ? [org.category] : [])
         const hasMatchingCategory = orgCategories.some(cat => userInterests.includes(cat))
 
-        // 위치 매칭 (정확히 일치하거나 시작 부분이 같은 경우)
-        // 예: "서울 강남구"와 "서울 강남구 삼성동"은 매칭
-        const hasMatchingLocation = userLocation && (
-          org.description?.includes(userLocation) ||
-          userLocation.startsWith(org.description?.split(' ')[0] || '')
-        )
+        // 카테고리가 일치하지 않으면 제외
+        if (!hasMatchingCategory) {
+          return
+        }
 
-        // 카테고리가 일치하고 위치 정보가 있으면 추천
-        if (hasMatchingCategory) {
-          recommended.push(org)
-          console.log(`  ✅ 추천: ${org.name} - 카테고리: ${orgCategories.join(', ')}`)
+        // GPS 좌표가 있는 경우: 정확한 거리 계산
+        if (org.location?.latitude && org.location?.longitude) {
+          const distance = calculateDistance(
+            selectedLocation.latitude,
+            selectedLocation.longitude,
+            org.location.latitude,
+            org.location.longitude
+          )
+
+          // 10km 이내인 경우만 추천
+          if (distance <= 10) {
+            recommended.push({ ...org, distance })
+            console.log(`  ✅ 추천: ${org.name} - 카테고리: ${orgCategories.join(', ')} - 거리: ${distance.toFixed(1)}km`)
+          }
+        }
+        // GPS 좌표가 없는 경우: 텍스트 기반 지역 매칭 (fallback)
+        else {
+          const hasMatchingLocation = org.description?.includes(selectedLocation.sigungu) ||
+                                      org.description?.includes(selectedLocation.dong) ||
+                                      org.description?.includes(selectedLocation.sido)
+
+          if (hasMatchingLocation) {
+            recommended.push({ ...org, distance: 999 })
+            console.log(`  ✅ 추천 (텍스트 매칭): ${org.name} - 카테고리: ${orgCategories.join(', ')}`)
+          }
         }
       })
+
+      // 거리순으로 정렬
+      recommended.sort((a, b) => a.distance - b.distance)
 
       console.log(`\n🎯 총 ${recommended.length}개의 크루를 추천합니다.`)
       setRecommendedOrgs(recommended)
@@ -993,32 +1056,18 @@ export default function DashboardPage() {
 
   // 내 동네 근처 크루 필터링 (10km 이내)
   const getNearbyOrganizations = () => {
-    // 1. 사용자가 인증된 지역이 없으면 빈 배열 반환
-    if (!userProfile?.locations || userProfile.locations.length === 0) {
-      return []
-    }
+    console.log('🔍 getNearbyOrganizations 호출')
+    console.log('  - 전체 크루 수:', allOrganizations.length)
 
-    // 2. 선택된 지역 또는 첫 번째 지역 가져오기
-    const selectedLocation = userProfile.locations.find(
-      loc => loc.id === userProfile.selectedLocationId
-    ) || userProfile.locations[0]
+    // 임시: 일단 모든 크루를 보여줌 (위치 필터링 없이)
+    // TODO: 모든 크루에 location 데이터가 입력되면 10km 필터링 활성화
+    const nearby: OrganizationWithDistance[] = allOrganizations.map(org => ({
+      ...org,
+      distance: 0 // 거리 정보 없음
+    }))
 
-    // 3. 위치 정보가 있는 크루만 필터링
-    const orgsWithLocation = organizations.filter(org => org.location)
-
-    // 4. 거리 계산 및 10km 이내 필터링
-    const nearby = orgsWithLocation
-      .map(org => {
-        const distance = calculateDistance(
-          selectedLocation.latitude,
-          selectedLocation.longitude,
-          org.location!.latitude,
-          org.location!.longitude
-        )
-        return { ...org, distance }
-      })
-      .filter(org => org.distance <= 10)
-      .sort((a, b) => a.distance - b.distance)
+    console.log('  ✅ 표시할 크루 수:', nearby.length)
+    console.log('  📋 크루 목록:', nearby.map(org => org.name))
 
     return nearby
   }
@@ -1622,10 +1671,14 @@ It's Campers와 함께하는 캠핑 일정에 참여하세요!
         <div className="bg-[#F9FAFB]">
           {/* 토스 스타일 헤더 */}
           <header className="sticky top-0 bg-white z-10 safe-top">
-            <div className="px-5 py-6 flex justify-between items-center border-b border-gray-100">
-              <div className="flex items-center gap-3">
-                <MapPin className="w-7 h-7 text-[#3182F6]" strokeWidth={2.5} />
-                <span className="font-bold text-2xl tracking-tight text-[#191F28]">{profile.location}</span>
+            <div className="px-4 py-5 sm:px-5 sm:py-6 flex justify-between items-center border-b border-gray-100">
+              <div className="flex items-center gap-2 sm:gap-3">
+                <MapPin className="w-6 h-6 sm:w-7 sm:h-7 text-[#3182F6]" strokeWidth={2.5} />
+                <span className="font-bold text-xl sm:text-2xl tracking-tight text-[#191F28]">
+                  {userProfile?.locations && userProfile.locations.length > 0
+                    ? `${(userProfile.locations.find(loc => loc.id === userProfile.selectedLocationId) || userProfile.locations[0]).sigungu} ${(userProfile.locations.find(loc => loc.id === userProfile.selectedLocationId) || userProfile.locations[0]).dong}`
+                    : profile.location}
+                </span>
               </div>
               <div className="flex gap-1">
                 <button className="p-3 hover:bg-gray-50 rounded-xl active:scale-95 transition-all">
@@ -1639,110 +1692,179 @@ It's Campers와 함께하는 캠핑 일정에 참여하세요!
           </header>
 
           <div className="px-5 py-6 space-y-5">
-            {/* 내 동네 크루 섹션 */}
-            <div className="bg-white rounded-3xl p-7 shadow-sm border border-gray-100">
-              <div className="flex justify-between items-center mb-6">
-                <div className="flex items-center gap-3">
-                  <div className="w-12 h-12 bg-gradient-to-br from-blue-50 to-indigo-50 rounded-2xl flex items-center justify-center">
-                    <MapPin className="w-6 h-6 text-[#3182F6]" strokeWidth={2.5} />
-                  </div>
-                  <h2 className="text-2xl font-bold tracking-tight text-[#191F28]">내 동네 크루</h2>
+            {/* 내 동네 크루 섹션 - 당근마켓 스타일 */}
+            <div className="mb-6">
+              {/* 헤더 */}
+              <div className="flex items-center justify-between mb-3 px-4 sm:px-5">
+                <div className="flex items-center gap-2">
+                  <span className="text-xl sm:text-2xl">📍</span>
+                  <h2 className="text-lg sm:text-xl font-bold text-gray-900">내 동네 크루</h2>
+                  {userProfile?.locations && userProfile.locations.length > 0 && (
+                    <span className="px-2 sm:px-3 py-0.5 sm:py-1 bg-orange-50 text-orange-600 text-xs sm:text-sm font-semibold rounded-full">
+                      {(userProfile.locations.find(loc => loc.id === userProfile.selectedLocationId) || userProfile.locations[0]).dong}
+                    </span>
+                  )}
                 </div>
-                {userProfile?.locations && userProfile.locations.length > 0 && (
-                  <span className="text-xs font-bold text-blue-700 bg-blue-50 px-3 py-1.5 rounded-full">
-                    {(userProfile.locations.find(loc => loc.id === userProfile.selectedLocationId) || userProfile.locations[0]).dong}
-                  </span>
+
+                {/* 동네 인증 버튼 (미인증 시) */}
+                {(!userProfile?.locations || userProfile.locations.length === 0) && (
+                  <button
+                    onClick={() => setCurrentPage('myprofile')}
+                    className="px-3 sm:px-4 py-1.5 sm:py-2 bg-orange-500 text-white text-xs sm:text-sm font-semibold rounded-lg hover:bg-orange-600 active:scale-95 transition-all"
+                  >
+                    동네 인증
+                  </button>
                 )}
               </div>
 
-              {/* 위치 미인증 상태 */}
-              {(!userProfile?.locations || userProfile.locations.length === 0) ? (
-                <div className="text-center py-12">
-                  <div className="text-6xl mb-4">📍</div>
-                  <p className="text-[#191F28] font-bold text-xl mb-2">동네 인증이 필요해요</p>
-                  <p className="text-[#6B7684] text-base font-medium mb-6">
-                    내 동네를 인증하고<br />
-                    주변 크루를 만나보세요
-                  </p>
-                  <button
-                    onClick={() => setCurrentPage('myprofile')}
-                    className="bg-[#3182F6] text-white font-bold py-3 px-6 rounded-xl hover:bg-[#1B64DA] active:scale-95 transition-all"
-                  >
-                    동네 인증하기
-                  </button>
-                </div>
-              ) : (() => {
+              {/* 크루 카드 리스트 */}
+              {(() => {
                 const nearbyCrews = getNearbyOrganizations()
-                return nearbyCrews.length === 0 ? (
-                  /* 근처 크루 없음 */
-                  <div className="text-center py-12">
-                    <div className="text-6xl mb-4">🔍</div>
-                    <p className="text-[#191F28] font-bold text-xl mb-2">근처에 크루가 없어요</p>
-                    <p className="text-[#6B7684] text-base font-medium">
-                      10km 이내에 활동 중인<br />
-                      크루가 없습니다
-                    </p>
-                  </div>
-                ) : (
-                  /* 크루 목록 - 가로 스크롤 */
-                  <div className="overflow-x-auto -mx-7 px-7 pb-2">
-                    <div className="flex gap-4" style={{ width: 'max-content' }}>
-                      {nearbyCrews.map((crew) => (
-                        <div
-                          key={crew.id}
-                          onClick={() => {
-                            setSelectedOrg(crew)
-                            setCurrentPage('crew')
-                          }}
-                          className="bg-[#F9FAFB] rounded-2xl p-5 hover:bg-[#F2F4F6] active:scale-[0.98] transition-all cursor-pointer border border-transparent hover:border-[#3182F6]/20"
-                          style={{ width: '280px', flexShrink: 0 }}
-                        >
-                          {/* 크루 이미지 */}
-                          <div className="relative w-full h-40 bg-gradient-to-br from-blue-400 to-indigo-400 rounded-xl mb-4 overflow-hidden">
-                            {crew.images && crew.images[0] ? (
-                              <img
-                                src={crew.images[0]}
-                                alt={crew.name}
-                                className="w-full h-full object-cover"
-                              />
-                            ) : (
-                              <div className="w-full h-full flex items-center justify-center text-white text-5xl font-bold">
-                                {crew.name[0]}
-                              </div>
-                            )}
-                            {/* 거리 배지 */}
-                            <div className="absolute top-3 right-3 bg-white/95 backdrop-blur-sm px-3 py-1.5 rounded-full">
-                              <span className="text-xs font-bold text-[#3182F6]">
-                                📍 {formatDistance(crew.distance)}
-                              </span>
-                            </div>
-                          </div>
 
-                          {/* 크루 정보 */}
-                          <div className="space-y-2">
-                            <h3 className="font-bold text-lg text-[#191F28] truncate">
-                              {crew.name}
-                            </h3>
-                            <p className="text-sm text-[#6B7684] truncate flex items-center gap-1">
-                              <MapPin className="w-3.5 h-3.5" />
-                              {crew.location?.dong}
-                            </p>
-                            <div className="flex items-center justify-between pt-2 border-t border-gray-200">
-                              <span className="text-xs font-medium text-[#8B95A1]">
-                                {crew.categories?.[0] || '캠핑'}
-                              </span>
-                              <span className="text-sm font-bold text-[#191F28]">
-                                👥 {crew.members?.length || 0}명
-                              </span>
+                if (!userProfile?.locations || userProfile.locations.length === 0) {
+                  // 빈 상태 - 동네 미인증
+                  return (
+                    <div className="mx-4 sm:mx-5 p-6 sm:p-8 bg-gray-50 rounded-xl sm:rounded-2xl text-center">
+                      <div className="text-4xl sm:text-5xl mb-2 sm:mb-3">📍</div>
+                      <p className="text-gray-900 font-semibold text-sm sm:text-base mb-1">
+                        동네 인증이 필요해요
+                      </p>
+                      <p className="text-gray-500 text-xs sm:text-sm">
+                        동네를 인증하면 주변 크루를 찾을 수 있어요
+                      </p>
+                    </div>
+                  )
+                }
+
+                if (nearbyCrews.length === 0) {
+                  // 빈 상태 - 크루 없음
+                  return (
+                    <div className="mx-4 sm:mx-5 p-6 sm:p-8 bg-gray-50 rounded-xl sm:rounded-2xl text-center">
+                      <div className="text-4xl sm:text-5xl mb-2 sm:mb-3">🏕️</div>
+                      <p className="text-gray-900 font-semibold text-sm sm:text-base mb-1">
+                        내 동네에 아직 크루가 없어요
+                      </p>
+                      <p className="text-gray-500 text-xs sm:text-sm">
+                        첫 번째 크루를 만들어보세요!
+                      </p>
+                    </div>
+                  )
+                }
+
+                // 크루 카드 가로 스크롤
+                return (
+                  <div className="overflow-x-auto hide-scrollbar">
+                    <div className="flex gap-3 px-4 sm:px-5 pb-2">
+                      {nearbyCrews.map((crew) => {
+                        // 크루 이미지 URL (우선순위: avatar > imageURL > images[0])
+                        const imageUrl = crew.avatar || crew.imageURL || (crew.images && crew.images[0]) || null
+
+                        // 카테고리 배열 (최대 2개만 표시)
+                        const categories = Array.isArray(crew.categories)
+                          ? crew.categories.slice(0, 2)
+                          : crew.category
+                            ? [crew.category].slice(0, 2)
+                            : []
+
+                        const totalCategories = Array.isArray(crew.categories)
+                          ? crew.categories.length
+                          : crew.category ? 1 : 0
+
+                        return (
+                          <button
+                            key={crew.id}
+                            onClick={() => {
+                              setSelectedOrg(crew)
+                              setCurrentPage('mycrew')
+                            }}
+                            className="flex-shrink-0 w-[240px] sm:w-[280px] bg-white rounded-xl sm:rounded-2xl overflow-hidden border border-gray-200 hover:shadow-md transition-all hover:scale-[1.02] active:scale-95"
+                          >
+                            {/* 크루 이미지 */}
+                            <div className="relative w-full h-[140px] sm:h-[160px] bg-gradient-to-br from-orange-400 to-pink-500">
+                              {imageUrl ? (
+                                <img
+                                  src={imageUrl}
+                                  alt={crew.name}
+                                  className="w-full h-full object-cover"
+                                  onError={(e) => {
+                                    e.currentTarget.style.display = 'none'
+                                  }}
+                                />
+                              ) : (
+                                <div className="w-full h-full flex items-center justify-center">
+                                  <span className="text-5xl sm:text-6xl">🏕️</span>
+                                </div>
+                              )}
+
+                              {/* 거리 배지 */}
+                              {crew.distance > 0 && (
+                                <div className="absolute top-2 sm:top-3 right-2 sm:right-3 px-2 sm:px-3 py-1 sm:py-1.5 bg-white/95 backdrop-blur-sm rounded-full shadow-sm">
+                                  <span className="text-xs sm:text-sm font-bold text-gray-900">
+                                    {formatDistance(crew.distance)}
+                                  </span>
+                                </div>
+                              )}
                             </div>
-                          </div>
-                        </div>
-                      ))}
+
+                            {/* 크루 정보 */}
+                            <div className="p-3 sm:p-4 text-left">
+                              {/* 크루 이름 */}
+                              <h3 className="text-base sm:text-lg font-bold text-gray-900 mb-1.5 sm:mb-2 truncate">
+                                {crew.name}
+                              </h3>
+
+                              {/* 위치 */}
+                              <div className="flex items-center gap-1 text-gray-600 text-xs sm:text-sm mb-2">
+                                <span>📍</span>
+                                <span className="truncate">
+                                  {crew.location?.dong || crew.description?.split(' ').slice(0, 2).join(' ') || '위치 미설정'}
+                                </span>
+                              </div>
+
+                              {/* 카테고리 */}
+                              {categories.length > 0 && (
+                                <div className="flex flex-wrap gap-1 sm:gap-1.5 mb-2 sm:mb-3">
+                                  {categories.map((cat, idx) => (
+                                    <span
+                                      key={idx}
+                                      className="px-2 py-0.5 sm:px-2.5 sm:py-1 bg-gray-100 text-gray-700 text-xs font-medium rounded-md"
+                                    >
+                                      {cat}
+                                    </span>
+                                  ))}
+                                  {totalCategories > 2 && (
+                                    <span className="px-2 py-0.5 sm:px-2.5 sm:py-1 bg-gray-100 text-gray-500 text-xs font-medium rounded-md">
+                                      +{totalCategories - 2}
+                                    </span>
+                                  )}
+                                </div>
+                              )}
+
+                              {/* 멤버 수 */}
+                              <div className="flex items-center gap-1 text-gray-500 text-xs sm:text-sm">
+                                <span>👥</span>
+                                <span>멤버 {orgMemberCounts[crew.id] || 0}명</span>
+                              </div>
+                            </div>
+                          </button>
+                        )
+                      })}
                     </div>
                   </div>
                 )
               })()}
             </div>
+
+            {/* 스크롤바 숨기기 CSS */}
+            <style jsx global>{`
+              .hide-scrollbar {
+                -ms-overflow-style: none;
+                scrollbar-width: none;
+              }
+              .hide-scrollbar::-webkit-scrollbar {
+                display: none;
+              }
+            `}</style>
 
             {/* 다가오는 일정 섹션 - 토스 스타일 */}
             <div className="bg-white rounded-3xl p-7 shadow-sm border border-gray-100">
@@ -1815,10 +1937,14 @@ It's Campers와 함께하는 캠핑 일정에 참여하세요!
       {currentPage === 'category' && (
         <div className="bg-[#F9FAFB] min-h-screen">
           <header className="sticky top-0 bg-white z-10 safe-top border-b border-gray-100">
-            <div className="px-6 py-6 flex justify-between items-center">
-              <div className="flex items-center gap-3">
-                <MapPin className="w-7 h-7 text-[#3182F6]" strokeWidth={2.5} />
-                <span className="font-bold text-2xl tracking-tight text-[#191F28]">{profile.location}</span>
+            <div className="px-4 py-5 sm:px-6 sm:py-6 flex justify-between items-center">
+              <div className="flex items-center gap-2 sm:gap-3">
+                <MapPin className="w-6 h-6 sm:w-7 sm:h-7 text-[#3182F6]" strokeWidth={2.5} />
+                <span className="font-bold text-xl sm:text-2xl tracking-tight text-[#191F28]">
+                  {userProfile?.locations && userProfile.locations.length > 0
+                    ? `${(userProfile.locations.find(loc => loc.id === userProfile.selectedLocationId) || userProfile.locations[0]).sigungu} ${(userProfile.locations.find(loc => loc.id === userProfile.selectedLocationId) || userProfile.locations[0]).dong}`
+                    : profile.location}
+                </span>
               </div>
               <div className="flex gap-1">
                 <button className="p-3 hover:bg-gray-50 rounded-xl active:scale-95 transition-all">
@@ -1886,25 +2012,42 @@ It's Campers와 함께하는 캠핑 일정에 참여하세요!
               </div>
             )}
 
-            {/* 전체 크루 목록 */}
+            {/* 전체 크루 목록 - 10km 반경 내 */}
             <div className="mb-6">
               <div className="flex items-center justify-between mb-3 px-1">
                 <h3 className="text-lg font-bold tracking-tight text-[#191F28]">
-                  🌟 {profile.location} 전체 크루
+                  🌟 내 반경 내 전체 크루
                 </h3>
                 <span className="text-xs font-bold text-[#6B7684] bg-gray-100 px-3 py-1 rounded-full">
-                  {organizations.length}개
+                  {(() => {
+                    const nearby = getNearbyOrganizations()
+                    return nearby.length
+                  })()}개
                 </span>
               </div>
-              {organizations.length === 0 ? (
-                <div className="bg-white rounded-2xl p-8 text-center">
-                  <div className="text-5xl mb-3">⛺</div>
-                  <p className="text-base font-bold text-[#191F28] mb-1">아직 크루가 없어요</p>
-                  <p className="text-sm text-[#6B7684]">첫 번째 크루를 만들어보세요!</p>
-                </div>
-              ) : (
-                <div className="space-y-3">
-                  {organizations.map((org) => (
+              {(() => {
+                const nearby = getNearbyOrganizations()
+                if (!userProfile?.locations || userProfile.locations.length === 0) {
+                  return (
+                    <div className="bg-white rounded-2xl p-8 text-center">
+                      <div className="text-5xl mb-3">📍</div>
+                      <p className="text-base font-bold text-[#191F28] mb-1">동네 인증이 필요해요</p>
+                      <p className="text-sm text-[#6B7684]">내 동네를 인증하고 주변 크루를 만나보세요</p>
+                    </div>
+                  )
+                }
+                if (nearby.length === 0) {
+                  return (
+                    <div className="bg-white rounded-2xl p-8 text-center">
+                      <div className="text-5xl mb-3">🔍</div>
+                      <p className="text-base font-bold text-[#191F28] mb-1">10km 이내 크루가 없어요</p>
+                      <p className="text-sm text-[#6B7684]">새로운 크루를 만들어보세요!</p>
+                    </div>
+                  )
+                }
+                return (
+                  <div className="space-y-3">
+                    {nearby.map((org) => (
                     <div
                       key={org.id}
                       onClick={() => {
@@ -1939,9 +2082,10 @@ It's Campers와 함께하는 캠핑 일정에 참여하세요!
                         <div className="text-[#3182F6] text-xl">→</div>
                       </div>
                     </div>
-                  ))}
-                </div>
-              )}
+                    ))}
+                  </div>
+                )
+              })()}
             </div>
 
             {/* 크루 생성 버튼 - 하단으로 이동 */}
@@ -2661,17 +2805,25 @@ It's Campers와 함께하는 캠핑 일정에 참여하세요!
         <div className="bg-[#F9FAFB] min-h-screen pb-20">
           {/* 헤더 */}
           <header className="sticky top-0 bg-white z-10 safe-top border-b border-gray-100">
-            <div className="px-6 py-6">
-              <h1 className="text-2xl font-bold tracking-tight text-[#191F28]">내 정보</h1>
+            <div className="px-4 py-4 sm:px-6 sm:py-5">
+              <h1 className="text-xl sm:text-2xl font-bold tracking-tight text-[#191F28]">내 정보</h1>
             </div>
           </header>
 
-          <div className="px-5 py-6 space-y-4">
+          <div className="px-4 py-4 sm:px-5 sm:py-6 space-y-3 sm:space-y-4">
+            {/* 내 동네 설정 섹션 */}
+            <div className="bg-white rounded-xl sm:rounded-2xl p-4 sm:p-6 shadow-sm border border-gray-100">
+              <h3 className="text-base sm:text-lg font-bold tracking-tight text-[#191F28] mb-3 sm:mb-4">
+                내 동네 설정
+              </h3>
+              <LocationVerification />
+            </div>
+
             {/* 프로필 카드 */}
-            <div className="bg-white rounded-2xl p-6 shadow-sm border border-gray-100">
-              <div className="text-center mb-6">
-                <div className="relative w-24 h-24 mx-auto mb-4 group">
-                  <div className="w-full h-full bg-gradient-to-br from-blue-50 to-indigo-50 rounded-full flex items-center justify-center text-4xl overflow-hidden">
+            <div className="bg-white rounded-xl sm:rounded-2xl p-4 sm:p-6 shadow-sm border border-gray-100">
+              <div className="text-center mb-5 sm:mb-6">
+                <div className="relative w-20 h-20 sm:w-24 sm:h-24 mx-auto mb-3 sm:mb-4 group">
+                  <div className="w-full h-full bg-gradient-to-br from-blue-50 to-indigo-50 rounded-full flex items-center justify-center text-3xl sm:text-4xl overflow-hidden">
                     <img
                       src={profile.avatar || '/default-avatar.svg'}
                       alt={profile.name}
@@ -2698,61 +2850,61 @@ It's Campers와 함께하는 캠핑 일정에 참여하세요!
                         }
                       }}
                     />
-                    <span className="text-white text-sm font-bold">
+                    <span className="text-white text-xs sm:text-sm font-bold">
                       {uploadingAvatar ? '업로드 중...' : '사진 변경'}
                     </span>
                   </label>
                 </div>
-                <h2 className="text-2xl font-bold tracking-tight text-[#191F28] mb-2">{profile.name}</h2>
-                <p className="text-sm text-[#8B95A1]">{profile.email}</p>
+                <h2 className="text-xl sm:text-2xl font-bold tracking-tight text-[#191F28] mb-1.5 sm:mb-2">{profile.name}</h2>
+                <p className="text-xs sm:text-sm text-[#8B95A1]">{profile.email}</p>
               </div>
 
               {/* 정보 섹션 */}
-              <div className="bg-[#F9FAFB] rounded-2xl p-5 space-y-4">
+              <div className="bg-[#F9FAFB] rounded-xl sm:rounded-2xl p-4 sm:p-5 space-y-3 sm:space-y-4">
                 <div>
-                  <div className="text-xs font-bold text-[#8B95A1] mb-2">생년월일</div>
-                  <div className="text-base font-bold text-[#191F28]">{profile.birthdate}</div>
+                  <div className="text-xs font-bold text-[#8B95A1] mb-1.5 sm:mb-2">생년월일</div>
+                  <div className="text-sm sm:text-base font-bold text-[#191F28]">{profile.birthdate}</div>
                 </div>
                 <div className="h-px bg-[#E5E8EB]"></div>
                 <div>
-                  <div className="text-xs font-bold text-[#8B95A1] mb-2">성별</div>
-                  <div className="text-base font-bold text-[#191F28]">{profile.gender}</div>
+                  <div className="text-xs font-bold text-[#8B95A1] mb-1.5 sm:mb-2">성별</div>
+                  <div className="text-sm sm:text-base font-bold text-[#191F28]">{profile.gender}</div>
                 </div>
                 <div className="h-px bg-[#E5E8EB]"></div>
                 <div>
-                  <div className="text-xs font-bold text-[#8B95A1] mb-2">지역</div>
-                  <div className="text-base font-bold text-[#191F28]">{profile.location}</div>
+                  <div className="text-xs font-bold text-[#8B95A1] mb-1.5 sm:mb-2">지역</div>
+                  <div className="text-sm sm:text-base font-bold text-[#191F28]">{profile.location}</div>
                 </div>
                 <div className="h-px bg-[#E5E8EB]"></div>
                 <div>
-                  <div className="text-xs font-bold text-[#8B95A1] mb-2">MBTI</div>
-                  <div className="text-base font-bold text-[#191F28]">{profile.mbti || '-'}</div>
+                  <div className="text-xs font-bold text-[#8B95A1] mb-1.5 sm:mb-2">MBTI</div>
+                  <div className="text-sm sm:text-base font-bold text-[#191F28]">{profile.mbti || '-'}</div>
                 </div>
                 <div className="h-px bg-[#E5E8EB]"></div>
                 <div>
-                  <div className="text-xs font-bold text-[#8B95A1] mb-2">관심 카테고리</div>
-                  <div className="flex flex-wrap gap-2">
+                  <div className="text-xs font-bold text-[#8B95A1] mb-1.5 sm:mb-2">관심 카테고리</div>
+                  <div className="flex flex-wrap gap-1.5 sm:gap-2">
                     {(profile.interestCategories || []).length > 0 ? (
                       profile.interestCategories.map((category, idx) => (
-                        <span key={idx} className="inline-flex items-center px-3 py-1 bg-[#3182F6] text-white text-xs rounded-full font-medium">
+                        <span key={idx} className="inline-flex items-center px-2.5 py-1 sm:px-3 bg-[#3182F6] text-white text-xs rounded-full font-medium">
                           {category}
                         </span>
                       ))
                     ) : (
-                      <span className="text-base font-bold text-[#191F28]">-</span>
+                      <span className="text-sm sm:text-base font-bold text-[#191F28]">-</span>
                     )}
                   </div>
                 </div>
                 <div className="h-px bg-[#E5E8EB]"></div>
                 <div>
-                  <div className="text-xs font-bold text-[#8B95A1] mb-2">가입일</div>
-                  <div className="text-base font-bold text-[#191F28]">{profile.joinDate}</div>
+                  <div className="text-xs font-bold text-[#8B95A1] mb-1.5 sm:mb-2">가입일</div>
+                  <div className="text-sm sm:text-base font-bold text-[#191F28]">{profile.joinDate}</div>
                 </div>
               </div>
             </div>
 
             {/* 액션 버튼 */}
-            <div className="space-y-3">
+            <div className="space-y-2.5 sm:space-y-3">
               <button
                 onClick={() => {
                   // 지역 정보 파싱 (예: "서울특별시 강남구" -> city: "서울특별시", district: "강남구")
@@ -2772,25 +2924,17 @@ It's Campers와 함께하는 캠핑 일정에 참여하세요!
                   setSelectedDistrict(district)
                   setEditingMyProfile(true)
                 }}
-                className="w-full bg-[#3182F6] text-white py-4 rounded-2xl font-bold hover:bg-[#1B64DA] active:scale-[0.98] transition-all"
+                className="w-full bg-[#3182F6] text-white py-3.5 sm:py-4 rounded-xl sm:rounded-2xl text-sm sm:text-base font-bold hover:bg-[#1B64DA] active:scale-[0.98] transition-all"
               >
                 ✏️ 정보 수정
               </button>
               <button
                 onClick={handleLogout}
-                className="w-full bg-[#F2F4F6] text-[#F04452] py-4 rounded-2xl font-bold hover:bg-[#FFE5E8] active:scale-[0.98] transition-all"
+                className="w-full bg-[#F2F4F6] text-[#F04452] py-3.5 sm:py-4 rounded-xl sm:rounded-2xl text-sm sm:text-base font-bold hover:bg-[#FFE5E8] active:scale-[0.98] transition-all"
               >
                 🚪 로그아웃
               </button>
             </div>
-          </div>
-
-          {/* 내 동네 설정 섹션 */}
-          <div className="bg-white rounded-2xl p-6 shadow-sm border border-gray-100">
-            <h3 className="text-lg font-bold tracking-tight text-[#191F28] mb-4">
-              내 동네 설정
-            </h3>
-            <LocationVerification />
           </div>
         </div>
       )}

@@ -1,14 +1,27 @@
-import type React from "react"
-import type { Metadata } from "next"
-import Script from "next/script"
+import type { Metadata, Viewport } from "next"
 import { Geist, Geist_Mono } from "next/font/google"
+import "./globals.css"
 import { Analytics } from "@vercel/analytics/next"
 import { AuthProvider } from "@/contexts/AuthContext"
 import VersionChecker from "@/components/VersionChecker"
-import "./globals.css"
 
-const _geist = Geist({ subsets: ["latin"] })
-const _geistMono = Geist_Mono({ subsets: ["latin"] })
+const geistSans = Geist({
+  variable: "--font-geist-sans",
+  subsets: ["latin"],
+})
+
+const geistMono = Geist_Mono({
+  variable: "--font-geist-mono",
+  subsets: ["latin"],
+})
+
+export const viewport: Viewport = {
+  width: 'device-width',
+  initialScale: 1,
+  maximumScale: 5,
+  userScalable: true,
+  viewportFit: 'cover',
+}
 
 export const metadata: Metadata = {
   title: "It's Campers - 캠핑 크루와 함께하는 아웃도어 라이프",
@@ -23,11 +36,14 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="ko" style={{ scrollBehavior: 'smooth' }}>
-      <body className={`font-sans antialiased`}>
-        <Script
-          src={`//dapi.kakao.com/v2/maps/sdk.js?appkey=${process.env.NEXT_PUBLIC_KAKAO_MAP_API_KEY}&libraries=services&autoload=false`}
-          strategy="beforeInteractive"
-        />
+      <head>
+        {/* Kakao Maps SDK - 직접 주입 */}
+        <script
+          type="text/javascript"
+          src="https://dapi.kakao.com/v2/maps/sdk.js?appkey=ff364c3f44129afc87e31935ac353ba2&libraries=services"
+        ></script>
+      </head>
+      <body className={`${geistSans.variable} ${geistMono.variable} font-sans antialiased`}>
         <VersionChecker />
         <AuthProvider>
           {children}
