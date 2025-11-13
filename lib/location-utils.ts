@@ -75,39 +75,44 @@ export async function getAddressFromCoords(
   sigungu: string
   dong: string
 }> {
+  console.log('🗺️ 주소 변환 시작:', { latitude, longitude })
+
+  // window.kakao 로드 대기 (최대 5초)
+  let attempts = 0
+  while (!window.kakao?.maps && attempts < 10) {
+    console.log(`⏳ Kakao Maps 로드 대기... (${attempts + 1}/10)`)
+    await new Promise(resolve => setTimeout(resolve, 500))
+    attempts++
+  }
+
+  if (!window.kakao?.maps) {
+    console.error('❌ Kakao Maps API 로드 실패')
+    console.error('window.kakao:', window.kakao)
+    throw new Error('Kakao Maps API가 로드되지 않았습니다. 페이지를 새로고침 후 다시 시도해주세요.')
+  }
+
+  console.log('✅ Kakao Maps API 확인 완료')
+
   return new Promise((resolve, reject) => {
-    if (typeof window === 'undefined' || !window.kakao) {
-      reject(new Error('Kakao Maps API가 로드되지 않았습니다.'))
-      return
-    }
+    const geocoder = new window.kakao.maps.services.Geocoder()
 
-    console.log('🗺️ 주소 변환 시작:', { latitude, longitude })
+    geocoder.coord2Address(longitude, latitude, (result: any, status: any) => {
+      console.log('📍 Geocoder 응답:', { status, result })
 
-    window.kakao.maps.load(() => {
-      const geocoder = new window.kakao.maps.services.Geocoder()
+      if (status === window.kakao.maps.services.Status.OK) {
+        const address = result[0].address
+        console.log('✅ 주소 변환 성공:', address)
 
-      geocoder.coord2Address(longitude, latitude, (result: any, status: any) => {
-        if (status === window.kakao.maps.services.Status.OK) {
-          const address = result[0].address
-
-          console.log('✅ 주소 변환 성공:', {
-            full: address.address_name,
-            sido: address.region_1depth_name,
-            sigungu: address.region_2depth_name,
-            dong: address.region_3depth_name,
-          })
-
-          resolve({
-            address: address.address_name,
-            sido: address.region_1depth_name,
-            sigungu: address.region_2depth_name,
-            dong: address.region_3depth_name,
-          })
-        } else {
-          console.error('❌ 주소 변환 실패:', status)
-          reject(new Error('주소 변환에 실패했습니다. 다시 시도해주세요.'))
-        }
-      })
+        resolve({
+          address: address.address_name,
+          sido: address.region_1depth_name,
+          sigungu: address.region_2depth_name,
+          dong: address.region_3depth_name,
+        })
+      } else {
+        console.error('❌ 주소 변환 실패, status:', status)
+        reject(new Error('주소 변환에 실패했습니다.'))
+      }
     })
   })
 }
