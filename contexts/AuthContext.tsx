@@ -3,8 +3,21 @@
 import React, { createContext, useContext, useEffect, useState } from 'react'
 import type { User } from 'firebase/auth'
 import { onAuthStateChanged } from 'firebase/auth'
-import { collection, query, where, getDocs, doc, getDoc } from 'firebase/firestore'
+import { collection, query, where, getDocs, doc, getDoc, updateDoc } from 'firebase/firestore'
 import { auth, db } from '@/lib/firebase'
+
+export interface UserLocation {
+  id: string
+  name: string              // "집", "직장" 등
+  address: string           // "서울특별시 강남구 역삼동"
+  sido: string              // "서울특별시"
+  sigungu: string           // "강남구"
+  dong: string              // "역삼동"
+  latitude: number          // 위도
+  longitude: number         // 경도
+  verifiedAt: Date          // 인증 시각
+  isPrimary: boolean        // 주 지역 여부
+}
 
 export interface UserProfile {
   uid: string
@@ -12,13 +25,16 @@ export interface UserProfile {
   name: string
   gender: string
   birthdate: string
-  location: string
+  location: string          // 레거시 호환용 (기존 지역 문자열)
   mbti?: string
   avatar?: string
   joinDate: string
   role?: 'member' | 'staff' | 'captain'
   interestCategories?: string[]
-  organizations?: string[]
+  organizations?: string[]  // 레거시 호환용 (기존 필드)
+  joinedOrganizations?: string[]  // 사용자가 가입한 크루 ID 목록
+  locations?: UserLocation[]    // 인증된 지역 목록 (최대 2개)
+  selectedLocationId?: string   // 현재 선택된 지역 ID
 }
 
 interface AuthContextType {
@@ -97,6 +113,39 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         console.log('  - isCaptain:', memberData.isCaptain)
         console.log('  - isStaff:', memberData.isStaff)
 
+        // Firestore의 Timestamp를 Date로 변환
+        const convertLocations = (locations: any[]): UserLocation[] => {
+          if (!locations) return []
+          return locations.map(loc => ({
+            ...loc,
+            verifiedAt: loc.verifiedAt?.toDate ? loc.verifiedAt.toDate() : new Date(loc.verifiedAt)
+          }))
+        }
+
+        // 기존 유저 자동 마이그레이션: joinedOrganizations가 없으면 잇츠캠퍼즈 크루에 자동 가입
+        let joinedOrgs = userProfileData.joinedOrganizations || []
+        if (joinedOrgs.length === 0) {
+          console.log('🔄 기존 유저 감지 - 잇츠캠퍼즈 크루 자동 가입 중...')
+          // 잇츠 캠퍼즈 크루 ID 찾기
+          const orgsSnapshot = await getDocs(collection(db, 'organizations'))
+          let itsCampersId = ''
+          orgsSnapshot.forEach(orgDoc => {
+            if (orgDoc.data().name === '잇츠 캠퍼즈') {
+              itsCampersId = orgDoc.id
+            }
+          })
+
+          if (itsCampersId) {
+            joinedOrgs = [itsCampersId]
+            // Firestore에 저장
+            const userDocRef = doc(db, 'userProfiles', uid)
+            await updateDoc(userDocRef, {
+              joinedOrganizations: joinedOrgs
+            })
+            console.log('✅ 잇츠캠퍼즈 크루 자동 가입 완료')
+          }
+        }
+
         setUserProfile({
           uid: memberData.uid || uid,
           email: memberData.email,
@@ -109,7 +158,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           joinDate: memberData.joinDate,
           role: memberData.isCaptain ? 'captain' : (memberData.isStaff ? 'staff' : 'member'),
           interestCategories: userProfileData.interestCategories || [],
-          organizations: userProfileData.organizations || []
+          organizations: userProfileData.organizations || [],
+          joinedOrganizations: joinedOrgs,
+          locations: convertLocations(userProfileData.locations || []),
+          selectedLocationId: userProfileData.selectedLocationId || ''
         })
 
         console.log('✅ 최종 프로필 설정 완료')

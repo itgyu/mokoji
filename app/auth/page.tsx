@@ -128,7 +128,7 @@ export default function AuthPage() {
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-emerald-50 to-teal-50 p-4">
+    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 to-indigo-50 p-4">
       <div className="w-full max-w-md">
         {step === 'login' && (
           <div className="bg-white rounded-2xl shadow-xl p-8">
@@ -145,7 +145,7 @@ export default function AuthPage() {
                 onChange={(e) => setEmail(e.target.value)}
                 placeholder="이메일"
                 required
-                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
+                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#3182F6] focus:border-transparent"
               />
               <input
                 type="password"
@@ -153,13 +153,13 @@ export default function AuthPage() {
                 onChange={(e) => setPassword(e.target.value)}
                 placeholder="비밀번호"
                 required
-                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
+                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#3182F6] focus:border-transparent"
               />
               {error && <p className="text-red-500 text-sm">{error}</p>}
               <button
                 type="submit"
                 disabled={loading}
-                className="w-full bg-gradient-to-r from-emerald-500 to-teal-500 text-white font-semibold py-3 rounded-lg hover:from-emerald-600 hover:to-teal-600 transition-all"
+                className="w-full bg-[#3182F6] text-white font-semibold py-3 rounded-lg hover:bg-[#1B64DA] active:scale-95 transition-all"
               >
                 {loading ? '로그인 중...' : '로그인'}
               </button>
@@ -178,7 +178,7 @@ export default function AuthPage() {
                   <button
                     type="button"
                     onClick={() => setStep('signup')}
-                    className="text-emerald-600 text-sm font-semibold hover:underline"
+                    className="text-[#3182F6] text-sm font-semibold hover:underline"
                   >
                     회원가입
                   </button>
@@ -215,7 +215,7 @@ export default function AuthPage() {
                   placeholder="비밀번호"
                   required
                   minLength={6}
-                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500"
+                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#3182F6]"
                 />
               </div>
 
@@ -227,7 +227,7 @@ export default function AuthPage() {
                   onChange={(e) => setName(e.target.value)}
                   placeholder="홍길동"
                   required
-                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500"
+                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#3182F6]"
                 />
               </div>
 
@@ -237,7 +237,7 @@ export default function AuthPage() {
                   value={gender}
                   onChange={(e) => setGender(e.target.value)}
                   required
-                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500"
+                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#3182F6]"
                 >
                   <option value="">선택</option>
                   <option value="남">남</option>
@@ -252,7 +252,7 @@ export default function AuthPage() {
                   value={birthdate}
                   onChange={(e) => setBirthdate(e.target.value)}
                   required
-                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500"
+                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#3182F6]"
                 />
               </div>
 
@@ -267,7 +267,7 @@ export default function AuthPage() {
                       setLocation(e.target.value)
                     }}
                     required
-                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500"
+                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#3182F6]"
                   >
                     <option value="">시/도</option>
                     {getCities().map(city => (
@@ -282,7 +282,7 @@ export default function AuthPage() {
                     }}
                     disabled={!selectedCity}
                     required
-                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 disabled:bg-gray-100 disabled:cursor-not-allowed"
+                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#3182F6] disabled:bg-gray-100 disabled:cursor-not-allowed"
                   >
                     <option value="">구/군</option>
                     {selectedCity && getDistricts(selectedCity).map(district => (
@@ -300,7 +300,7 @@ export default function AuthPage() {
                   onChange={(e) => setMbti(e.target.value)}
                   placeholder="ENFP"
                   maxLength={4}
-                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500"
+                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#3182F6]"
                 />
               </div>
 
@@ -321,7 +321,7 @@ export default function AuthPage() {
                             setInterestCategories(interestCategories.filter(c => c !== category))
                           }
                         }}
-                        className="w-4 h-4 text-emerald-500 border-gray-300 rounded focus:ring-emerald-500"
+                        className="w-4 h-4 text-[#3182F6] border-gray-300 rounded focus:ring-[#3182F6]"
                       />
                       <span className="text-sm text-gray-700">{category}</span>
                     </label>
@@ -330,7 +330,7 @@ export default function AuthPage() {
                 {interestCategories.length > 0 && (
                   <div className="mt-2 flex flex-wrap gap-1">
                     {interestCategories.map((cat) => (
-                      <span key={cat} className="inline-flex items-center gap-1 px-2 py-1 bg-emerald-500 text-white text-xs rounded-full">
+                      <span key={cat} className="inline-flex items-center gap-1 px-2 py-1 bg-[#3182F6] text-white text-xs rounded-full">
                         {cat}
                         <button
                           type="button"
@@ -351,7 +351,7 @@ export default function AuthPage() {
                   type="file"
                   accept="image/*"
                   onChange={(e) => setAvatarFile(e.target.files?.[0] || null)}
-                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500"
+                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#3182F6]"
                 />
                 <p className="text-xs text-gray-500 mt-1">※ 5MB 이하 권장</p>
               </div>
@@ -361,7 +361,7 @@ export default function AuthPage() {
               <button
                 type="submit"
                 disabled={loading}
-                className="w-full bg-gradient-to-r from-emerald-500 to-teal-500 text-white font-semibold py-3 rounded-lg hover:from-emerald-600 hover:to-teal-600 transition-all"
+                className="w-full bg-[#3182F6] text-white font-semibold py-3 rounded-lg hover:bg-[#1B64DA] active:scale-95 transition-all"
               >
                 {loading ? '가입 중...' : '가입하기'}
               </button>
@@ -394,7 +394,7 @@ export default function AuthPage() {
                   onChange={(e) => setEmail(e.target.value)}
                   placeholder="이메일을 입력하세요"
                   required
-                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
+                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#3182F6] focus:border-transparent"
                 />
               </div>
 
@@ -403,7 +403,7 @@ export default function AuthPage() {
               <button
                 type="submit"
                 disabled={loading}
-                className="w-full bg-gradient-to-r from-emerald-500 to-teal-500 text-white font-semibold py-3 rounded-lg hover:from-emerald-600 hover:to-teal-600 transition-all"
+                className="w-full bg-[#3182F6] text-white font-semibold py-3 rounded-lg hover:bg-[#1B64DA] active:scale-95 transition-all"
               >
                 {loading ? '전송 중...' : '비밀번호 재설정 링크 보내기'}
               </button>

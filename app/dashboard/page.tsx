@@ -7,13 +7,15 @@ import { useRouter } from 'next/navigation'
 import { useAuth } from '@/contexts/AuthContext'
 import { signOut } from 'firebase/auth'
 import { auth, db } from '@/lib/firebase'
-import { collection, query, where, getDocs, doc, getDoc, updateDoc, onSnapshot, addDoc, arrayUnion } from 'firebase/firestore'
+import { collection, query, where, getDocs, doc, getDoc, updateDoc, onSnapshot, addDoc, arrayUnion, arrayRemove } from 'firebase/firestore'
 import { Home, Users, Calendar, User, MapPin, Bell, Settings } from 'lucide-react'
 import { uploadToS3 } from '@/lib/s3-utils'
 import ScheduleDeepLink from '@/components/ScheduleDeepLink'
 import { getCities, getDistricts } from '@/lib/locations'
 import ImageCropModal from '@/components/ImageCropModal'
 import { CREW_CATEGORIES } from '@/lib/constants'
+import LocationVerification from '@/components/LocationVerification'
+import { getCurrentPosition, getAddressFromCoords, calculateDistance, formatDistance } from '@/lib/location-utils'
 
 type Page = 'home' | 'category' | 'mycrew' | 'myprofile'
 
@@ -66,6 +68,21 @@ interface Organization {
   createdAt: string
   // 기존 데이터 호환을 위한 optional
   category?: string
+  location?: {          // 크루 활동 지역
+    address: string     // 전체 주소
+    sido: string        // 시/도
+    sigungu: string     // 시/군/구
+    dong: string        // 동/읍/면
+    latitude: number    // 위도
+    longitude: number   // 경도
+  }
+  pendingMembers?: Array<{  // 가입 대기 멤버
+    uid: string
+    name: string
+    email: string
+    avatar?: string
+    requestedAt: any
+  }>
 }
 
 export default function DashboardPage() {
@@ -110,8 +127,17 @@ export default function DashboardPage() {
     name: '',
     subtitle: '',
     description: '',
-    categories: [] as string[]  // 다중 카테고리
+    categories: [] as string[],  // 다중 카테고리
+    location: null as {
+      address: string
+      sido: string
+      sigungu: string
+      dong: string
+      latitude: number
+      longitude: number
+    } | null
   })
+  const [settingLocation, setSettingLocation] = useState(false)  // 위치 설정 로딩 상태
   const [showCreateCrew, setShowCreateCrew] = useState(false)  // 크루 생성 모달
   const [orgAvatarFile, setOrgAvatarFile] = useState<File | null>(null)
   const [myProfileAvatarFile, setMyProfileAvatarFile] = useState<File | null>(null)
@@ -830,6 +856,34 @@ export default function DashboardPage() {
     }
   }
 
+  // 현재 위치로 크루 location 설정
+  const handleSetCrewLocation = async () => {
+    try {
+      setSettingLocation(true)
+      const { latitude, longitude } = await getCurrentPosition()
+      const { address, sido, sigungu, dong } = await getAddressFromCoords(
+        latitude,
+        longitude
+      )
+
+      setOrgForm({
+        ...orgForm,
+        location: {
+          address,
+          sido,
+          sigungu,
+          dong,
+          latitude,
+          longitude
+        }
+      })
+    } catch (error: any) {
+      alert(error.message || '위치 설정에 실패했습니다.')
+    } finally {
+      setSettingLocation(false)
+    }
+  }
+
   const handleCreateCrew = async () => {
     if (!user || !userProfile) return
 
@@ -863,6 +917,10 @@ export default function DashboardPage() {
         orgData.subtitle = orgForm.subtitle
       }
 
+      if (orgForm.location) {
+        orgData.location = orgForm.location
+      }
+
       console.log('🆕 크루 생성 시작:', orgData)
 
       const docRef = await addDoc(collection(db, 'organizations'), orgData)
@@ -884,7 +942,7 @@ export default function DashboardPage() {
 
       alert('크루가 생성되었습니다!')
       setShowCreateCrew(false)
-      setOrgForm({ name: '', subtitle: '', description: '', categories: [] })
+      setOrgForm({ name: '', subtitle: '', description: '', categories: [], location: null })
       setOrgAvatarFile(null)
 
       // 크루 목록 새로고침
@@ -931,6 +989,143 @@ export default function DashboardPage() {
   const handleCropCancel = () => {
     setCropImageUrl(null)
     setCropType(null)
+  }
+
+  // 내 동네 근처 크루 필터링 (10km 이내)
+  const getNearbyOrganizations = () => {
+    // 1. 사용자가 인증된 지역이 없으면 빈 배열 반환
+    if (!userProfile?.locations || userProfile.locations.length === 0) {
+      return []
+    }
+
+    // 2. 선택된 지역 또는 첫 번째 지역 가져오기
+    const selectedLocation = userProfile.locations.find(
+      loc => loc.id === userProfile.selectedLocationId
+    ) || userProfile.locations[0]
+
+    // 3. 위치 정보가 있는 크루만 필터링
+    const orgsWithLocation = organizations.filter(org => org.location)
+
+    // 4. 거리 계산 및 10km 이내 필터링
+    const nearby = orgsWithLocation
+      .map(org => {
+        const distance = calculateDistance(
+          selectedLocation.latitude,
+          selectedLocation.longitude,
+          org.location!.latitude,
+          org.location!.longitude
+        )
+        return { ...org, distance }
+      })
+      .filter(org => org.distance <= 10)
+      .sort((a, b) => a.distance - b.distance)
+
+    return nearby
+  }
+
+  // 크루 가입 신청
+  const handleJoinCrew = async (orgId: string) => {
+    if (!user || !userProfile) {
+      alert('로그인이 필요합니다.')
+      return
+    }
+
+    try {
+      const orgRef = doc(db, 'organizations', orgId)
+      const orgSnap = await getDoc(orgRef)
+
+      if (!orgSnap.exists()) {
+        alert('크루를 찾을 수 없습니다.')
+        return
+      }
+
+      const orgData = orgSnap.data()
+      const existingPending = orgData.pendingMembers || []
+
+      // 이미 신청한 경우
+      if (existingPending.some((m: any) => m.uid === user.uid)) {
+        alert('이미 가입 신청하셨습니다.')
+        return
+      }
+
+      // pendingMembers에 추가
+      await updateDoc(orgRef, {
+        pendingMembers: arrayUnion({
+          uid: user.uid,
+          name: userProfile.name,
+          email: userProfile.email,
+          avatar: userProfile.avatar || '',
+          requestedAt: new Date()
+        })
+      })
+
+      alert('가입 신청이 완료되었습니다! 크루장의 승인을 기다려주세요.')
+      fetchOrganizations()
+
+    } catch (error) {
+      console.error('가입 신청 실패:', error)
+      alert('가입 신청에 실패했습니다. 다시 시도해주세요.')
+    }
+  }
+
+  // 크루 가입 승인
+  const handleApproveMember = async (orgId: string, member: any) => {
+    if (!confirm(`${member.name}님의 가입을 승인하시겠습니까?`)) return
+
+    try {
+      const orgRef = doc(db, 'organizations', orgId)
+      const userRef = doc(db, 'userProfiles', member.uid)
+
+      // pendingMembers에서 제거
+      await updateDoc(orgRef, {
+        pendingMembers: arrayRemove(member)
+      })
+
+      // userProfiles의 joinedOrganizations에 추가
+      await updateDoc(userRef, {
+        joinedOrganizations: arrayUnion(orgId)
+      })
+
+      alert(`${member.name}님이 크루에 가입되었습니다!`)
+      fetchOrganizations()
+
+      // 현재 선택된 크루 정보 새로고침
+      if (selectedOrg) {
+        const updatedOrg = await getDoc(orgRef)
+        setSelectedOrg({ id: updatedOrg.id, ...updatedOrg.data() } as Organization)
+      }
+
+    } catch (error) {
+      console.error('승인 실패:', error)
+      alert('승인에 실패했습니다. 다시 시도해주세요.')
+    }
+  }
+
+  // 크루 가입 거절
+  const handleRejectMember = async (orgId: string, member: any) => {
+    if (!confirm(`${member.name}님의 가입을 거절하시겠습니까?`)) return
+
+    try {
+      const orgRef = doc(db, 'organizations', orgId)
+
+      // pendingMembers에서만 제거
+      await updateDoc(orgRef, {
+        pendingMembers: arrayRemove(member)
+      })
+
+      alert(`${member.name}님의 가입 신청이 거절되었습니다.`)
+      fetchOrganizations()
+
+      // 현재 선택된 크루 정보 새로고침
+      if (selectedOrg) {
+        const updatedOrg = await getDoc(orgRef)
+        setSelectedOrg({ id: updatedOrg.id, ...updatedOrg.data() } as Organization)
+      }
+
+    } catch (error) {
+      console.error('거절 실패:', error)
+      alert('거절에 실패했습니다. 다시 시도해주세요.')
+    }
   }
 
   const handleCreateSchedule = async () => {
@@ -1444,18 +1639,109 @@ It's Campers와 함께하는 캠핑 일정에 참여하세요!
           </header>
 
           <div className="px-5 py-6 space-y-5">
-            {/* 내 지역 모임 카드 - 토스 스타일 */}
+            {/* 내 동네 크루 섹션 */}
             <div className="bg-white rounded-3xl p-7 shadow-sm border border-gray-100">
-              <div className="flex items-center gap-3 mb-4">
-                <div className="w-12 h-12 bg-gradient-to-br from-blue-50 to-indigo-50 rounded-2xl flex items-center justify-center">
-                  <Home className="w-6 h-6 text-[#3182F6]" strokeWidth={2.5} />
+              <div className="flex justify-between items-center mb-6">
+                <div className="flex items-center gap-3">
+                  <div className="w-12 h-12 bg-gradient-to-br from-blue-50 to-indigo-50 rounded-2xl flex items-center justify-center">
+                    <MapPin className="w-6 h-6 text-[#3182F6]" strokeWidth={2.5} />
+                  </div>
+                  <h2 className="text-2xl font-bold tracking-tight text-[#191F28]">내 동네 크루</h2>
                 </div>
-                <h2 className="text-2xl font-bold tracking-tight text-[#191F28]">내 지역 모임</h2>
+                {userProfile?.locations && userProfile.locations.length > 0 && (
+                  <span className="text-xs font-bold text-blue-700 bg-blue-50 px-3 py-1.5 rounded-full">
+                    {(userProfile.locations.find(loc => loc.id === userProfile.selectedLocationId) || userProfile.locations[0]).dong}
+                  </span>
+                )}
               </div>
-              <p className="text-[#6B7684] text-base leading-relaxed font-medium">
-                내 지역과 관심사를 기반으로<br />
-                맞춤 모임을 추천해드립니다.
-              </p>
+
+              {/* 위치 미인증 상태 */}
+              {(!userProfile?.locations || userProfile.locations.length === 0) ? (
+                <div className="text-center py-12">
+                  <div className="text-6xl mb-4">📍</div>
+                  <p className="text-[#191F28] font-bold text-xl mb-2">동네 인증이 필요해요</p>
+                  <p className="text-[#6B7684] text-base font-medium mb-6">
+                    내 동네를 인증하고<br />
+                    주변 크루를 만나보세요
+                  </p>
+                  <button
+                    onClick={() => setCurrentPage('myprofile')}
+                    className="bg-[#3182F6] text-white font-bold py-3 px-6 rounded-xl hover:bg-[#1B64DA] active:scale-95 transition-all"
+                  >
+                    동네 인증하기
+                  </button>
+                </div>
+              ) : (() => {
+                const nearbyCrews = getNearbyOrganizations()
+                return nearbyCrews.length === 0 ? (
+                  /* 근처 크루 없음 */
+                  <div className="text-center py-12">
+                    <div className="text-6xl mb-4">🔍</div>
+                    <p className="text-[#191F28] font-bold text-xl mb-2">근처에 크루가 없어요</p>
+                    <p className="text-[#6B7684] text-base font-medium">
+                      10km 이내에 활동 중인<br />
+                      크루가 없습니다
+                    </p>
+                  </div>
+                ) : (
+                  /* 크루 목록 - 가로 스크롤 */
+                  <div className="overflow-x-auto -mx-7 px-7 pb-2">
+                    <div className="flex gap-4" style={{ width: 'max-content' }}>
+                      {nearbyCrews.map((crew) => (
+                        <div
+                          key={crew.id}
+                          onClick={() => {
+                            setSelectedOrg(crew)
+                            setCurrentPage('crew')
+                          }}
+                          className="bg-[#F9FAFB] rounded-2xl p-5 hover:bg-[#F2F4F6] active:scale-[0.98] transition-all cursor-pointer border border-transparent hover:border-[#3182F6]/20"
+                          style={{ width: '280px', flexShrink: 0 }}
+                        >
+                          {/* 크루 이미지 */}
+                          <div className="relative w-full h-40 bg-gradient-to-br from-blue-400 to-indigo-400 rounded-xl mb-4 overflow-hidden">
+                            {crew.images && crew.images[0] ? (
+                              <img
+                                src={crew.images[0]}
+                                alt={crew.name}
+                                className="w-full h-full object-cover"
+                              />
+                            ) : (
+                              <div className="w-full h-full flex items-center justify-center text-white text-5xl font-bold">
+                                {crew.name[0]}
+                              </div>
+                            )}
+                            {/* 거리 배지 */}
+                            <div className="absolute top-3 right-3 bg-white/95 backdrop-blur-sm px-3 py-1.5 rounded-full">
+                              <span className="text-xs font-bold text-[#3182F6]">
+                                📍 {formatDistance(crew.distance)}
+                              </span>
+                            </div>
+                          </div>
+
+                          {/* 크루 정보 */}
+                          <div className="space-y-2">
+                            <h3 className="font-bold text-lg text-[#191F28] truncate">
+                              {crew.name}
+                            </h3>
+                            <p className="text-sm text-[#6B7684] truncate flex items-center gap-1">
+                              <MapPin className="w-3.5 h-3.5" />
+                              {crew.location?.dong}
+                            </p>
+                            <div className="flex items-center justify-between pt-2 border-t border-gray-200">
+                              <span className="text-xs font-medium text-[#8B95A1]">
+                                {crew.categories?.[0] || '캠핑'}
+                              </span>
+                              <span className="text-sm font-bold text-[#191F28]">
+                                👥 {crew.members?.length || 0}명
+                              </span>
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )
+              })()}
             </div>
 
             {/* 다가오는 일정 섹션 - 토스 스타일 */}
@@ -2498,6 +2784,14 @@ It's Campers와 함께하는 캠핑 일정에 참여하세요!
               </button>
             </div>
           </div>
+
+          {/* 내 동네 설정 섹션 */}
+          <div className="bg-white rounded-2xl p-6 shadow-sm border border-gray-100">
+            <h3 className="text-lg font-bold tracking-tight text-[#191F28] mb-4">
+              내 동네 설정
+            </h3>
+            <LocationVerification />
+          </div>
         </div>
       )}
 
@@ -2758,6 +3052,47 @@ It's Campers와 함께하는 캠핑 일정에 참여하세요!
                 )}
               </div>
 
+              {/* 크루 활동 지역 */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">크루 활동 지역 (선택)</label>
+                <div className="space-y-2">
+                  {orgForm.location ? (
+                    <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-lg">
+                      <div className="flex items-start justify-between">
+                        <div>
+                          <p className="text-sm font-medium text-emerald-900">{orgForm.location.dong}</p>
+                          <p className="text-xs text-emerald-700 mt-1">{orgForm.location.address}</p>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => setOrgForm({ ...orgForm, location: null })}
+                          className="text-red-600 text-xs font-medium hover:text-red-700"
+                        >
+                          삭제
+                        </button>
+                      </div>
+                    </div>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={handleSetCrewLocation}
+                      disabled={settingLocation}
+                      className="w-full py-2.5 px-4 bg-white border border-gray-300 text-gray-700 rounded-lg font-medium hover:bg-gray-50 active:scale-95 transition-all disabled:opacity-50"
+                    >
+                      {settingLocation ? (
+                        <span className="flex items-center justify-center gap-2">
+                          <div className="w-4 h-4 border-2 border-gray-400 border-t-transparent rounded-full animate-spin" />
+                          위치 가져오는 중...
+                        </span>
+                      ) : (
+                        '📍 현재 위치로 설정'
+                      )}
+                    </button>
+                  )}
+                  <p className="text-xs text-gray-500">※ 내 동네 크루 필터링에 사용됩니다</p>
+                </div>
+              </div>
+
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">크루 메인사진</label>
                 <div className="space-y-2">
@@ -2916,6 +3251,47 @@ It's Campers와 함께하는 캠핑 일정에 참여하세요!
                 )}
               </div>
 
+              {/* 크루 활동 지역 */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">크루 활동 지역 (선택)</label>
+                <div className="space-y-2">
+                  {orgForm.location ? (
+                    <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-lg">
+                      <div className="flex items-start justify-between">
+                        <div>
+                          <p className="text-sm font-medium text-emerald-900">{orgForm.location.dong}</p>
+                          <p className="text-xs text-emerald-700 mt-1">{orgForm.location.address}</p>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => setOrgForm({ ...orgForm, location: null })}
+                          className="text-red-600 text-xs font-medium hover:text-red-700"
+                        >
+                          삭제
+                        </button>
+                      </div>
+                    </div>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={handleSetCrewLocation}
+                      disabled={settingLocation}
+                      className="w-full py-2.5 px-4 bg-white border border-gray-300 text-gray-700 rounded-lg font-medium hover:bg-gray-50 active:scale-95 transition-all disabled:opacity-50"
+                    >
+                      {settingLocation ? (
+                        <span className="flex items-center justify-center gap-2">
+                          <div className="w-4 h-4 border-2 border-gray-400 border-t-transparent rounded-full animate-spin" />
+                          위치 가져오는 중...
+                        </span>
+                      ) : (
+                        '📍 현재 위치로 설정'
+                      )}
+                    </button>
+                  )}
+                  <p className="text-xs text-gray-500">※ 내 동네 크루 필터링에 사용됩니다</p>
+                </div>
+              </div>
+
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">크루 메인사진</label>
                 <div className="space-y-2">
@@ -2976,7 +3352,7 @@ It's Campers와 함께하는 캠핑 일정에 참여하세요!
               <button
                 onClick={() => {
                   setShowCreateCrew(false)
-                  setOrgForm({ name: '', subtitle: '', description: '', categories: [] })
+                  setOrgForm({ name: '', subtitle: '', description: '', categories: [], location: null })
                   setOrgAvatarFile(null)
                 }}
                 className="flex-1 py-3 bg-gray-200 text-gray-700 rounded-lg font-semibold hover:bg-gray-300 transition-colors"
