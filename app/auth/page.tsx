@@ -7,7 +7,7 @@ import {
   createUserWithEmailAndPassword,
   sendPasswordResetEmail
 } from 'firebase/auth'
-import { collection, addDoc, doc, setDoc, serverTimestamp } from 'firebase/firestore'
+import { collection, addDoc, doc, setDoc, updateDoc, serverTimestamp, getDoc, query, where, getDocs } from 'firebase/firestore'
 import { auth, db } from '@/lib/firebase'
 import { getCities, getDistricts } from '@/lib/locations'
 import { uploadToS3 } from '@/lib/s3-utils'
@@ -40,7 +40,30 @@ export default function AuthPage() {
     setLoading(true)
 
     try {
-      await signInWithEmailAndPassword(auth, email, password)
+      const userCredential = await signInWithEmailAndPassword(auth, email, password)
+      const user = userCredential.user
+
+      // Sync email to userProfiles
+      if (user.email) {
+        const userProfileRef = doc(db, 'userProfiles', user.uid)
+        await setDoc(userProfileRef, {
+          email: user.email
+        }, { merge: true })
+
+        // Sync email to members collection
+        const membersQuery = query(
+          collection(db, 'members'),
+          where('uid', '==', user.uid)
+        )
+        const membersSnapshot = await getDocs(membersQuery)
+        const updatePromises = membersSnapshot.docs.map(memberDoc =>
+          updateDoc(doc(db, 'members', memberDoc.id), {
+            email: user.email
+          })
+        )
+        await Promise.all(updatePromises)
+      }
+
       router.push('/dashboard')
     } catch (err: unknown) {
       if (err instanceof Error) {
@@ -88,6 +111,7 @@ export default function AuthPage() {
 
       // 2. userProfiles 컬렉션에 상세 프로필 저장
       await setDoc(doc(db, 'userProfiles', user.uid), {
+        email,
         name,
         gender,
         birthdate,

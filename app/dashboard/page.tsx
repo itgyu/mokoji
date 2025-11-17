@@ -2,7 +2,7 @@
 
 export const dynamic = 'force-dynamic'
 
-import { useState, useEffect, Suspense } from 'react'
+import { useState, useEffect, Suspense, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import { useAuth } from '@/contexts/AuthContext'
 import { signOut } from 'firebase/auth'
@@ -16,8 +16,12 @@ import ImageCropModal from '@/components/ImageCropModal'
 import { CREW_CATEGORIES } from '@/lib/constants'
 import LocationVerification from '@/components/LocationVerification'
 import { getCurrentPosition, getAddressFromCoords, calculateDistance, formatDistance } from '@/lib/location-utils'
+import { getOrganizations, getOrganizationMembers } from '@/lib/firestore-helpers'
+import type { OrganizationMember } from '@/types'
+import { formatTimestamp } from '@/lib/date-utils'
+import useEmblaCarousel from 'embla-carousel-react'
 
-type Page = 'home' | 'category' | 'mycrew' | 'myprofile'
+type Page = 'home' | 'category' | 'mycrew' | 'myprofile' | 'schedules'
 
 interface Comment {
   id: string
@@ -86,7 +90,7 @@ interface Organization {
 }
 
 export default function DashboardPage() {
-  const { user, userProfile, loading } = useAuth()
+  const { user, userProfile, memberships, loading } = useAuth()
   const router = useRouter()
   const [currentPage, setCurrentPage] = useState<Page>('home')
   const [schedules, setSchedules] = useState<Schedule[]>([])
@@ -189,25 +193,25 @@ export default function DashboardPage() {
     }
   }, [user, userProfile])
 
-  // 홈 화면에서 모든 크루의 일정을 가져오기
+  // 홈 화면 및 내 크루 화면에서 모든 크루의 일정을 가져오기
   useEffect(() => {
-    console.log('🔄 useEffect [user, organizations, currentPage, selectedOrg] 실행됨 (홈용)')
+    console.log('🔄 useEffect [user, organizations, currentPage, selectedOrg] 실행됨')
     console.log('  - currentPage:', currentPage)
     console.log('  - selectedOrg:', selectedOrg ? 'exists' : 'null')
     console.log('  - organizations:', organizations.length)
 
     let unsubscribe: (() => void) | undefined
 
-    // 홈 화면이고 특정 크루가 선택되지 않은 경우, 모든 크루의 일정을 가져옴
-    if (user && currentPage === 'home' && !selectedOrg && organizations.length > 0) {
-      console.log('✅ 홈 화면 조건 충족: 모든 크루의 일정 리스너 설정 시작...')
+    // 홈 화면 또는 내 크루 화면이고 특정 크루가 선택되지 않은 경우, 모든 크루의 일정을 가져옴
+    if (user && (currentPage === 'home' || currentPage === 'mycrew') && !selectedOrg && organizations.length > 0) {
+      console.log('✅ 모든 크루 일정 리스너 설정 시작...')
       const orgIds = organizations.map(org => org.id)
       unsubscribe = fetchAllUserSchedules(orgIds)
     }
 
     return () => {
       if (unsubscribe) {
-        console.log('🔌 홈 화면 일정 리스너 해제')
+        console.log('🔌 모든 크루 일정 리스너 해제')
         unsubscribe()
       }
     }
@@ -279,24 +283,58 @@ export default function DashboardPage() {
     showCreateCrew
   ])
 
+  // ============================================
+  // 권한 체크 함수 (Permission Check Functions)
+  // ============================================
+
+  const getMyRole = (orgId: string): 'owner' | 'admin' | 'member' | null => {
+    const membership = memberships.find(m =>
+      m.organizationId === orgId && m.status === 'active'
+    )
+    return membership?.role || null
+  }
+
+  const canManageOrg = (orgId: string): boolean => {
+    const role = getMyRole(orgId)
+    return role === 'owner' || role === 'admin'
+  }
+
+  // ============================================
+  // 크루 데이터 로딩 (Organizations Data Loading)
+  // ============================================
+
   const fetchOrganizations = async () => {
     try {
       if (!user) return
 
-      // 1. userProfiles에서 사용자가 가입한 크루 ID 목록 가져오기
-      const userProfileRef = doc(db, 'userProfiles', user.uid)
-      const userProfileSnap = await getDoc(userProfileRef)
+      console.log('🔍 사용자 크루 목록 조회 시작')
 
+      // 1. memberships 기반으로 가입한 크루 ID 목록 가져오기 (신규 방식)
       let userOrgIds: string[] = []
-      if (userProfileSnap.exists()) {
-        const data = userProfileSnap.data()
-        userOrgIds = data.organizations || []
-        console.log('사용자가 가입한 크루 ID 목록:', userOrgIds)
+
+      if (memberships.length > 0) {
+        // ✅ 신규: organizationMembers 컬렉션 사용
+        userOrgIds = memberships
+          .filter(m => m.status === 'active')
+          .map(m => m.organizationId)
+        console.log('✅ [신규] memberships에서 크루 ID 가져옴:', userOrgIds)
+      } else {
+        // ⚠️ 레거시: userProfiles.organizations 배열 사용 (하위 호환)
+        console.log('⚠️ memberships가 비어있음 - 레거시 방식 사용')
+        const userProfileRef = doc(db, 'userProfiles', user.uid)
+        const userProfileSnap = await getDoc(userProfileRef)
+
+        if (userProfileSnap.exists()) {
+          const data = userProfileSnap.data()
+          userOrgIds = data.joinedOrganizations || data.organizations || []
+          console.log('⚠️ [레거시] userProfiles에서 크루 ID 가져옴:', userOrgIds)
+        }
       }
 
       if (userOrgIds.length === 0) {
-        console.log('가입한 크루가 없습니다.')
+        console.log('❌ 가입한 크루가 없습니다.')
         setOrganizations([])
+        setOrgMemberCounts({})
         return
       }
 
@@ -305,44 +343,48 @@ export default function DashboardPage() {
       const orgsSnapshot = await getDocs(orgsRef)
 
       const fetchedOrgs: Organization[] = []
-      orgsSnapshot.forEach((doc) => {
-        if (userOrgIds.includes(doc.id)) {
-          fetchedOrgs.push({ id: doc.id, ...doc.data() } as Organization)
+      orgsSnapshot.forEach((orgDoc) => {
+        if (userOrgIds.includes(orgDoc.id)) {
+          fetchedOrgs.push({ id: orgDoc.id, ...orgDoc.data() } as Organization)
         }
       })
 
-      console.log('가입한 크루 목록:', fetchedOrgs)
+      console.log(`✅ ${fetchedOrgs.length}개의 크루 정보를 가져왔습니다`)
       setOrganizations(fetchedOrgs)
 
-      // 3. 각 크루의 멤버 수 가져오기 (userProfiles 사용)
+      // 3. 각 크루의 멤버 수 가져오기
       const counts: { [key: string]: number } = {}
 
-      // userProfiles 컬렉션에서 모든 멤버 조회
-      const userProfilesRef = collection(db, 'userProfiles')
-      const userProfilesSnapshot = await getDocs(userProfilesRef)
-
-      console.log('🔍 전체 userProfiles 문서 수:', userProfilesSnapshot.size)
-
       for (const org of fetchedOrgs) {
-        console.log(`\n🔍 크루 "${org.name}" (ID: ${org.id}) 멤버 카운트 시작`)
+        try {
+          // ✅ 신규: organizationMembers 컬렉션 사용 (더 정확함)
+          const members = await getOrganizationMembers(org.id)
+          counts[org.id] = members.length
+          console.log(`  ✅ "${org.name}" 멤버: ${members.length}명 (organizationMembers 컬렉션)`)
+        } catch (error) {
+          // ⚠️ 레거시: organizationMembers가 없으면 userProfiles 사용
+          console.log(`  ⚠️ "${org.name}" organizationMembers 조회 실패, 레거시 방식 사용`)
+          const userProfilesRef = collection(db, 'userProfiles')
+          const userProfilesSnapshot = await getDocs(userProfilesRef)
 
-        let memberCount = 0
-        userProfilesSnapshot.forEach((doc) => {
-          const data = doc.data()
-          if (data.organizations && Array.isArray(data.organizations) && data.organizations.includes(org.id)) {
-            memberCount++
-          }
-        })
-
-        counts[org.id] = memberCount
-        console.log(`  ✅ 최종 멤버: ${memberCount}명`)
+          let memberCount = 0
+          userProfilesSnapshot.forEach((userDoc) => {
+            const data = userDoc.data()
+            const orgs = data.joinedOrganizations || data.organizations || []
+            if (orgs.includes(org.id)) {
+              memberCount++
+            }
+          })
+          counts[org.id] = memberCount
+          console.log(`  ⚠️ "${org.name}" 멤버: ${memberCount}명 (레거시)`)
+        }
       }
 
       console.log('\n📊 모든 크루 멤버 카운트:', counts)
       setOrgMemberCounts(counts)
-      console.log('✅ State 업데이트 완료')
+      console.log('✅ 크루 목록 로딩 완료\n')
     } catch (error) {
-      console.error('Error fetching organizations:', error)
+      console.error('❌ Error fetching organizations:', error)
     }
   }
 
@@ -602,9 +644,17 @@ export default function DashboardPage() {
           console.log(`✅ ${data.name}: joinDate=${data.joinDate}, role=${data.role}, isCaptain=${data.isCaptain}, isStaff=${data.isStaff}`)
           // userProfiles에서 location 정보 가져와서 병합
           const userProfile = userProfilesMap[data.uid]
+
+          // Firestore Timestamp를 한국 날짜 형식으로 변환
+          let joinDateString = data.joinDate
+          if (data.joinDate && typeof data.joinDate === 'object' && 'seconds' in data.joinDate) {
+            joinDateString = new Date(data.joinDate.seconds * 1000).toLocaleDateString('ko-KR')
+          }
+
           fetchedMembers.push({
             id: doc.id,
             ...data,
+            joinDate: joinDateString,
             location: userProfile?.location || undefined
           } as Member)
         }
@@ -1122,6 +1172,8 @@ export default function DashboardPage() {
     if (!confirm(`${member.name}님의 가입을 승인하시겠습니까?`)) return
 
     try {
+      console.log('🎉 가입 승인 시작:', { orgId, memberName: member.name, memberUid: member.uid })
+
       const orgRef = doc(db, 'organizations', orgId)
       const userRef = doc(db, 'userProfiles', member.uid)
 
@@ -1129,11 +1181,28 @@ export default function DashboardPage() {
       await updateDoc(orgRef, {
         pendingMembers: arrayRemove(member)
       })
+      console.log('✅ pendingMembers에서 제거 완료')
 
-      // userProfiles의 joinedOrganizations에 추가
+      // userProfiles의 organizations 배열에 추가 (joinedOrganizations가 아님!)
       await updateDoc(userRef, {
-        joinedOrganizations: arrayUnion(orgId)
+        organizations: arrayUnion(orgId)
       })
+      console.log('✅ userProfiles.organizations에 추가 완료')
+
+      // members 컬렉션에 레코드 추가
+      const membersRef = collection(db, 'members')
+      await addDoc(membersRef, {
+        uid: member.uid,
+        name: member.name,
+        email: member.email || '',
+        avatar: member.avatar || null,
+        role: '멤버',
+        isCaptain: false,
+        isStaff: false,
+        joinDate: new Date().toLocaleDateString('ko-KR'),
+        orgId: orgId
+      })
+      console.log('✅ members 컬렉션에 레코드 추가 완료')
 
       alert(`${member.name}님이 크루에 가입되었습니다!`)
       fetchOrganizations()
@@ -1142,10 +1211,14 @@ export default function DashboardPage() {
       if (selectedOrg) {
         const updatedOrg = await getDoc(orgRef)
         setSelectedOrg({ id: updatedOrg.id, ...updatedOrg.data() } as Organization)
+        // 멤버 리스트도 새로고침
+        await fetchMembers(orgId)
       }
 
+      console.log('🎊 가입 승인 완료!')
+
     } catch (error) {
-      console.error('승인 실패:', error)
+      console.error('❌ 승인 실패:', error)
       alert('승인에 실패했습니다. 다시 시도해주세요.')
     }
   }
@@ -1213,7 +1286,7 @@ export default function DashboardPage() {
         type: createScheduleForm.type,
         maxParticipants: createScheduleForm.maxParticipants,
         participants: [],
-        createdBy: profile.name,
+        createdBy: userProfile?.name || user.displayName || '익명',
         createdByUid: user.uid,
         orgId: selectedOrg.id,
         comments: [],
@@ -1391,7 +1464,7 @@ It's Campers와 함께하는 캠핑 일정에 참여하세요!
       const scheduleRef = doc(db, 'schedules', schedule.id)
       const newComment: Comment = {
         id: Date.now().toString(),
-        userName: profile.name,
+        userName: userProfile?.name || user.displayName || '익명',
         userUid: user.uid,
         text: commentText,
         createdAt: new Date().toISOString()
@@ -1554,20 +1627,21 @@ It's Campers와 함께하는 캠핑 일정에 참여하세요!
     try {
       if (!selectedOrg) return
 
+      const myName = userProfile?.name || user?.displayName || '익명'
       const scheduleRef = doc(db, 'schedules', schedule.id)
-      const isParticipating = schedule.participants?.includes(profile.name)
+      const isParticipating = schedule.participants?.includes(myName)
 
       let updatedParticipants: string[]
       if (isParticipating) {
         // 참여 취소
-        updatedParticipants = schedule.participants.filter(name => name !== profile.name)
+        updatedParticipants = schedule.participants.filter(name => name !== myName)
       } else {
         // 참여
         if (schedule.participants.length >= schedule.maxParticipants) {
           alert('정원이 초과되었습니다.')
           return
         }
-        updatedParticipants = [...schedule.participants, profile.name]
+        updatedParticipants = [...schedule.participants, myName]
       }
 
       await updateDoc(scheduleRef, {
@@ -1635,23 +1709,102 @@ It's Campers와 함께하는 캠핑 일정에 참여하세요!
     return dateString
   }
 
-  // 다가오는 일정과 지난 일정 구분
-  const upcomingSchedules = schedules
-    .filter(s => !isSchedulePast(s.date))
-    .sort((a, b) => parseScheduleDate(a.date).getTime() - parseScheduleDate(b.date).getTime()) // 날짜 오름차순 (가까운 순)
+  // 다가오는 일정과 지난 일정 구분 (IIFE로 계산 - Hook 순서 문제 없음)
+  const upcomingSchedules = (() => {
+    console.log('\n🔍 ===== upcomingSchedules 계산 시작 =====')
+    console.log('전체 일정 수:', schedules.length)
+
+    const filtered = schedules
+      .filter(s => {
+        const isPast = isSchedulePast(s.date)
+        if (isPast) {
+          console.log(`⏭️  [${s.title}] - 과거 일정 (스킵)`)
+        }
+        return !isPast
+      })
+      .sort((a, b) => parseScheduleDate(a.date).getTime() - parseScheduleDate(b.date).getTime())
+
+    console.log('✅ 미래 일정 수:', filtered.length)
+    console.log('===== upcomingSchedules 계산 완료 =====\n')
+
+    return filtered
+  })()
 
   const pastSchedules = schedules
     .filter(s => isSchedulePast(s.date))
     .sort((a, b) => parseScheduleDate(b.date).getTime() - parseScheduleDate(a.date).getTime()) // 날짜 내림차순 (최근 순)
 
-  // 디버깅 (필요시에만 활성화)
-  // console.log('===== 일정 분류 =====')
-  // console.log('전체 일정:', schedules.length)
-  // console.log('다가오는 일정:', upcomingSchedules.length)
-  // console.log('지난 일정:', pastSchedules.length)
+  // 내가 참여한 일정만 필터링 (IIFE로 계산)
+  const mySchedules = (() => {
+    console.log('\n🔍 ===== mySchedules 필터링 시작 =====')
+    console.log('내 이름:', userProfile?.name)
+    console.log('내 UID:', user?.uid)
+    console.log('필터링할 일정 수:', upcomingSchedules.length)
 
-  // 참여자는 이름으로 저장되어 있음
-  const mySchedules = upcomingSchedules.filter(s => s.participants?.includes(profile.name))
+    const filtered = upcomingSchedules.filter(s => {
+      console.log(`\n[일정: ${s.title}]`)
+      console.log('  - participants:', s.participants)
+      console.log('  - participants 타입:', typeof s.participants)
+      console.log('  - 배열인가?', Array.isArray(s.participants))
+
+      const participants = s.participants || []
+      const myName = userProfile?.name || ''
+      const myUid = user?.uid || ''
+
+      // 배열인 경우
+      if (Array.isArray(participants)) {
+        const hasMyName = participants.includes(myName)
+        const hasMyUid = participants.includes(myUid)
+
+        console.log('  - 내 이름 포함?', hasMyName)
+        console.log('  - 내 UID 포함?', hasMyUid)
+
+        // 참가자 배열의 첫 몇 항목 출력
+        if (participants.length > 0) {
+          console.log('  - 참가자 샘플:', participants.slice(0, 3))
+          console.log('  - 첫 번째 참가자 타입:', typeof participants[0])
+        }
+
+        if (hasMyName || hasMyUid) {
+          console.log('  ✅ 참여 중!')
+          return true
+        }
+
+        // 객체 배열인 경우 확인 (예: [{uid: '...', name: '...'}])
+        const hasObjectMatch = participants.some(p =>
+          typeof p === 'object' && p !== null && (p.name === myName || p.uid === myUid)
+        )
+
+        if (hasObjectMatch) {
+          console.log('  ✅ 참여 중 (객체 매칭)!')
+          return true
+        }
+      }
+
+      // 문자열인 경우
+      if (typeof participants === 'string') {
+        const names = participants.split(',').map(n => n.trim())
+        const hasMyName = names.includes(myName)
+        console.log('  - 문자열 분리:', names)
+        console.log('  - 내 이름 포함?', hasMyName)
+
+        if (hasMyName) {
+          console.log('  ✅ 참여 중 (문자열)!')
+          return true
+        }
+      }
+
+      console.log('  ❌ 미참여')
+      return false
+    })
+
+    console.log('\n===== mySchedules 필터링 완료 =====')
+    console.log('결과:', filtered.length, '개')
+    console.log('일정 제목:', filtered.map(s => s.title))
+    console.log('===== 완료 =====\n')
+
+    return filtered
+  })()
 
   return (
     <div className="min-h-screen bg-gray-50 pb-28 max-w-md mx-auto">
@@ -1751,107 +1904,8 @@ It's Campers와 함께하는 캠핑 일정에 참여하세요!
                   )
                 }
 
-                // 크루 카드 가로 스크롤
-                return (
-                  <div className="overflow-x-auto hide-scrollbar">
-                    <div className="flex gap-3 px-4 sm:px-5 pb-2">
-                      {nearbyCrews.map((crew) => {
-                        // 크루 이미지 URL (우선순위: avatar > imageURL > images[0])
-                        const imageUrl = crew.avatar || crew.imageURL || (crew.images && crew.images[0]) || null
-
-                        // 카테고리 배열 (최대 2개만 표시)
-                        const categories = Array.isArray(crew.categories)
-                          ? crew.categories.slice(0, 2)
-                          : crew.category
-                            ? [crew.category].slice(0, 2)
-                            : []
-
-                        const totalCategories = Array.isArray(crew.categories)
-                          ? crew.categories.length
-                          : crew.category ? 1 : 0
-
-                        return (
-                          <button
-                            key={crew.id}
-                            onClick={() => {
-                              setSelectedOrg(crew)
-                              setCurrentPage('mycrew')
-                            }}
-                            className="flex-shrink-0 w-[240px] sm:w-[280px] bg-white rounded-xl sm:rounded-2xl overflow-hidden border border-gray-200 hover:shadow-md transition-all hover:scale-[1.02] active:scale-95"
-                          >
-                            {/* 크루 이미지 */}
-                            <div className="relative w-full h-[140px] sm:h-[160px] bg-gradient-to-br from-orange-400 to-pink-500">
-                              {imageUrl ? (
-                                <img
-                                  src={imageUrl}
-                                  alt={crew.name}
-                                  className="w-full h-full object-cover"
-                                  onError={(e) => {
-                                    e.currentTarget.style.display = 'none'
-                                  }}
-                                />
-                              ) : (
-                                <div className="w-full h-full flex items-center justify-center">
-                                  <span className="text-5xl sm:text-6xl">🏕️</span>
-                                </div>
-                              )}
-
-                              {/* 거리 배지 */}
-                              {crew.distance > 0 && (
-                                <div className="absolute top-2 sm:top-3 right-2 sm:right-3 px-2 sm:px-3 py-1 sm:py-1.5 bg-white/95 backdrop-blur-sm rounded-full shadow-sm">
-                                  <span className="text-xs sm:text-sm font-bold text-gray-900">
-                                    {formatDistance(crew.distance)}
-                                  </span>
-                                </div>
-                              )}
-                            </div>
-
-                            {/* 크루 정보 */}
-                            <div className="p-3 sm:p-4 text-left">
-                              {/* 크루 이름 */}
-                              <h3 className="text-base sm:text-lg font-bold text-gray-900 mb-1.5 sm:mb-2 truncate">
-                                {crew.name}
-                              </h3>
-
-                              {/* 위치 */}
-                              <div className="flex items-center gap-1 text-gray-600 text-xs sm:text-sm mb-2">
-                                <span>📍</span>
-                                <span className="truncate">
-                                  {crew.location?.dong || crew.description?.split(' ').slice(0, 2).join(' ') || '위치 미설정'}
-                                </span>
-                              </div>
-
-                              {/* 카테고리 */}
-                              {categories.length > 0 && (
-                                <div className="flex flex-wrap gap-1 sm:gap-1.5 mb-2 sm:mb-3">
-                                  {categories.map((cat, idx) => (
-                                    <span
-                                      key={idx}
-                                      className="px-2 py-0.5 sm:px-2.5 sm:py-1 bg-gray-100 text-gray-700 text-xs font-medium rounded-md"
-                                    >
-                                      {cat}
-                                    </span>
-                                  ))}
-                                  {totalCategories > 2 && (
-                                    <span className="px-2 py-0.5 sm:px-2.5 sm:py-1 bg-gray-100 text-gray-500 text-xs font-medium rounded-md">
-                                      +{totalCategories - 2}
-                                    </span>
-                                  )}
-                                </div>
-                              )}
-
-                              {/* 멤버 수 */}
-                              <div className="flex items-center gap-1 text-gray-500 text-xs sm:text-sm">
-                                <span>👥</span>
-                                <span>멤버 {orgMemberCounts[crew.id] || 0}명</span>
-                              </div>
-                            </div>
-                          </button>
-                        )
-                      })}
-                    </div>
-                  </div>
-                )
+                // 크루 카드 가로 슬라이드 (Embla Carousel)
+                return <NearbyCrewsCarousel nearbyCrews={nearbyCrews} setSelectedOrg={setSelectedOrg} setCurrentPage={setCurrentPage} orgMemberCounts={orgMemberCounts} formatDistance={formatDistance} />
               })()}
             </div>
 
@@ -1876,7 +1930,11 @@ It's Campers와 함께하는 캠핑 일정에 참여하세요!
                   <h2 className="text-2xl font-bold tracking-tight text-[#191F28]">다가오는 일정</h2>
                 </div>
                 <button
-                  onClick={() => setCurrentPage('mycrew')}
+                  onClick={() => {
+                    console.log('📅 내 참여 일정 전체보기 클릭')
+                    setScheduleFilter('joined')  // ← 중요: 참여한 일정만 보기
+                    setCurrentPage('schedules')  // 독립적인 일정 페이지로 이동
+                  }}
                   className="text-[#3182F6] text-sm font-bold hover:text-[#1B64DA] active:scale-95 transition-all px-3 py-2 rounded-lg hover:bg-blue-50"
                 >
                   전체보기 →
@@ -2109,70 +2167,240 @@ It's Campers와 함께하는 캠핑 일정에 참여하세요!
         </div>
       )}
 
-      {/* My Crew Page - 토스 스타일 */}
+      {/* My Crew List Page - 가입한 크루 목록 */}
       {currentPage === 'mycrew' && !selectedOrg && (
         <div className="bg-[#F9FAFB] min-h-screen">
           {/* 헤더 */}
           <header className="sticky top-0 bg-white z-10 safe-top border-b border-gray-100">
-            <div className="px-6 py-6">
-              <h1 className="text-2xl font-bold tracking-tight text-[#191F28]">내 크루</h1>
+            <div className="px-6 py-6 pb-3">
+              <h1 className="text-2xl font-bold tracking-tight text-[#191F28]">⛺ 내 크루</h1>
               <p className="text-sm text-[#8B95A1] mt-1">가입한 크루 목록</p>
             </div>
           </header>
 
-          <div className="px-5 py-6 space-y-3">
+          {/* 크루 목록 */}
+          <div className="px-5 py-6">
             {organizations.length === 0 ? (
               <div className="text-center py-16">
                 <div className="text-6xl mb-4">⛺</div>
-                <p className="text-base font-bold text-[#8B95A1]">가입한 크루가 없습니다</p>
+                <p className="text-base font-bold text-[#191F28] mb-2">가입한 크루가 없어요</p>
+                <p className="text-sm text-[#8B95A1]">크루를 찾아서 가입해보세요!</p>
               </div>
             ) : (
-              organizations.map((org) => (
-                <div
-                  key={org.id}
-                  onClick={() => {
-                    console.log('🖱️ 크루 선택됨:', org.name, 'ID:', org.id)
-                    setSelectedOrg(org)
-                  }}
-                  className="bg-white rounded-2xl p-6 shadow-sm border border-gray-100 hover:border-[#3182F6] hover:shadow-md transition-all cursor-pointer active:scale-[0.98]"
-                >
-                  <div className="flex items-center gap-4">
-                    <div className="w-16 h-16 bg-gradient-to-br from-blue-50 to-indigo-50 rounded-2xl flex items-center justify-center text-3xl overflow-hidden flex-shrink-0">
-                      <img
-                        src={org.avatar || '/default-avatar.svg'}
-                        alt={org.name}
-                        className="w-full h-full object-cover"
-                        onError={(e) => {
-                          const target = e.target as HTMLImageElement
-                          if (target.src !== `${window.location.origin}/default-avatar.svg`) {
-                            target.src = '/default-avatar.svg'
-                          }
-                        }}
-                      />
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      {org.subtitle && (
-                        <p className="text-xs font-bold text-[#8B95A1] mb-1 truncate">{org.subtitle}</p>
-                      )}
-                      <h3 className="text-xl font-bold tracking-tight text-[#191F28] mb-1 truncate">{org.name}</h3>
-                      <p className="text-sm text-[#6B7684] mb-2 truncate">{org.description || org.category}</p>
-                      <div className="inline-flex items-center gap-1.5 bg-[#F2F4F6] px-3 py-1 rounded-lg">
-                        <span className="text-sm">👥</span>
-                        <span className="text-sm font-bold text-[#191F28]">
-                          {orgMemberCounts[org.id] !== undefined ? orgMemberCounts[org.id] : '...'}명
-                        </span>
-                        {console.log('화면 렌더링:', org.name, 'ID:', org.id, '카운트:', orgMemberCounts[org.id], '전체:', orgMemberCounts)}
+              <div className="space-y-3">
+                {organizations.map((org) => {
+                  const memberCount = orgMemberCounts[org.id] || org.memberCount || 0
+                  const orgScheduleCount = schedules.filter(s => s.orgId === org.id).length
+
+                  return (
+                    <div
+                      key={org.id}
+                      onClick={() => setSelectedOrg(org)}
+                      className="bg-white rounded-2xl p-5 shadow-sm border border-gray-100 hover:border-[#3182F6] hover:shadow-md transition-all cursor-pointer active:scale-[0.98]"
+                    >
+                      <div className="flex items-center gap-4">
+                        <div className="w-16 h-16 rounded-2xl overflow-hidden flex-shrink-0 bg-gray-100">
+                          {org.avatar ? (
+                            <img src={org.avatar} alt={org.name} className="w-full h-full object-cover" />
+                          ) : (
+                            <div className="w-full h-full flex items-center justify-center text-3xl">⛺</div>
+                          )}
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          {org.subtitle && (
+                            <p className="text-xs font-bold text-[#8B95A1] mb-1 truncate">{org.subtitle}</p>
+                          )}
+                          <h3 className="text-lg font-bold tracking-tight text-[#191F28] mb-1 truncate">
+                            {org.name}
+                          </h3>
+                          <div className="flex items-center gap-3 text-sm text-[#6B7684]">
+                            <span className="flex items-center gap-1">
+                              <span>👥</span>
+                              <span className="font-semibold">{memberCount}명</span>
+                            </span>
+                            <span className="flex items-center gap-1">
+                              <span>📅</span>
+                              <span className="font-semibold">{orgScheduleCount}개 일정</span>
+                            </span>
+                          </div>
+                          {(org.categories || [org.category]).filter(Boolean).length > 0 && (
+                            <div className="flex items-center gap-2 flex-wrap mt-2">
+                              {(org.categories || [org.category]).filter(Boolean).slice(0, 3).map((cat, idx) => (
+                                <span key={idx} className="inline-flex items-center px-2 py-1 bg-[#F2F4F6] text-[#4E5968] text-xs rounded-lg font-medium">
+                                  {cat}
+                                </span>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                        <div className="text-[#3182F6]">
+                          <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M9 5l7 7-7 7" />
+                          </svg>
+                        </div>
                       </div>
                     </div>
-                    <div className="text-[#8B95A1] flex-shrink-0">
-                      <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                        <polyline points="9 18 15 12 9 6"></polyline>
-                      </svg>
-                    </div>
-                  </div>
-                </div>
-              ))
+                  )
+                })}
+              </div>
             )}
+          </div>
+        </div>
+      )}
+
+      {/* All Schedules Page - 다가오는 일정 전체보기 (독립 페이지) */}
+      {currentPage === 'schedules' && (
+        <div className="bg-[#F9FAFB] min-h-screen">
+          {/* 헤더 */}
+          <header className="sticky top-0 bg-white z-10 safe-top border-b border-gray-100">
+            <div className="px-6 py-6 pb-3 flex items-center justify-between">
+              <div>
+                <h1 className="text-2xl font-bold tracking-tight text-[#191F28]">📅 다가오는 일정</h1>
+                <p className="text-sm text-[#8B95A1] mt-1">모든 크루의 일정을 확인하세요</p>
+              </div>
+              <button
+                onClick={() => setCurrentPage('home')}
+                className="text-[#191F28] text-2xl p-2 hover:bg-gray-50 rounded-xl active:scale-95 transition-all"
+              >
+                ✕
+              </button>
+            </div>
+
+            {/* 필터 칩 */}
+            <div className="px-6 pb-4 overflow-x-auto scrollbar-hide">
+              <div className="flex gap-2">
+                <button
+                  onClick={() => setScheduleFilter('all')}
+                  className={`px-4 py-2 rounded-full text-sm font-bold whitespace-nowrap transition-all flex-shrink-0 ${
+                    scheduleFilter === 'all'
+                      ? 'bg-[#3182F6] text-white shadow-md'
+                      : 'bg-[#F2F4F6] text-[#191F28] hover:bg-[#E5E8EB]'
+                  }`}
+                >
+                  전체 ({upcomingSchedules.length})
+                </button>
+                <button
+                  onClick={() => setScheduleFilter('joined')}
+                  className={`px-4 py-2 rounded-full text-sm font-bold whitespace-nowrap transition-all flex-shrink-0 ${
+                    scheduleFilter === 'joined'
+                      ? 'bg-[#3182F6] text-white shadow-md'
+                      : 'bg-[#F2F4F6] text-[#191F28] hover:bg-[#E5E8EB]'
+                  }`}
+                >
+                  참여 중 ({mySchedules.length})
+                </button>
+                <button
+                  onClick={() => setScheduleFilter('not-joined')}
+                  className={`px-4 py-2 rounded-full text-sm font-bold whitespace-nowrap transition-all flex-shrink-0 ${
+                    scheduleFilter === 'not-joined'
+                      ? 'bg-[#3182F6] text-white shadow-md'
+                      : 'bg-[#F2F4F6] text-[#191F28] hover:bg-[#E5E8EB]'
+                  }`}
+                >
+                  미참여 ({upcomingSchedules.length - mySchedules.length})
+                </button>
+              </div>
+            </div>
+          </header>
+
+          <div className="px-5 py-6 space-y-3">
+            {(() => {
+              // 필터 적용
+              let filteredSchedules = upcomingSchedules
+              const myName = userProfile?.name || user?.displayName || '익명'
+              if (scheduleFilter === 'joined') {
+                filteredSchedules = upcomingSchedules.filter(s => s.participants?.includes(myName))
+              } else if (scheduleFilter === 'not-joined') {
+                filteredSchedules = upcomingSchedules.filter(s => !s.participants?.includes(myName))
+              }
+
+              if (filteredSchedules.length === 0) {
+                return (
+                  <div className="text-center py-16">
+                    <div className="text-6xl mb-4">📅</div>
+                    <p className="text-base font-bold text-[#8B95A1]">
+                      {scheduleFilter === 'all' && '다가오는 일정이 없습니다'}
+                      {scheduleFilter === 'joined' && '참여 중인 일정이 없습니다'}
+                      {scheduleFilter === 'not-joined' && '참여하지 않은 일정이 없습니다'}
+                    </p>
+                  </div>
+                )
+              }
+
+              // 크루별로 그룹화
+              const schedulesByOrg = filteredSchedules.reduce((acc, schedule) => {
+                const orgId = schedule.orgId
+                if (!acc[orgId]) {
+                  acc[orgId] = []
+                }
+                acc[orgId].push(schedule)
+                return acc
+              }, {} as Record<string, typeof filteredSchedules>)
+
+              return (
+                <div className="space-y-6">
+                  {Object.entries(schedulesByOrg).map(([orgId, orgSchedules]) => {
+                    const org = organizations.find(o => o.id === orgId)
+                    return (
+                      <div key={orgId}>
+                        {/* 크루 헤더 */}
+                        <div className="flex items-center justify-between mb-3">
+                          <h2 className="text-lg font-bold text-[#191F28]">
+                            {org?.name || '알 수 없는 크루'}
+                          </h2>
+                          <span className="text-sm text-[#8B95A1] font-semibold">
+                            {orgSchedules.length}개
+                          </span>
+                        </div>
+
+                        {/* 일정 카드들 */}
+                        <div className="space-y-3">
+                          {orgSchedules.map((schedule) => {
+                            const myName = userProfile?.name || user?.displayName || '익명'
+                            const isParticipating = schedule.participants?.includes(myName)
+                            return (
+                              <div
+                                key={schedule.id}
+                                onClick={() => setSelectedSchedule(schedule)}
+                                className={`bg-white rounded-2xl p-5 shadow-sm border transition-all cursor-pointer active:scale-[0.98] ${
+                                  isParticipating ? 'border-[#3182F6] shadow-md' : 'border-gray-100 hover:border-[#3182F6] hover:shadow-md'
+                                }`}
+                              >
+                                <div className="flex justify-between items-start mb-4">
+                                  <h3 className="font-bold text-lg tracking-tight text-[#191F28] flex-1">{schedule.title}</h3>
+                                  <span className={`text-xs px-3 py-1.5 rounded-lg font-bold ${getTypeColor(schedule.type)}`}>
+                                    {schedule.type}
+                                  </span>
+                                </div>
+                                <div className="space-y-2 text-sm text-[#6B7684]">
+                                  <p className="flex items-center gap-2">
+                                    <span>📅</span>
+                                    <span className="font-medium">{formatDateWithYear(schedule.date)} {schedule.time}</span>
+                                  </p>
+                                  <p className="flex items-center gap-2">
+                                    <span>📍</span>
+                                    <span className="font-medium">{schedule.location}</span>
+                                  </p>
+                                  <p className="flex items-center gap-2">
+                                    <span>👥</span>
+                                    <span className="font-medium">{schedule.participants?.length || 0}/{schedule.maxParticipants}명</span>
+                                  </p>
+                                </div>
+                                {isParticipating && (
+                                  <div className="mt-4 text-xs bg-[#E8F5E9] text-[#2E7D32] px-3 py-2 rounded-xl font-bold text-center">
+                                    ✓ 참여 중
+                                  </div>
+                                )}
+                              </div>
+                            )
+                          })}
+                        </div>
+                      </div>
+                    )
+                  })}
+                </div>
+              )
+            })()}
           </div>
         </div>
       )}
@@ -2190,7 +2418,7 @@ It's Campers와 함께하는 캠핑 일정에 참여하세요!
                 >
                   ←
                 </button>
-                {userProfile?.role === 'captain' && (
+                {canManageOrg(selectedOrg.id) && (
                   <button
                     onClick={() => handleOpenOrgEdit(selectedOrg)}
                     className="px-4 py-2 bg-[#F2F4F6] text-[#191F28] text-sm font-semibold rounded-xl hover:bg-[#E5E8EB] active:scale-95 transition-all"
@@ -2250,10 +2478,11 @@ It's Campers와 함께하는 캠핑 일정에 참여하세요!
               <div className="space-y-3">
                 {(() => {
                   let filteredSchedules = upcomingSchedules
+                  const myName = userProfile?.name || user?.displayName || '익명'
                   if (scheduleFilter === 'joined') {
-                    filteredSchedules = upcomingSchedules.filter(s => s.participants?.includes(profile.name))
+                    filteredSchedules = upcomingSchedules.filter(s => s.participants?.includes(myName))
                   } else if (scheduleFilter === 'not-joined') {
-                    filteredSchedules = upcomingSchedules.filter(s => !s.participants?.includes(profile.name))
+                    filteredSchedules = upcomingSchedules.filter(s => !s.participants?.includes(myName))
                   }
 
                   if (filteredSchedules.length === 0) {
@@ -2266,7 +2495,7 @@ It's Campers와 함께하는 캠핑 일정에 참여하세요!
                   }
 
                   return filteredSchedules.map((schedule) => {
-                  const isParticipating = schedule.participants?.includes(profile.name)
+                  const isParticipating = schedule.participants?.includes(myName)
                   return (
                     <div
                       key={schedule.id}
@@ -2513,7 +2742,7 @@ It's Campers와 함께하는 캠핑 일정에 참여하세요!
                               </span>
                             )}
                           </div>
-                          <p className="text-xs text-gray-500 mt-1">가입일: {member.joinDate}</p>
+                          <p className="text-xs text-gray-500 mt-1">가입일: {formatTimestamp(member.joinDate)}</p>
                           {(member as any).location && (
                             <p className="text-xs text-gray-500 mt-0.5">지역: {(member as any).location}</p>
                           )}
@@ -2772,7 +3001,7 @@ It's Campers와 함께하는 캠핑 일정에 참여하세요!
               )}
 
               <div>
-                {selectedSchedule.participants?.includes(profile.name) ? (
+                {selectedSchedule.participants?.includes(userProfile?.name || user?.displayName || '익명') ? (
                   <button
                     onClick={() => {
                       handleToggleParticipation(selectedSchedule)
@@ -2898,7 +3127,7 @@ It's Campers와 함께하는 캠핑 일정에 참여하세요!
                 <div className="h-px bg-[#E5E8EB]"></div>
                 <div>
                   <div className="text-xs font-bold text-[#8B95A1] mb-1.5 sm:mb-2">가입일</div>
-                  <div className="text-sm sm:text-base font-bold text-[#191F28]">{profile.joinDate}</div>
+                  <div className="text-sm sm:text-base font-bold text-[#191F28]">{formatTimestamp(profile.joinDate)}</div>
                 </div>
               </div>
             </div>
@@ -3911,7 +4140,7 @@ It's Campers와 함께하는 캠핑 일정에 참여하세요!
                 setCurrentPage(id)
                 // 내크루 탭을 누르면 선택 초기화하여 크루 목록 표시 + 멤버 수 새로고침
                 if (id === 'mycrew') {
-                  setSelectedOrg(null)
+                  setSelectedOrg(null)  // 크루 선택 해제 (크루 목록 표시)
                   fetchOrganizations() // 멤버 수 새로고침
                 }
                 // 홈 탭을 누르면 첫 번째 크루 자동 선택
@@ -3940,6 +4169,129 @@ It's Campers와 함께하는 캠핑 일정에 참여하세요!
           title={cropType === 'org' ? '크루 메인사진 자르기' : '프로필 사진 자르기'}
         />
       )}
+    </div>
+  )
+}
+
+// Nearby Crews Carousel Component
+function NearbyCrewsCarousel({
+  nearbyCrews,
+  setSelectedOrg,
+  setCurrentPage,
+  orgMemberCounts,
+  formatDistance
+}: {
+  nearbyCrews: any[]
+  setSelectedOrg: (org: any) => void
+  setCurrentPage: (page: Page) => void
+  orgMemberCounts: { [key: string]: number }
+  formatDistance: (distance: number) => string
+}) {
+  const [emblaRef] = useEmblaCarousel({
+    align: 'start',
+    loop: false,
+    dragFree: true,
+    containScroll: 'trimSnaps'
+  })
+
+  return (
+    <div className="overflow-hidden" ref={emblaRef}>
+      <div className="flex gap-3 px-4 sm:px-5 pb-2">
+        {nearbyCrews.map((crew) => {
+          // 크루 이미지 URL (우선순위: avatar > imageURL > images[0])
+          const imageUrl = crew.avatar || crew.imageURL || (crew.images && crew.images[0]) || null
+
+          // 카테고리 배열 (최대 2개만 표시)
+          const categories = Array.isArray(crew.categories)
+            ? crew.categories.slice(0, 2)
+            : crew.category
+              ? [crew.category].slice(0, 2)
+              : []
+
+          const totalCategories = Array.isArray(crew.categories)
+            ? crew.categories.length
+            : crew.category ? 1 : 0
+
+          return (
+            <button
+              key={crew.id}
+              onClick={() => {
+                setSelectedOrg(crew)
+                setCurrentPage('mycrew')
+              }}
+              className="flex-shrink-0 w-[240px] sm:w-[280px] bg-white rounded-xl sm:rounded-2xl overflow-hidden border border-gray-200 hover:shadow-md transition-all hover:scale-[1.02] active:scale-95"
+            >
+              {/* 크루 이미지 */}
+              <div className="relative w-full h-[140px] sm:h-[160px] bg-gradient-to-br from-orange-400 to-pink-500">
+                {imageUrl ? (
+                  <img
+                    src={imageUrl}
+                    alt={crew.name}
+                    className="w-full h-full object-cover"
+                    onError={(e) => {
+                      e.currentTarget.style.display = 'none'
+                    }}
+                  />
+                ) : (
+                  <div className="w-full h-full flex items-center justify-center">
+                    <span className="text-5xl sm:text-6xl">🏕️</span>
+                  </div>
+                )}
+
+                {/* 거리 배지 */}
+                {crew.distance > 0 && (
+                  <div className="absolute top-2 sm:top-3 right-2 sm:right-3 px-2 sm:px-3 py-1 sm:py-1.5 bg-white/95 backdrop-blur-sm rounded-full shadow-sm">
+                    <span className="text-xs sm:text-sm font-bold text-gray-900">
+                      {formatDistance(crew.distance)}
+                    </span>
+                  </div>
+                )}
+              </div>
+
+              {/* 크루 정보 */}
+              <div className="p-3 sm:p-4 text-left">
+                {/* 크루 이름 */}
+                <h3 className="text-base sm:text-lg font-bold text-gray-900 mb-1.5 sm:mb-2 truncate">
+                  {crew.name}
+                </h3>
+
+                {/* 위치 */}
+                <div className="flex items-center gap-1 text-gray-600 text-xs sm:text-sm mb-2">
+                  <span>📍</span>
+                  <span className="truncate">
+                    {crew.location?.dong || crew.description?.split(' ').slice(0, 2).join(' ') || '위치 미설정'}
+                  </span>
+                </div>
+
+                {/* 카테고리 */}
+                {categories.length > 0 && (
+                  <div className="flex flex-wrap gap-1 sm:gap-1.5 mb-2 sm:mb-3">
+                    {categories.map((cat: string, idx: number) => (
+                      <span
+                        key={idx}
+                        className="px-2 py-0.5 sm:px-2.5 sm:py-1 bg-gray-100 text-gray-700 text-xs font-medium rounded-md"
+                      >
+                        {cat}
+                      </span>
+                    ))}
+                    {totalCategories > 2 && (
+                      <span className="px-2 py-0.5 sm:px-2.5 sm:py-1 bg-gray-100 text-gray-500 text-xs font-medium rounded-md">
+                        +{totalCategories - 2}
+                      </span>
+                    )}
+                  </div>
+                )}
+
+                {/* 멤버 수 */}
+                <div className="flex items-center gap-1 text-gray-500 text-xs sm:text-sm">
+                  <span>👥</span>
+                  <span>멤버 {orgMemberCounts[crew.id] || 0}명</span>
+                </div>
+              </div>
+            </button>
+          )
+        })}
+      </div>
     </div>
   )
 }

@@ -8,7 +8,12 @@
     "dev": "next dev",
     "lint": "eslint .",
     "start": "next start",
-    "cleanup:firebase": "tsx scripts/cleanup-firebase.ts"
+    "cleanup:firebase": "tsx scripts/cleanup-firebase.ts",
+    "check:members": "tsx scripts/check-member-data.ts",
+    "migrate:org-members": "tsx scripts/migrate-to-organization-members.ts",
+    "fix:minji-uid": "tsx scripts/fix-minji-uid.ts",
+    "check:minji": "tsx scripts/check-minji-data.ts",
+    "create:minji-profile": "tsx scripts/create-minji-profile.ts"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.928.0",
