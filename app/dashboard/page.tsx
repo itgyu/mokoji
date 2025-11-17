@@ -1898,10 +1898,10 @@ ${BRAND.NAME}와 함께하는 모임 일정에 참여하세요!
         <div className="bg-[#FFFBF7]">
           {/* 토스 스타일 헤더 */}
           <header className="sticky top-0 bg-white z-10 safe-top">
-            <div className="px-4 py-5 sm:px-5 sm:py-6 flex justify-between items-center border-b border-stone-100">
+            <div className="px-4 py-5 sm:px-5 sm:py-3 md:py-6 flex justify-between items-center border-b border-stone-100">
               <div className="flex items-center gap-2 sm:gap-3">
                 <MapPin className="w-6 h-6 sm:w-7 sm:h-7 text-[#FF9B50]" strokeWidth={2.5} />
-                <span className="font-bold text-xl sm:text-2xl tracking-tight text-[#292524]">
+                <span className="font-bold text-xl sm:text-base md:text-lg md:text-xl md:text-2xl tracking-tight text-[#292524]">
                   {userProfile?.locations && userProfile.locations.length > 0
                     ? `${(userProfile.locations.find(loc => loc.id === userProfile.selectedLocationId) || userProfile.locations[0]).sigungu} ${(userProfile.locations.find(loc => loc.id === userProfile.selectedLocationId) || userProfile.locations[0]).dong}`
                     : profile.location}
@@ -1918,14 +1918,14 @@ ${BRAND.NAME}와 함께하는 모임 일정에 참여하세요!
             </div>
           </header>
 
-          <div className="px-5 py-6 space-y-5">
+          <div className="px-5 py-3 md:py-6 space-y-5">
             {/* 내 동네 크루 섹션 - 당근마켓 스타일 */}
             <div className="mb-6">
               {/* 헤더 */}
               <div className="flex items-center justify-between mb-3 px-4 sm:px-5">
                 <div className="flex items-center gap-2">
-                  <span className="text-xl sm:text-2xl">📍</span>
-                  <h2 className="text-lg sm:text-xl font-bold text-gray-900">내 동네 크루</h2>
+                  <span className="text-xl sm:text-base md:text-lg md:text-xl md:text-2xl">📍</span>
+                  <h2 className="text-lg sm:text-base md:text-lg md:text-xl font-bold text-gray-900">내 동네 크루</h2>
                   {userProfile?.locations && userProfile.locations.length > 0 && (
                     <span className="px-2 sm:px-3 py-0.5 sm:py-1 bg-orange-50 text-orange-600 text-xs sm:text-sm font-semibold rounded-full">
                       {(userProfile.locations.find(loc => loc.id === userProfile.selectedLocationId) || userProfile.locations[0]).dong}
@@ -1951,7 +1951,7 @@ ${BRAND.NAME}와 함께하는 모임 일정에 참여하세요!
                 if (!userProfile?.locations || userProfile.locations.length === 0) {
                   // 빈 상태 - 동네 미인증
                   return (
-                    <div className="mx-4 sm:mx-5 p-6 sm:p-8 bg-gray-50 rounded-xl sm:rounded-2xl text-center">
+                    <div className="mx-4 sm:mx-5 p-3 md:p-6 sm:p-4 md:p-8 bg-gray-50 rounded-xl sm:rounded-2xl text-center">
                       <div className="text-4xl sm:text-5xl mb-2 sm:mb-3">📍</div>
                       <p className="text-gray-900 font-semibold text-sm sm:text-base mb-1">
                         동네 인증이 필요해요
@@ -1966,7 +1966,7 @@ ${BRAND.NAME}와 함께하는 모임 일정에 참여하세요!
                 if (nearbyCrews.length === 0) {
                   // 빈 상태 - 크루 없음
                   return (
-                    <div className="mx-4 sm:mx-5 p-6 sm:p-8 bg-gray-50 rounded-xl sm:rounded-2xl text-center">
+                    <div className="mx-4 sm:mx-5 p-3 md:p-6 sm:p-4 md:p-8 bg-gray-50 rounded-xl sm:rounded-2xl text-center">
                       <div className="text-4xl sm:text-5xl mb-2 sm:mb-3">🏕️</div>
                       <p className="text-gray-900 font-semibold text-sm sm:text-base mb-1">
                         내 동네에 아직 크루가 없어요
@@ -1998,10 +1998,10 @@ ${BRAND.NAME}와 함께하는 모임 일정에 참여하세요!
             <div className="bg-white rounded-3xl p-7 shadow-sm border border-stone-100">
               <div className="flex justify-between items-center mb-6">
                 <div className="flex items-center gap-3">
-                  <div className="w-12 h-12 bg-gradient-to-br from-orange-50 to-indigo-50 rounded-2xl flex items-center justify-center">
+                  <div className="w-10 h-10 md:w-12 md:h-12 bg-gradient-to-br from-orange-50 to-indigo-50 rounded-2xl flex items-center justify-center">
                     <Calendar className="w-6 h-6 text-[#FF9B50]" strokeWidth={2.5} />
                   </div>
-                  <h2 className="text-2xl font-bold tracking-tight text-[#292524]">다가오는 일정</h2>
+                  <h2 className="text-base md:text-lg md:text-xl md:text-2xl font-bold tracking-tight text-[#292524]">다가오는 일정</h2>
                 </div>
                 <button
                   onClick={() => {
@@ -2017,7 +2017,7 @@ ${BRAND.NAME}와 함께하는 모임 일정에 참여하세요!
               {mySchedules.length === 0 ? (
                 <div className="text-center py-12">
                   <div className="text-6xl mb-4">📅</div>
-                  <p className="text-[#292524] font-bold text-xl mb-2">등록된 일정이 없어요</p>
+                  <p className="text-[#292524] font-bold text-base md:text-lg md:text-xl mb-2">등록된 일정이 없어요</p>
                   <p className="text-[#57534E] text-base font-medium">첫 일정을 만들어보세요</p>
                 </div>
               ) : (
@@ -2026,32 +2026,32 @@ ${BRAND.NAME}와 함께하는 모임 일정에 참여하세요!
                     <div
                       key={schedule.id}
                       onClick={() => setSelectedSchedule(schedule)}
-                      className="bg-[#FFFBF7] rounded-2xl p-6 hover:bg-[#F5F5F4] active:scale-[0.98] transition-all cursor-pointer border border-transparent hover:border-[#FF9B50]/20"
+                      className="bg-[#FFFBF7] rounded-2xl p-3 md:p-6 hover:bg-[#F5F5F4] active:scale-[0.98] transition-all cursor-pointer border border-transparent hover:border-[#FF9B50]/20"
                     >
                       <div className="flex justify-between items-start mb-4">
-                        <h3 className="font-bold text-xl tracking-tight text-[#292524] leading-tight">{schedule.title}</h3>
+                        <h3 className="font-bold text-base md:text-lg md:text-xl tracking-tight text-[#292524] leading-tight">{schedule.title}</h3>
                         <span className={`text-xs px-3 py-1.5 rounded-full font-bold ${getTypeColor(schedule.type)}`}>
                           {schedule.type}
                         </span>
                       </div>
                       <div className="space-y-2.5">
                         <p className="text-[#78716C] text-base font-medium flex items-center gap-2">
-                          <span className="text-lg">📅</span>
+                          <span className="text-base md:text-lg">📅</span>
                           <span>{formatDateWithYear(schedule.date)} {schedule.time}</span>
                         </p>
                         <p className="text-[#78716C] text-base font-medium flex items-center gap-2">
-                          <span className="text-lg">📍</span>
+                          <span className="text-base md:text-lg">📍</span>
                           <span>{schedule.location}</span>
                         </p>
                         <p className="text-[#78716C] text-base font-medium flex items-center gap-2">
-                          <span className="text-lg">🎯</span>
+                          <span className="text-base md:text-lg">🎯</span>
                           <span>벙주: {schedule.createdBy}</span>
                         </p>
                         <div className="flex items-center justify-between pt-2 mt-2 border-t border-gray-200">
                           <p className="text-[#A8A29E] text-sm font-bold">
                             👥 참여 인원
                           </p>
-                          <p className="text-[#292524] text-lg font-bold">
+                          <p className="text-[#292524] text-base md:text-lg font-bold">
                             {schedule.participants?.length || 0}<span className="text-[#A8A29E]">/{schedule.maxParticipants}</span>
                           </p>
                         </div>
@@ -2069,10 +2069,10 @@ ${BRAND.NAME}와 함께하는 모임 일정에 참여하세요!
       {currentPage === 'category' && (
         <div className="bg-[#FFFBF7] min-h-screen">
           <header className="sticky top-0 bg-white z-10 safe-top border-b border-stone-100">
-            <div className="px-4 py-5 sm:px-6 sm:py-6 flex justify-between items-center">
+            <div className="px-4 py-5 sm:px-3 md:px-6 sm:py-3 md:py-6 flex justify-between items-center">
               <div className="flex items-center gap-2 sm:gap-3">
                 <MapPin className="w-6 h-6 sm:w-7 sm:h-7 text-[#FF9B50]" strokeWidth={2.5} />
-                <span className="font-bold text-xl sm:text-2xl tracking-tight text-[#292524]">
+                <span className="font-bold text-xl sm:text-base md:text-lg md:text-xl md:text-2xl tracking-tight text-[#292524]">
                   {userProfile?.locations && userProfile.locations.length > 0
                     ? `${(userProfile.locations.find(loc => loc.id === userProfile.selectedLocationId) || userProfile.locations[0]).sigungu} ${(userProfile.locations.find(loc => loc.id === userProfile.selectedLocationId) || userProfile.locations[0]).dong}`
                     : profile.location}
@@ -2089,14 +2089,14 @@ ${BRAND.NAME}와 함께하는 모임 일정에 참여하세요!
             </div>
           </header>
 
-          <div className="px-5 py-6">
-            <h2 className="text-2xl font-bold tracking-tight text-[#292524] mb-5">크루 찾기</h2>
+          <div className="px-5 py-3 md:py-6">
+            <h2 className="text-base md:text-lg md:text-xl md:text-2xl font-bold tracking-tight text-[#292524] mb-5">크루 찾기</h2>
 
             {/* 추천 크루 섹션 */}
             {recommendedOrgs.length > 0 && (
               <div className="mb-6">
                 <div className="flex items-center justify-between mb-3 px-1">
-                  <h3 className="text-lg font-bold tracking-tight text-[#292524]">
+                  <h3 className="text-base md:text-lg font-bold tracking-tight text-[#292524]">
                     ✨ 나를 위한 추천 크루
                   </h3>
                   <span className="text-xs font-bold text-[#FF9B50] bg-orange-50 px-3 py-1 rounded-full">
@@ -2113,19 +2113,19 @@ ${BRAND.NAME}와 함께하는 모임 일정에 참여하세요!
                       }}
                       className="bg-white rounded-2xl p-5 shadow-sm border border-stone-100 hover:border-[#FF9B50] hover:shadow-md transition-all cursor-pointer active:scale-[0.98]"
                     >
-                      <div className="flex items-center gap-4">
+                      <div className="flex items-center gap-2 md:gap-4">
                         <div className="w-14 h-14 rounded-2xl overflow-hidden flex-shrink-0 bg-stone-100">
                           {org.avatar ? (
                             <img src={org.avatar} alt={org.name} className="w-full h-full object-cover" />
                           ) : (
-                            <div className="w-full h-full flex items-center justify-center text-2xl">⛺</div>
+                            <div className="w-full h-full flex items-center justify-center text-base md:text-lg md:text-xl md:text-2xl">⛺</div>
                           )}
                         </div>
                         <div className="flex-1 min-w-0">
                           {org.subtitle && (
                             <p className="text-xs font-bold text-[#A8A29E] mb-1 truncate">{org.subtitle}</p>
                           )}
-                          <h4 className="text-lg font-bold tracking-tight text-[#292524] mb-1 truncate">
+                          <h4 className="text-base md:text-lg font-bold tracking-tight text-[#292524] mb-1 truncate">
                             {org.name}
                           </h4>
                           <div className="flex items-center gap-2 flex-wrap">
@@ -2136,7 +2136,7 @@ ${BRAND.NAME}와 함께하는 모임 일정에 참여하세요!
                             ))}
                           </div>
                         </div>
-                        <div className="text-[#FF9B50] text-xl">→</div>
+                        <div className="text-[#FF9B50] text-base md:text-lg md:text-xl">→</div>
                       </div>
                     </div>
                   ))}
@@ -2147,7 +2147,7 @@ ${BRAND.NAME}와 함께하는 모임 일정에 참여하세요!
             {/* 전체 크루 목록 - 10km 반경 내 */}
             <div className="mb-6">
               <div className="flex items-center justify-between mb-3 px-1">
-                <h3 className="text-lg font-bold tracking-tight text-[#292524]">
+                <h3 className="text-base md:text-lg font-bold tracking-tight text-[#292524]">
                   🌟 내 반경 내 전체 크루
                 </h3>
                 <span className="text-xs font-bold text-[#57534E] bg-stone-100 px-3 py-1 rounded-full">
@@ -2161,7 +2161,7 @@ ${BRAND.NAME}와 함께하는 모임 일정에 참여하세요!
                 const nearby = getNearbyOrganizations()
                 if (!userProfile?.locations || userProfile.locations.length === 0) {
                   return (
-                    <div className="bg-white rounded-2xl p-8 text-center">
+                    <div className="bg-white rounded-2xl p-4 md:p-8 text-center">
                       <div className="text-5xl mb-3">📍</div>
                       <p className="text-base font-bold text-[#292524] mb-1">동네 인증이 필요해요</p>
                       <p className="text-sm text-[#57534E]">내 동네를 인증하고 주변 크루를 만나보세요</p>
@@ -2170,7 +2170,7 @@ ${BRAND.NAME}와 함께하는 모임 일정에 참여하세요!
                 }
                 if (nearby.length === 0) {
                   return (
-                    <div className="bg-white rounded-2xl p-8 text-center">
+                    <div className="bg-white rounded-2xl p-4 md:p-8 text-center">
                       <div className="text-5xl mb-3">🔍</div>
                       <p className="text-base font-bold text-[#292524] mb-1">10km 이내 크루가 없어요</p>
                       <p className="text-sm text-[#57534E]">새로운 크루를 만들어보세요!</p>
@@ -2188,19 +2188,19 @@ ${BRAND.NAME}와 함께하는 모임 일정에 참여하세요!
                       }}
                       className="bg-white rounded-2xl p-5 shadow-sm border border-stone-100 hover:border-[#FF9B50] hover:shadow-md transition-all cursor-pointer active:scale-[0.98]"
                     >
-                      <div className="flex items-center gap-4">
+                      <div className="flex items-center gap-2 md:gap-4">
                         <div className="w-14 h-14 rounded-2xl overflow-hidden flex-shrink-0 bg-stone-100">
                           {org.avatar ? (
                             <img src={org.avatar} alt={org.name} className="w-full h-full object-cover" />
                           ) : (
-                            <div className="w-full h-full flex items-center justify-center text-2xl">⛺</div>
+                            <div className="w-full h-full flex items-center justify-center text-base md:text-lg md:text-xl md:text-2xl">⛺</div>
                           )}
                         </div>
                         <div className="flex-1 min-w-0">
                           {org.subtitle && (
                             <p className="text-xs font-bold text-[#A8A29E] mb-1 truncate">{org.subtitle}</p>
                           )}
-                          <h4 className="text-lg font-bold tracking-tight text-[#292524] mb-1 truncate">
+                          <h4 className="text-base md:text-lg font-bold tracking-tight text-[#292524] mb-1 truncate">
                             {org.name}
                           </h4>
                           <div className="flex items-center gap-2 flex-wrap">
@@ -2211,7 +2211,7 @@ ${BRAND.NAME}와 함께하는 모임 일정에 참여하세요!
                             ))}
                           </div>
                         </div>
-                        <div className="text-[#FF9B50] text-xl">→</div>
+                        <div className="text-[#FF9B50] text-base md:text-lg md:text-xl">→</div>
                       </div>
                     </div>
                     ))}
@@ -2227,11 +2227,11 @@ ${BRAND.NAME}와 함께하는 모임 일정에 참여하세요!
                 setOrgForm({ name: '', subtitle: '', description: '', categories: [] })
                 setOrgAvatarFile(null)
               }}
-              className="w-full bg-gradient-to-r from-[#FF9B50] to-[#2563EB] rounded-2xl p-6 shadow-lg hover:shadow-xl transition-all active:scale-[0.98] text-white"
+              className="w-full bg-gradient-to-r from-[#FF9B50] to-[#2563EB] rounded-2xl p-3 md:p-6 shadow-lg hover:shadow-xl transition-all active:scale-[0.98] text-white"
             >
               <div className="flex items-center justify-between">
                 <div className="text-left">
-                  <h3 className="text-xl font-bold mb-1">새 크루 만들기</h3>
+                  <h3 className="text-base md:text-lg md:text-xl font-bold mb-1">새 크루 만들기</h3>
                   <p className="text-sm opacity-90">나만의 크루를 시작하세요</p>
                 </div>
                 <div className="text-4xl">➕</div>
@@ -2246,14 +2246,14 @@ ${BRAND.NAME}와 함께하는 모임 일정에 참여하세요!
         <div className="bg-[#FFFBF7] min-h-screen">
           {/* 헤더 */}
           <header className="sticky top-0 bg-white z-10 safe-top border-b border-stone-100">
-            <div className="px-6 py-6 pb-3">
-              <h1 className="text-2xl font-bold tracking-tight text-[#292524]">⛺ 내 크루</h1>
+            <div className="px-3 md:px-6 py-3 md:py-6 pb-3">
+              <h1 className="text-base md:text-lg md:text-xl md:text-2xl font-bold tracking-tight text-[#292524]">⛺ 내 크루</h1>
               <p className="text-sm text-[#A8A29E] mt-1">가입한 크루 목록</p>
             </div>
           </header>
 
           {/* 크루 목록 */}
-          <div className="px-5 py-6">
+          <div className="px-5 py-3 md:py-6">
             {organizations.length === 0 ? (
               <div className="text-center py-16">
                 <div className="text-6xl mb-4">⛺</div>
@@ -2279,19 +2279,19 @@ ${BRAND.NAME}와 함께하는 모임 일정에 참여하세요!
                       onClick={() => setSelectedOrg(org)}
                       className="bg-white rounded-2xl p-5 shadow-sm border border-stone-100 hover:border-[#FF9B50] hover:shadow-md transition-all cursor-pointer active:scale-[0.98]"
                     >
-                      <div className="flex items-center gap-4">
-                        <div className="w-16 h-16 rounded-2xl overflow-hidden flex-shrink-0 bg-stone-100">
+                      <div className="flex items-center gap-2 md:gap-4">
+                        <div className="w-12 h-12 md:w-16 md:h-16 rounded-2xl overflow-hidden flex-shrink-0 bg-stone-100">
                           {org.avatar ? (
                             <img src={org.avatar} alt={org.name} className="w-full h-full object-cover" />
                           ) : (
-                            <div className="w-full h-full flex items-center justify-center text-3xl">⛺</div>
+                            <div className="w-full h-full flex items-center justify-center text-base md:text-lg md:text-xl md:text-2xl md:text-3xl">⛺</div>
                           )}
                         </div>
                         <div className="flex-1 min-w-0">
                           {org.subtitle && (
                             <p className="text-xs font-bold text-[#A8A29E] mb-1 truncate">{org.subtitle}</p>
                           )}
-                          <h3 className="text-lg font-bold tracking-tight text-[#292524] mb-1 truncate">
+                          <h3 className="text-base md:text-lg font-bold tracking-tight text-[#292524] mb-1 truncate">
                             {org.name}
                           </h3>
                           <div className="flex items-center gap-3 text-sm text-[#57534E]">
@@ -2334,21 +2334,21 @@ ${BRAND.NAME}와 함께하는 모임 일정에 참여하세요!
         <div className="bg-[#FFFBF7] min-h-screen">
           {/* 헤더 */}
           <header className="sticky top-0 bg-white z-10 safe-top border-b border-stone-100">
-            <div className="px-6 py-6 pb-3 flex items-center justify-between">
+            <div className="px-3 md:px-6 py-3 md:py-6 pb-3 flex items-center justify-between">
               <div>
-                <h1 className="text-2xl font-bold tracking-tight text-[#292524]">📅 다가오는 일정</h1>
+                <h1 className="text-base md:text-lg md:text-xl md:text-2xl font-bold tracking-tight text-[#292524]">📅 다가오는 일정</h1>
                 <p className="text-sm text-[#A8A29E] mt-1">모든 크루의 일정을 확인하세요</p>
               </div>
               <button
                 onClick={() => setCurrentPage('home')}
-                className="text-[#292524] text-2xl p-2 hover:bg-gray-50 rounded-xl active:scale-95 transition-all"
+                className="text-[#292524] text-base md:text-lg md:text-xl md:text-2xl p-2 hover:bg-gray-50 rounded-xl active:scale-95 transition-all"
               >
                 ✕
               </button>
             </div>
 
             {/* 필터 칩 */}
-            <div className="px-6 pb-4 overflow-x-auto scrollbar-hide">
+            <div className="px-3 md:px-6 pb-4 overflow-x-auto scrollbar-hide">
               <div className="flex gap-2">
                 <button
                   onClick={() => setScheduleFilter('all')}
@@ -2384,7 +2384,7 @@ ${BRAND.NAME}와 함께하는 모임 일정에 참여하세요!
             </div>
           </header>
 
-          <div className="px-5 py-6 space-y-3">
+          <div className="px-5 py-3 md:py-6 space-y-3">
             {(() => {
               // 필터 적용
               let filteredSchedules = upcomingSchedules
@@ -2419,14 +2419,14 @@ ${BRAND.NAME}와 함께하는 모임 일정에 참여하세요!
               }, {} as Record<string, typeof filteredSchedules>)
 
               return (
-                <div className="space-y-6">
+                <div className="space-y-3 md:space-y-6">
                   {Object.entries(schedulesByOrg).map(([orgId, orgSchedules]) => {
                     const org = organizations.find(o => o.id === orgId)
                     return (
                       <div key={orgId}>
                         {/* 크루 헤더 */}
                         <div className="flex items-center justify-between mb-3">
-                          <h2 className="text-lg font-bold text-[#292524]">
+                          <h2 className="text-base md:text-lg font-bold text-[#292524]">
                             {org?.name || '알 수 없는 크루'}
                           </h2>
                           <span className="text-sm text-[#A8A29E] font-semibold">
@@ -2448,7 +2448,7 @@ ${BRAND.NAME}와 함께하는 모임 일정에 참여하세요!
                                 }`}
                               >
                                 <div className="flex justify-between items-start mb-4">
-                                  <h3 className="font-bold text-lg tracking-tight text-[#292524] flex-1">{schedule.title}</h3>
+                                  <h3 className="font-bold text-base md:text-lg tracking-tight text-[#292524] flex-1">{schedule.title}</h3>
                                   <span className={`text-xs px-3 py-1.5 rounded-lg font-bold ${getTypeColor(schedule.type)}`}>
                                     {schedule.type}
                                   </span>
@@ -2491,11 +2491,11 @@ ${BRAND.NAME}와 함께하는 모임 일정에 참여하세요!
         <div className="bg-[#FFFBF7] min-h-screen">
           {/* 헤더 */}
           <header className="sticky top-0 bg-white z-10 safe-top border-b border-stone-100">
-            <div className="px-6 py-6">
+            <div className="px-3 md:px-6 py-3 md:py-6">
               <div className="flex items-center justify-between mb-3">
                 <button
                   onClick={() => setSelectedOrg(null)}
-                  className="text-[#292524] text-2xl p-2 hover:bg-gray-50 rounded-xl active:scale-95 transition-all -ml-2"
+                  className="text-[#292524] text-base md:text-lg md:text-xl md:text-2xl p-2 hover:bg-gray-50 rounded-xl active:scale-95 transition-all -ml-2"
                 >
                   ←
                 </button>
@@ -2511,11 +2511,11 @@ ${BRAND.NAME}와 함께하는 모임 일정에 참여하세요!
               {selectedOrg.subtitle && (
                 <p className="text-sm font-bold text-[#A8A29E] mb-1">{selectedOrg.subtitle}</p>
               )}
-              <h1 className="text-2xl font-bold tracking-tight text-[#292524]">{selectedOrg.name}</h1>
+              <h1 className="text-base md:text-lg md:text-xl md:text-2xl font-bold tracking-tight text-[#292524]">{selectedOrg.name}</h1>
             </div>
 
             {/* 통계 카드 */}
-            <div className="px-6 pb-6 grid grid-cols-3 gap-3">
+            <div className="px-3 md:px-6 pb-6 grid grid-cols-3 gap-3">
               <button
                 onClick={() => setScheduleFilter('all')}
                 className={`rounded-2xl p-4 text-center transition-all ${
@@ -2524,7 +2524,7 @@ ${BRAND.NAME}와 함께하는 모임 일정에 참여하세요!
                     : 'bg-[#F5F5F4] text-[#292524] hover:bg-[#E5E8EB]'
                 }`}
               >
-                <div className="text-3xl font-bold tracking-tight">{upcomingSchedules.length}</div>
+                <div className="text-base md:text-lg md:text-xl md:text-2xl md:text-3xl font-bold tracking-tight">{upcomingSchedules.length}</div>
                 <div className="text-xs font-bold mt-1 opacity-80">전체</div>
               </button>
               <button
@@ -2535,7 +2535,7 @@ ${BRAND.NAME}와 함께하는 모임 일정에 참여하세요!
                     : 'bg-[#F5F5F4] text-[#292524] hover:bg-[#E5E8EB]'
                 }`}
               >
-                <div className="text-3xl font-bold tracking-tight">{mySchedules.length}</div>
+                <div className="text-base md:text-lg md:text-xl md:text-2xl md:text-3xl font-bold tracking-tight">{mySchedules.length}</div>
                 <div className="text-xs font-bold mt-1 opacity-80">참여 일정</div>
               </button>
               <button
@@ -2546,16 +2546,16 @@ ${BRAND.NAME}와 함께하는 모임 일정에 참여하세요!
                     : 'bg-[#F5F5F4] text-[#292524] hover:bg-[#E5E8EB]'
                 }`}
               >
-                <div className="text-3xl font-bold tracking-tight">{upcomingSchedules.length - mySchedules.length}</div>
+                <div className="text-base md:text-lg md:text-xl md:text-2xl md:text-3xl font-bold tracking-tight">{upcomingSchedules.length - mySchedules.length}</div>
                 <div className="text-xs font-bold mt-1 opacity-80">미참여</div>
               </button>
             </div>
           </header>
 
-          <div className="px-5 py-6 space-y-6">
+          <div className="px-5 py-3 md:py-6 space-y-3 md:space-y-6">
             {/* 다가오는 일정 */}
             <div>
-              <h3 className="text-lg font-bold tracking-tight text-[#292524] mb-4">다가오는 일정</h3>
+              <h3 className="text-base md:text-lg font-bold tracking-tight text-[#292524] mb-4">다가오는 일정</h3>
               <div className="space-y-3">
                 {(() => {
                   let filteredSchedules = upcomingSchedules
@@ -2586,7 +2586,7 @@ ${BRAND.NAME}와 함께하는 모임 일정에 참여하세요!
                       }`}
                     >
                       <div className="flex justify-between items-start mb-4">
-                        <h3 className="font-bold text-lg tracking-tight text-[#292524] flex-1">{schedule.title}</h3>
+                        <h3 className="font-bold text-base md:text-lg tracking-tight text-[#292524] flex-1">{schedule.title}</h3>
                         <span className={`text-xs px-3 py-1.5 rounded-lg font-bold ${getTypeColor(schedule.type)}`}>
                           {schedule.type}
                         </span>
@@ -2624,7 +2624,7 @@ ${BRAND.NAME}와 함께하는 모임 일정에 참여하세요!
             {/* 지난 일정 */}
             {pastSchedules.length > 0 && (
               <div className="mt-8">
-                <h3 className="text-lg font-bold text-gray-500 mb-3 px-2">지난 일정</h3>
+                <h3 className="text-base md:text-lg font-bold text-gray-500 mb-3 px-2">지난 일정</h3>
                 <div className="space-y-3">
                   {pastSchedules.map((schedule) => {
                     const isParticipating = schedule.participants?.includes(profile.name)
@@ -2635,7 +2635,7 @@ ${BRAND.NAME}와 함께하는 모임 일정에 참여하세요!
                         className="bg-gray-50 rounded-xl p-5 shadow-sm hover:shadow-md transition-shadow cursor-pointer opacity-60"
                       >
                         <div className="flex justify-between items-start mb-3">
-                          <h3 className="font-bold text-lg text-stone-600">{schedule.title}</h3>
+                          <h3 className="font-bold text-base md:text-lg text-stone-600">{schedule.title}</h3>
                           <span className="text-xs bg-gray-200 text-stone-600 px-3 py-1 rounded-full font-semibold">
                             {schedule.type}
                           </span>
@@ -2659,16 +2659,16 @@ ${BRAND.NAME}와 함께하는 모임 일정에 참여하세요!
             )}
           </div>
 
-          <div className="fixed bottom-32 right-5 flex flex-col gap-4 z-30">
+          <div className="fixed bottom-32 right-5 flex flex-col gap-2 md:gap-4 z-30">
             <button
               onClick={() => setShowMemberList(true)}
-              className="w-16 h-16 bg-white border-2 border-[#FF9B50] text-[#FF9B50] rounded-full shadow-lg active:scale-95 transition-transform flex items-center justify-center"
+              className="w-12 h-12 md:w-16 md:h-16 bg-white border-2 border-[#FF9B50] text-[#FF9B50] rounded-full shadow-lg active:scale-95 transition-transform flex items-center justify-center"
             >
               <Users className="w-7 h-7" />
             </button>
             <button
               onClick={() => setShowCreateSchedule(true)}
-              className="w-16 h-16 bg-[#FF9B50] hover:bg-[#FF8A3D] text-white rounded-full shadow-lg text-3xl font-bold active:scale-95 transition-transform"
+              className="w-12 h-12 md:w-16 md:h-16 bg-[#FF9B50] hover:bg-[#FF8A3D] text-white rounded-full shadow-lg text-base md:text-lg md:text-xl md:text-2xl md:text-3xl font-bold active:scale-95 transition-transform"
             >
               +
             </button>
@@ -2680,20 +2680,20 @@ ${BRAND.NAME}와 함께하는 모임 일정에 참여하세요!
       {showMemberList && (
         <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
           <div className="bg-white rounded-2xl max-w-md w-full max-h-[80vh] overflow-hidden flex flex-col">
-            <div className="bg-[#FF9B50] text-white p-6">
+            <div className="bg-[#FF9B50] text-white p-3 md:p-6">
               <div className="flex justify-between items-center mb-2">
                 <div className="flex items-center gap-3">
-                  <h2 className="text-2xl font-bold">CREW MEMBERS</h2>
+                  <h2 className="text-base md:text-lg md:text-xl md:text-2xl font-bold">CREW MEMBERS</h2>
                   <button
                     onClick={() => selectedOrg && fetchMembers(selectedOrg.id)}
-                    className="text-white text-lg hover:opacity-80 bg-white/20 px-3 py-1 rounded-lg"
+                    className="text-white text-base md:text-lg hover:opacity-80 bg-white/20 px-3 py-1 rounded-lg"
                   >
                     ↻
                   </button>
                 </div>
                 <button
                   onClick={() => setShowMemberList(false)}
-                  className="text-white text-2xl hover:opacity-80"
+                  className="text-white text-base md:text-lg md:text-xl md:text-2xl hover:opacity-80"
                 >
                   ×
                 </button>
@@ -2719,7 +2719,7 @@ ${BRAND.NAME}와 함께하는 모임 일정에 참여하세요!
             <div className="p-4 overflow-y-auto flex-1">
               <div className="space-y-3">
                 {members.length === 0 ? (
-                  <p className="text-gray-400 text-center py-8">멤버가 없습니다.</p>
+                  <p className="text-gray-400 text-center py-4 md:py-8">멤버가 없습니다.</p>
                 ) : (
                   members
                     .filter((member) => {
@@ -2795,7 +2795,7 @@ ${BRAND.NAME}와 함께하는 모임 일정에 참여하세요!
                               setSelectedAvatarUrl(img.src)
                             }
                           }}
-                          className="w-12 h-12 rounded-full flex items-center justify-center overflow-hidden cursor-pointer hover:ring-2 hover:ring-[#FF9B50] bg-gray-200"
+                          className="w-10 h-10 md:w-12 md:h-12 rounded-full flex items-center justify-center overflow-hidden cursor-pointer hover:ring-2 hover:ring-[#FF9B50] bg-gray-200"
                         >
                           <img
                             src={member.avatar || '/default-avatar.svg'}
@@ -2890,10 +2890,10 @@ ${BRAND.NAME}와 함께하는 모임 일정에 참여하세요!
             </div>
 
             {/* 헤더 */}
-            <div className="px-6 pt-5 pb-4 border-b border-stone-100">
+            <div className="px-3 md:px-6 pt-5 pb-4 border-b border-stone-100">
               <div className="flex justify-between items-start mb-3">
                 <div className="flex-1">
-                  <h2 className="text-2xl font-bold tracking-tight text-[#292524] leading-tight mb-2">
+                  <h2 className="text-base md:text-lg md:text-xl md:text-2xl font-bold tracking-tight text-[#292524] leading-tight mb-2">
                     {selectedSchedule.title}
                   </h2>
                   <span className="inline-block text-xs font-bold bg-[#F5F5F4] text-[#78716C] px-3 py-1.5 rounded-lg">
@@ -2904,14 +2904,14 @@ ${BRAND.NAME}와 함께하는 모임 일정에 참여하세요!
                   onClick={() => setSelectedSchedule(null)}
                   className="p-2 hover:bg-stone-100 rounded-xl active:scale-95 transition-all -mr-2"
                 >
-                  <span className="text-2xl text-[#A8A29E]">×</span>
+                  <span className="text-base md:text-lg md:text-xl md:text-2xl text-[#A8A29E]">×</span>
                 </button>
               </div>
             </div>
 
-            <div className="px-6 py-5 space-y-6 max-h-[70vh] overflow-y-auto">
+            <div className="px-3 md:px-6 py-5 space-y-3 md:space-y-6 max-h-[70vh] overflow-y-auto">
               {/* 일정 정보 카드 */}
-              <div className="bg-[#FFFBF7] rounded-2xl p-5 space-y-4">
+              <div className="bg-[#FFFBF7] rounded-2xl p-5 space-y-2 md:space-y-4">
                 <div>
                   <div className="text-sm font-bold text-[#A8A29E] mb-2">📅 일시</div>
                   <div className="text-base font-bold text-[#292524]">
@@ -2953,7 +2953,7 @@ ${BRAND.NAME}와 함께하는 모임 일정에 참여하세요!
                               e.stopPropagation()
                               handleRemoveParticipant(selectedSchedule, name)
                             }}
-                            className="text-[#A8A29E] hover:text-red-500 font-bold text-lg leading-none active:scale-95 transition-all"
+                            className="text-[#A8A29E] hover:text-red-500 font-bold text-base md:text-lg leading-none active:scale-95 transition-all"
                           >
                             ×
                           </button>
@@ -3009,7 +3009,7 @@ ${BRAND.NAME}와 함께하는 모임 일정에 참여하세요!
                           {(comment.userUid === user?.uid || userProfile?.role === 'captain' || userProfile?.role === 'staff') && (
                             <button
                               onClick={() => handleDeleteComment(selectedSchedule, comment.id)}
-                              className="text-[#A8A29E] hover:text-red-500 text-xl leading-none active:scale-95 transition-all"
+                              className="text-[#A8A29E] hover:text-red-500 text-base md:text-lg md:text-xl leading-none active:scale-95 transition-all"
                             >
                               ×
                             </button>
@@ -3047,7 +3047,7 @@ ${BRAND.NAME}와 함께하는 모임 일정에 참여하세요!
                   onClick={() => handleShareSchedule(selectedSchedule)}
                   className="w-full bg-[#FEE500] text-[#292524] py-4 rounded-2xl font-bold hover:bg-[#FDD835] transition-all active:scale-[0.98] flex items-center justify-center gap-2 shadow-sm"
                 >
-                  <span className="text-xl">💬</span>
+                  <span className="text-base md:text-lg md:text-xl">💬</span>
                   <span>카카오톡 공유하기</span>
                 </button>
               </div>
@@ -3115,25 +3115,25 @@ ${BRAND.NAME}와 함께하는 모임 일정에 참여하세요!
         <div className="bg-[#FFFBF7] min-h-screen pb-20">
           {/* 헤더 */}
           <header className="sticky top-0 bg-white z-10 safe-top border-b border-stone-100">
-            <div className="px-4 py-4 sm:px-6 sm:py-5">
-              <h1 className="text-xl sm:text-2xl font-bold tracking-tight text-[#292524]">내 정보</h1>
+            <div className="px-4 py-4 sm:px-3 md:px-6 sm:py-5">
+              <h1 className="text-xl sm:text-base md:text-lg md:text-xl md:text-2xl font-bold tracking-tight text-[#292524]">내 정보</h1>
             </div>
           </header>
 
-          <div className="px-4 py-4 sm:px-5 sm:py-6 space-y-3 sm:space-y-4">
+          <div className="px-4 py-4 sm:px-5 sm:py-3 md:py-6 space-y-3 sm:space-y-2 md:space-y-4">
             {/* 내 동네 설정 섹션 */}
-            <div className="bg-white rounded-xl sm:rounded-2xl p-4 sm:p-6 shadow-sm border border-stone-100">
-              <h3 className="text-base sm:text-lg font-bold tracking-tight text-[#292524] mb-3 sm:mb-4">
+            <div className="bg-white rounded-xl sm:rounded-2xl p-4 sm:p-3 md:p-6 shadow-sm border border-stone-100">
+              <h3 className="text-base sm:text-base md:text-lg font-bold tracking-tight text-[#292524] mb-3 sm:mb-4">
                 내 동네 설정
               </h3>
               <LocationVerification />
             </div>
 
             {/* 프로필 카드 */}
-            <div className="bg-white rounded-xl sm:rounded-2xl p-4 sm:p-6 shadow-sm border border-stone-100">
+            <div className="bg-white rounded-xl sm:rounded-2xl p-4 sm:p-3 md:p-6 shadow-sm border border-stone-100">
               <div className="text-center mb-5 sm:mb-6">
-                <div className="relative w-20 h-20 sm:w-24 sm:h-24 mx-auto mb-3 sm:mb-4 group">
-                  <div className="w-full h-full bg-gradient-to-br from-orange-50 to-indigo-50 rounded-full flex items-center justify-center text-3xl sm:text-4xl overflow-hidden">
+                <div className="relative w-16 h-16 md:w-20 md:h-20 sm:w-24 sm:h-24 mx-auto mb-3 sm:mb-4 group">
+                  <div className="w-full h-full bg-gradient-to-br from-orange-50 to-indigo-50 rounded-full flex items-center justify-center text-base md:text-lg md:text-xl md:text-2xl md:text-3xl sm:text-4xl overflow-hidden">
                     <img
                       src={profile.avatar || '/default-avatar.svg'}
                       alt={profile.name}
@@ -3165,12 +3165,12 @@ ${BRAND.NAME}와 함께하는 모임 일정에 참여하세요!
                     </span>
                   </label>
                 </div>
-                <h2 className="text-xl sm:text-2xl font-bold tracking-tight text-[#292524] mb-1.5 sm:mb-2">{profile.name}</h2>
+                <h2 className="text-xl sm:text-base md:text-lg md:text-xl md:text-2xl font-bold tracking-tight text-[#292524] mb-1.5 sm:mb-2">{profile.name}</h2>
                 <p className="text-xs sm:text-sm text-[#A8A29E]">{profile.email}</p>
               </div>
 
               {/* 정보 섹션 */}
-              <div className="bg-[#FFFBF7] rounded-xl sm:rounded-2xl p-4 sm:p-5 space-y-3 sm:space-y-4">
+              <div className="bg-[#FFFBF7] rounded-xl sm:rounded-2xl p-4 sm:p-5 space-y-3 sm:space-y-2 md:space-y-4">
                 <div>
                   <div className="text-xs font-bold text-[#A8A29E] mb-1.5 sm:mb-2">생년월일</div>
                   <div className="text-sm sm:text-base font-bold text-[#292524]">{profile.birthdate}</div>
@@ -3263,7 +3263,7 @@ ${BRAND.NAME}와 함께하는 모임 일정에 참여하세요!
             />
             <button
               onClick={() => setSelectedAvatarUrl(null)}
-              className="absolute top-4 right-4 w-10 h-10 bg-white/20 hover:bg-white/30 rounded-full text-white text-2xl flex items-center justify-center"
+              className="absolute top-4 right-4 w-10 h-10 bg-white/20 hover:bg-white/30 rounded-full text-white text-base md:text-lg md:text-xl md:text-2xl flex items-center justify-center"
             >
               ×
             </button>
@@ -3275,12 +3275,12 @@ ${BRAND.NAME}와 함께하는 모임 일정에 참여하세요!
       {editingMember && (
         <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
           <div className="bg-white rounded-2xl max-w-sm w-full overflow-hidden">
-            <div className="bg-gradient-to-r from-orange-500 to-blue-600 text-white p-6">
-              <h2 className="text-xl font-bold">멤버 역할 변경</h2>
+            <div className="bg-gradient-to-r from-orange-500 to-blue-600 text-white p-3 md:p-6">
+              <h2 className="text-base md:text-lg md:text-xl font-bold">멤버 역할 변경</h2>
               <p className="text-sm opacity-90 mt-1">{editingMember.name}</p>
             </div>
 
-            <div className="p-6 space-y-3">
+            <div className="p-3 md:p-6 space-y-3">
               <button
                 onClick={() => handleUpdateMemberRole(editingMember, 'captain')}
                 className="w-full py-3 bg-[#FF9B50] text-white rounded-lg font-semibold hover:bg-[#FF8A3D] transition-colors"
@@ -3314,13 +3314,13 @@ ${BRAND.NAME}와 함께하는 모임 일정에 참여하세요!
       {editingMemberInfo && (
         <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
           <div className="bg-white rounded-2xl max-w-md w-full max-h-[80vh] overflow-hidden flex flex-col">
-            <div className="bg-[#FF9B50] text-white p-6">
-              <h2 className="text-xl font-bold">멤버 정보 수정</h2>
+            <div className="bg-[#FF9B50] text-white p-3 md:p-6">
+              <h2 className="text-base md:text-lg md:text-xl font-bold">멤버 정보 수정</h2>
               <p className="text-sm opacity-90 mt-1">{editingMemberInfo.name}</p>
               <p className="text-xs opacity-75 mt-1">로그인 계정: {editingMemberInfo.email}</p>
             </div>
 
-            <div className="p-6 space-y-4 overflow-y-auto flex-1">
+            <div className="p-3 md:p-6 space-y-2 md:space-y-4 overflow-y-auto flex-1">
               <div>
                 <label className="block text-sm font-medium text-stone-700 mb-1">이름 *</label>
                 <input
@@ -3401,7 +3401,7 @@ ${BRAND.NAME}와 함께하는 모임 일정에 참여하세요!
               </div>
             </div>
 
-            <div className="p-6 border-t flex gap-3">
+            <div className="p-3 md:p-6 border-t flex gap-3">
               <button
                 onClick={handleUpdateMemberInfo}
                 className="flex-1 py-3 bg-[#FF9B50] text-white rounded-lg font-semibold hover:bg-[#FF8A3D] transition-colors"
@@ -3423,12 +3423,12 @@ ${BRAND.NAME}와 함께하는 모임 일정에 참여하세요!
       {editingOrg && (
         <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
           <div className="bg-white rounded-2xl max-w-md w-full max-h-[80vh] overflow-hidden flex flex-col">
-            <div className="bg-[#FF9B50] text-white p-6">
-              <h2 className="text-xl font-bold">크루 정보 수정</h2>
+            <div className="bg-[#FF9B50] text-white p-3 md:p-6">
+              <h2 className="text-base md:text-lg md:text-xl font-bold">크루 정보 수정</h2>
               <p className="text-sm opacity-90 mt-1">{editingOrg.name}</p>
             </div>
 
-            <div className="p-6 space-y-4 overflow-y-auto flex-1">
+            <div className="p-3 md:p-6 space-y-2 md:space-y-4 overflow-y-auto flex-1">
               <div>
                 <label className="block text-sm font-medium text-stone-700 mb-1">크루명 *</label>
                 <input
@@ -3553,7 +3553,7 @@ ${BRAND.NAME}와 함께하는 모임 일정에 참여하세요!
                   {orgAvatarFile && (
                     <div className="p-3 bg-gray-50 rounded-lg border border-gray-200 flex items-center justify-between">
                       <div className="flex items-center gap-2">
-                        <span className="text-2xl">📷</span>
+                        <span className="text-base md:text-lg md:text-xl md:text-2xl">📷</span>
                         <span className="text-sm text-stone-700">{orgAvatarFile.name}</span>
                       </div>
                       <button
@@ -3597,7 +3597,7 @@ ${BRAND.NAME}와 함께하는 모임 일정에 참여하세요!
               </div>
             </div>
 
-            <div className="p-6 border-t space-y-3">
+            <div className="p-3 md:p-6 border-t space-y-3">
               <div className="flex gap-3">
                 <button
                   onClick={handleUpdateOrg}
@@ -3630,12 +3630,12 @@ ${BRAND.NAME}와 함께하는 모임 일정에 참여하세요!
       {showCreateCrew && (
         <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
           <div className="bg-white rounded-2xl max-w-md w-full max-h-[80vh] overflow-hidden flex flex-col">
-            <div className="bg-gradient-to-r from-[#FF9B50] to-[#2563EB] text-white p-6">
-              <h2 className="text-xl font-bold">새 크루 만들기</h2>
+            <div className="bg-gradient-to-r from-[#FF9B50] to-[#2563EB] text-white p-3 md:p-6">
+              <h2 className="text-base md:text-lg md:text-xl font-bold">새 크루 만들기</h2>
               <p className="text-sm opacity-90 mt-1">나만의 캠핑 크루를 시작하세요</p>
             </div>
 
-            <div className="p-6 space-y-4 overflow-y-auto flex-1">
+            <div className="p-3 md:p-6 space-y-2 md:space-y-4 overflow-y-auto flex-1">
               <div>
                 <label className="block text-sm font-medium text-stone-700 mb-1">크루명 *</label>
                 <input
@@ -3760,7 +3760,7 @@ ${BRAND.NAME}와 함께하는 모임 일정에 참여하세요!
                   {orgAvatarFile && (
                     <div className="p-3 bg-gray-50 rounded-lg border border-gray-200 flex items-center justify-between">
                       <div className="flex items-center gap-2">
-                        <span className="text-2xl">📷</span>
+                        <span className="text-base md:text-lg md:text-xl md:text-2xl">📷</span>
                         <span className="text-sm text-stone-700">{orgAvatarFile.name}</span>
                       </div>
                       <button
@@ -3804,7 +3804,7 @@ ${BRAND.NAME}와 함께하는 모임 일정에 참여하세요!
               </div>
             </div>
 
-            <div className="p-6 border-t flex gap-3">
+            <div className="p-3 md:p-6 border-t flex gap-3">
               <button
                 onClick={handleCreateCrew}
                 className="flex-1 py-3 bg-gradient-to-r from-[#FF9B50] to-[#2563EB] text-white rounded-lg font-semibold hover:opacity-90 transition-opacity"
@@ -3830,11 +3830,11 @@ ${BRAND.NAME}와 함께하는 모임 일정에 참여하세요!
       {editingMyProfile && (
         <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
           <div className="bg-white rounded-2xl max-w-md w-full max-h-[80vh] overflow-hidden flex flex-col">
-            <div className="bg-[#FF9B50] text-white p-6">
-              <h2 className="text-xl font-bold">내 프로필 수정</h2>
+            <div className="bg-[#FF9B50] text-white p-3 md:p-6">
+              <h2 className="text-base md:text-lg md:text-xl font-bold">내 프로필 수정</h2>
             </div>
 
-            <div className="p-6 space-y-4 overflow-y-auto flex-1">
+            <div className="p-3 md:p-6 space-y-2 md:space-y-4 overflow-y-auto flex-1">
               <div>
                 <label className="block text-sm font-medium text-stone-700 mb-1">이름 *</label>
                 <input
@@ -3965,7 +3965,7 @@ ${BRAND.NAME}와 함께하는 모임 일정에 참여하세요!
               </div>
             </div>
 
-            <div className="p-6 border-t flex gap-3">
+            <div className="p-3 md:p-6 border-t flex gap-3">
               <button
                 onClick={handleUpdateMyProfile}
                 className="flex-1 py-3 bg-[#FF9B50] text-white rounded-lg font-semibold hover:bg-[#FF8A3D] transition-colors"
@@ -3987,12 +3987,12 @@ ${BRAND.NAME}와 함께하는 모임 일정에 참여하세요!
       {editingSchedule && (
         <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
           <div className="bg-white rounded-2xl max-w-md w-full max-h-[80vh] overflow-hidden flex flex-col">
-            <div className="bg-gradient-to-r from-orange-500 to-blue-600 text-white p-6">
+            <div className="bg-gradient-to-r from-orange-500 to-blue-600 text-white p-3 md:p-6">
               <div className="flex justify-between items-center mb-2">
-                <h2 className="text-2xl font-bold">일정 수정</h2>
+                <h2 className="text-base md:text-lg md:text-xl md:text-2xl font-bold">일정 수정</h2>
                 <button
                   onClick={() => setEditingSchedule(null)}
-                  className="text-white text-2xl hover:opacity-80"
+                  className="text-white text-base md:text-lg md:text-xl md:text-2xl hover:opacity-80"
                 >
                   ×
                 </button>
@@ -4000,7 +4000,7 @@ ${BRAND.NAME}와 함께하는 모임 일정에 참여하세요!
               <p className="text-sm opacity-90">{selectedOrg?.name}</p>
             </div>
 
-            <div className="p-6 space-y-4 overflow-y-auto flex-1">
+            <div className="p-3 md:p-6 space-y-2 md:space-y-4 overflow-y-auto flex-1">
               <div>
                 <label className="block text-sm font-medium text-stone-700 mb-1">일정 제목 *</label>
                 <input
@@ -4075,7 +4075,7 @@ ${BRAND.NAME}와 함께하는 모임 일정에 참여하세요!
               </div>
             </div>
 
-            <div className="p-6 border-t flex gap-3">
+            <div className="p-3 md:p-6 border-t flex gap-3">
               <button
                 onClick={handleUpdateSchedule}
                 className="flex-1 py-3 bg-gradient-to-r from-orange-500 to-blue-600 text-white rounded-lg font-semibold hover:from-blue-600 hover:to-blue-700 transition-colors"
@@ -4097,12 +4097,12 @@ ${BRAND.NAME}와 함께하는 모임 일정에 참여하세요!
       {showCreateSchedule && (
         <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
           <div className="bg-white rounded-2xl max-w-md w-full max-h-[80vh] overflow-hidden flex flex-col">
-            <div className="bg-[#FF9B50] text-white p-6">
+            <div className="bg-[#FF9B50] text-white p-3 md:p-6">
               <div className="flex justify-between items-center mb-2">
-                <h2 className="text-2xl font-bold">일정 생성</h2>
+                <h2 className="text-base md:text-lg md:text-xl md:text-2xl font-bold">일정 생성</h2>
                 <button
                   onClick={() => setShowCreateSchedule(false)}
-                  className="text-white text-2xl hover:opacity-80"
+                  className="text-white text-base md:text-lg md:text-xl md:text-2xl hover:opacity-80"
                 >
                   ×
                 </button>
@@ -4110,7 +4110,7 @@ ${BRAND.NAME}와 함께하는 모임 일정에 참여하세요!
               <p className="text-sm opacity-90">{selectedOrg?.name}</p>
             </div>
 
-            <div className="p-6 space-y-4 overflow-y-auto flex-1">
+            <div className="p-3 md:p-6 space-y-2 md:space-y-4 overflow-y-auto flex-1">
               <div>
                 <label className="block text-sm font-medium text-stone-700 mb-1">일정 제목 *</label>
                 <input
@@ -4194,7 +4194,7 @@ ${BRAND.NAME}와 함께하는 모임 일정에 참여하세요!
               </div>
             </div>
 
-            <div className="p-6 border-t flex gap-3">
+            <div className="p-3 md:p-6 border-t flex gap-3">
               <button
                 onClick={handleCreateSchedule}
                 disabled={!createScheduleForm.title || !createScheduleForm.date || !createScheduleForm.time || !createScheduleForm.location || !createScheduleForm.type}
@@ -4339,7 +4339,7 @@ function NearbyCrewsCarousel({
               {/* 크루 정보 */}
               <div className="p-3 sm:p-4 text-left">
                 {/* 크루 이름 */}
-                <h3 className="text-base sm:text-lg font-bold text-gray-900 mb-1.5 sm:mb-2 truncate">
+                <h3 className="text-base sm:text-base md:text-lg font-bold text-gray-900 mb-1.5 sm:mb-2 truncate">
                   {crew.name}
                 </h3>
 
