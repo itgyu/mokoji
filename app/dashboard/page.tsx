@@ -4307,10 +4307,10 @@ function NearbyCrewsCarousel({
                 setSelectedOrg(crew)
                 setCurrentPage('mycrew')
               }}
-              className="flex-shrink-0 w-[240px] sm:w-[280px] bg-white rounded-xl sm:rounded-2xl overflow-hidden border border-gray-200 hover:shadow-md transition-all hover:scale-[1.02] active:scale-95"
+              className="flex-shrink-0 w-[110px] sm:w-[240px] md:w-[280px] bg-white rounded-xl sm:rounded-2xl overflow-hidden border border-gray-200 hover:shadow-md transition-all hover:scale-[1.02] active:scale-95"
             >
               {/* 크루 이미지 */}
-              <div className="relative w-full h-[140px] sm:h-[160px] bg-gradient-to-br from-orange-400 to-pink-500">
+              <div className="relative w-full h-[90px] sm:h-[140px] md:h-[160px] bg-gradient-to-br from-orange-400 to-pink-500">
                 {imageUrl ? (
                   <img
                     src={imageUrl}
