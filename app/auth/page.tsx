@@ -8,6 +8,7 @@ import {
   sendPasswordResetEmail
 } from 'firebase/auth'
 import { collection, addDoc, doc, setDoc, updateDoc, serverTimestamp, getDoc, query, where, getDocs } from 'firebase/firestore'
+import { BRAND } from '@/lib/brand'
 import { auth, db } from '@/lib/firebase'
 import { getCities, getDistricts } from '@/lib/locations'
 import { uploadToS3 } from '@/lib/s3-utils'
@@ -158,8 +159,8 @@ export default function AuthPage() {
           <div className="bg-white rounded-2xl shadow-xl p-8">
             <div className="text-center mb-8">
               <div className="text-5xl mb-4">⛺</div>
-              <h1 className="text-2xl font-bold text-gray-900 mb-2">It's Campers Crew</h1>
-              <p className="text-gray-600">캠핑 크루와 함께하는 아웃도어 라이프</p>
+              <h1 className="text-2xl font-bold text-gray-900 mb-2">{BRAND.NAME}</h1>
+              <p className="text-gray-600">{BRAND.DESCRIPTION}</p>
             </div>
 
             <form onSubmit={handleLogin} className="space-y-4">

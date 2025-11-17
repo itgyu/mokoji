@@ -72,7 +72,8 @@ export interface UserProfile {
 }
 
 // ============================================
-// 2. Organization (Crew)
+// 모꼬지 - 동네 모임 플랫폼
+// Organization: 크루/모임
 // ============================================
 
 export interface OrganizationLocation {

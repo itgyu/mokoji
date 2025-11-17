@@ -1,0 +1,16 @@
+{
+  "name": "모꼬지",
+  "short_name": "모꼬지",
+  "description": "놀 땐 모꼬지 - 좋아하는 것으로 만나는 특별한 사람들",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#FFF9F5",
+  "theme_color": "#FF9B50",
+  "icons": [
+    {
+      "src": "/favicon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml"
+    }
+  ]
+}

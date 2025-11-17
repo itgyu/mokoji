@@ -13,7 +13,9 @@
     "migrate:org-members": "tsx scripts/migrate-to-organization-members.ts",
     "fix:minji-uid": "tsx scripts/fix-minji-uid.ts",
     "check:minji": "tsx scripts/check-minji-data.ts",
-    "create:minji-profile": "tsx scripts/create-minji-profile.ts"
+    "create:minji-profile": "tsx scripts/create-minji-profile.ts",
+    "migrate:dates": "tsx scripts/migrate-dates-to-string.ts",
+    "migrate:schedule-dates": "tsx scripts/migrate-schedule-dates.ts"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.928.0",

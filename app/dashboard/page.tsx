@@ -7,12 +7,13 @@ import { useRouter } from 'next/navigation'
 import { useAuth } from '@/contexts/AuthContext'
 import { signOut } from 'firebase/auth'
 import { auth, db } from '@/lib/firebase'
-import { collection, query, where, getDocs, doc, getDoc, updateDoc, onSnapshot, addDoc, arrayUnion, arrayRemove } from 'firebase/firestore'
+import { collection, query, where, getDocs, doc, getDoc, updateDoc, onSnapshot, addDoc, arrayUnion, arrayRemove, deleteDoc, writeBatch } from 'firebase/firestore'
 import { Home, Users, Calendar, User, MapPin, Bell, Settings } from 'lucide-react'
 import { uploadToS3 } from '@/lib/s3-utils'
 import ScheduleDeepLink from '@/components/ScheduleDeepLink'
 import { getCities, getDistricts } from '@/lib/locations'
 import ImageCropModal from '@/components/ImageCropModal'
+import { BRAND } from '@/lib/brand'
 import { CREW_CATEGORIES } from '@/lib/constants'
 import LocationVerification from '@/components/LocationVerification'
 import { getCurrentPosition, getAddressFromCoords, calculateDistance, formatDistance } from '@/lib/location-utils'
@@ -20,6 +21,7 @@ import { getOrganizations, getOrganizationMembers } from '@/lib/firestore-helper
 import type { OrganizationMember } from '@/types'
 import { formatTimestamp } from '@/lib/date-utils'
 import useEmblaCarousel from 'embla-carousel-react'
+import LoadingScreen from '@/components/LoadingScreen'
 
 type Page = 'home' | 'category' | 'mycrew' | 'myprofile' | 'schedules'
 
@@ -34,7 +36,8 @@ interface Comment {
 interface Schedule {
   id: string
   title: string
-  date: string
+  date: string        // Display format: "11/1(토)"
+  dateISO?: string    // ISO format for comparison: "2025-11-01"
   time: string
   location: string
   type: string
@@ -146,6 +149,7 @@ export default function DashboardPage() {
   const [showCreateCrew, setShowCreateCrew] = useState(false)  // 크루 생성 모달
   const [orgAvatarFile, setOrgAvatarFile] = useState<File | null>(null)
   const [myProfileAvatarFile, setMyProfileAvatarFile] = useState<File | null>(null)
+  const [showDeleteCrewConfirm, setShowDeleteCrewConfirm] = useState(false)  // 크루 해체 확인 다이얼로그
 
   // 이미지 크롭 관련 상태
   const [cropImageUrl, setCropImageUrl] = useState<string | null>(null)
@@ -257,7 +261,8 @@ export default function DashboardPage() {
       editingMyProfile ||
       editingOrg ||
       cropImageUrl ||
-      showCreateCrew
+      showCreateCrew ||
+      showDeleteCrewConfirm
 
     if (isAnyModalOpen) {
       document.body.style.overflow = 'hidden'
@@ -997,6 +1002,59 @@ export default function DashboardPage() {
     }
   }
 
+  // 크루 해체
+  const handleDeleteCrew = async () => {
+    if (!editingOrg) return
+
+    try {
+      const batch = writeBatch(db)
+
+      // 1. 크루 문서 삭제
+      const orgRef = doc(db, 'organizations', editingOrg.id)
+      batch.delete(orgRef)
+
+      // 2. organizationMembers에서 해당 크루의 모든 멤버 삭제
+      const membersQuery = query(collection(db, 'organizationMembers'), where('organizationId', '==', editingOrg.id))
+      const membersSnapshot = await getDocs(membersQuery)
+      membersSnapshot.docs.forEach((memberDoc) => {
+        batch.delete(doc(db, 'organizationMembers', memberDoc.id))
+      })
+
+      // 3. schedules에서 해당 크루의 모든 일정 삭제
+      const schedulesQuery = query(collection(db, 'schedules'), where('orgId', '==', editingOrg.id))
+      const schedulesSnapshot = await getDocs(schedulesQuery)
+      schedulesSnapshot.docs.forEach((scheduleDoc) => {
+        batch.delete(doc(db, 'schedules', scheduleDoc.id))
+      })
+
+      // 4. 모든 userProfiles의 organizations 배열에서 크루 ID 제거
+      const userProfilesSnapshot = await getDocs(collection(db, 'userProfiles'))
+      userProfilesSnapshot.docs.forEach((profileDoc) => {
+        const profileData = profileDoc.data()
+        if (profileData.organizations && profileData.organizations.includes(editingOrg.id)) {
+          const userProfileRef = doc(db, 'userProfiles', profileDoc.id)
+          batch.update(userProfileRef, {
+            organizations: arrayRemove(editingOrg.id)
+          })
+        }
+      })
+
+      await batch.commit()
+
+      alert(`"${editingOrg.name}" 크루가 해체되었습니다.`)
+      setEditingOrg(null)
+      setShowDeleteCrewConfirm(false)
+      setSelectedOrg(null)
+
+      // 크루 목록 새로고침
+      fetchOrganizations()
+      fetchAllOrganizations()
+    } catch (error) {
+      console.error('Error deleting crew:', error)
+      alert('크루 해체 중 오류가 발생했습니다.')
+    }
+  }
+
   const handleCreateCrew = async () => {
     if (!user || !userProfile) return
 
@@ -1278,9 +1336,20 @@ export default function DashboardPage() {
     try {
       const { addDoc, collection } = await import('firebase/firestore')
 
+      // createScheduleForm.date is now in ISO format: "2025-11-17"
+      const isoDate = createScheduleForm.date
+      // Generate display format: "11/17(일)"
+      const selectedDate = new Date(isoDate)
+      const days = ['일', '월', '화', '수', '목', '금', '토']
+      const month = selectedDate.getMonth() + 1
+      const day = selectedDate.getDate()
+      const dayOfWeek = days[selectedDate.getDay()]
+      const displayDate = `${month}/${day}(${dayOfWeek})`
+
       await addDoc(collection(db, 'schedules'), {
         title: createScheduleForm.title,
-        date: createScheduleForm.date,
+        date: displayDate,      // Display format for UI
+        dateISO: isoDate,       // ISO format for comparison
         time: createScheduleForm.time,
         location: createScheduleForm.location,
         type: createScheduleForm.type,
@@ -1336,9 +1405,21 @@ export default function DashboardPage() {
 
     try {
       const scheduleRef = doc(db, 'schedules', editingSchedule.id)
+
+      // editScheduleForm.date is now in ISO format: "2025-11-22"
+      const isoDate = editScheduleForm.date
+      // Generate display format: "11/22(토)"
+      const selectedDate = new Date(isoDate)
+      const days = ['일', '월', '화', '수', '목', '금', '토']
+      const month = selectedDate.getMonth() + 1
+      const day = selectedDate.getDate()
+      const dayOfWeek = days[selectedDate.getDay()]
+      const displayDate = `${month}/${day}(${dayOfWeek})`
+
       await updateDoc(scheduleRef, {
         title: editScheduleForm.title,
-        date: editScheduleForm.date,
+        date: displayDate,      // Display format for UI
+        dateISO: isoDate,       // ISO format for comparison
         time: editScheduleForm.time,
         location: editScheduleForm.location,
         type: editScheduleForm.type,
@@ -1425,7 +1506,7 @@ export default function DashboardPage() {
 🎯 벙주: ${schedule.createdBy || '정보 없음'}
 👥 참여 인원: ${schedule.participants?.length || 0} / ${schedule.maxParticipants}명
 
-It's Campers와 함께하는 캠핑 일정에 참여하세요!
+${BRAND.NAME}와 함께하는 모임 일정에 참여하세요!
 
 🔗 일정 보기: ${scheduleUrl}`
 
@@ -1657,14 +1738,7 @@ It's Campers와 함께하는 캠핑 일정에 참여하세요!
   }
 
   if (loading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-[#F9FAFB]">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-16 w-16 border-t-4 border-b-4 border-[#3182F6] mx-auto mb-4"></div>
-          <p className="text-gray-600">로딩 중...</p>
-        </div>
-      </div>
-    )
+    return <LoadingScreen />
   }
 
   if (!user) {
@@ -2190,7 +2264,14 @@ It's Campers와 함께하는 캠핑 일정에 참여하세요!
               <div className="space-y-3">
                 {organizations.map((org) => {
                   const memberCount = orgMemberCounts[org.id] || org.memberCount || 0
-                  const orgScheduleCount = schedules.filter(s => s.orgId === org.id).length
+                  // 예정된 일정만 카운트 (오늘 포함, 그 이후)
+                  const today = new Date().toISOString().split('T')[0] // YYYY-MM-DD
+                  const orgScheduleCount = schedules.filter(s => {
+                    if (s.orgId !== org.id) return false
+                    // dateISO 필드가 있으면 사용, 없으면 date 필드 사용 (마이그레이션 전 데이터 대응)
+                    const scheduleDate = s.dateISO || s.date
+                    return scheduleDate >= today
+                  }).length
 
                   return (
                     <div
@@ -2978,7 +3059,7 @@ It's Campers와 함께하는 캠핑 일정에 참여하세요!
                     onClick={() => {
                       setEditScheduleForm({
                         title: selectedSchedule.title || '',
-                        date: selectedSchedule.date || '',
+                        date: selectedSchedule.dateISO || selectedSchedule.date || '',
                         time: selectedSchedule.time || '',
                         location: selectedSchedule.location || '',
                         type: selectedSchedule.type || '',
@@ -3516,21 +3597,29 @@ It's Campers와 함께하는 캠핑 일정에 참여하세요!
               </div>
             </div>
 
-            <div className="p-6 border-t flex gap-3">
+            <div className="p-6 border-t space-y-3">
+              <div className="flex gap-3">
+                <button
+                  onClick={handleUpdateOrg}
+                  className="flex-1 py-3 bg-[#3182F6] text-white rounded-lg font-semibold hover:bg-[#1B64DA] transition-colors"
+                >
+                  저장
+                </button>
+                <button
+                  onClick={() => {
+                    setEditingOrg(null)
+                    setOrgAvatarFile(null)
+                  }}
+                  className="flex-1 py-3 bg-gray-200 text-gray-700 rounded-lg font-semibold hover:bg-gray-300 transition-colors"
+                >
+                  취소
+                </button>
+              </div>
               <button
-                onClick={handleUpdateOrg}
-                className="flex-1 py-3 bg-[#3182F6] text-white rounded-lg font-semibold hover:bg-[#1B64DA] transition-colors"
+                onClick={() => setShowDeleteCrewConfirm(true)}
+                className="w-full py-3 bg-red-500 text-white rounded-lg font-semibold hover:bg-red-600 transition-colors"
               >
-                저장
-              </button>
-              <button
-                onClick={() => {
-                  setEditingOrg(null)
-                  setOrgAvatarFile(null)
-                }}
-                className="flex-1 py-3 bg-gray-200 text-gray-700 rounded-lg font-semibold hover:bg-gray-300 transition-colors"
-              >
-                취소
+                크루 해체
               </button>
             </div>
           </div>
@@ -3926,20 +4015,17 @@ It's Campers와 함께하는 캠핑 일정에 참여하세요!
                 <label className="block text-sm font-medium text-gray-700 mb-1">날짜 *</label>
                 <input
                   type="date"
+                  value={editScheduleForm.date}
                   onChange={(e) => {
-                    const selectedDate = new Date(e.target.value)
-                    const days = ['일', '월', '화', '수', '목', '금', '토']
-                    const month = selectedDate.getMonth() + 1
-                    const day = selectedDate.getDate()
-                    const dayOfWeek = days[selectedDate.getDay()]
-                    const formattedDate = `${month}/${day}(${dayOfWeek})`
-                    setEditScheduleForm({ ...editScheduleForm, date: formattedDate })
+                    // ISO 형식으로 저장 (일정 생성과 동일하게)
+                    const isoDate = e.target.value
+                    setEditScheduleForm({ ...editScheduleForm, date: isoDate })
                   }}
                   min={new Date().toISOString().split('T')[0]}
                   className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
                 />
                 {editScheduleForm.date && (
-                  <p className="text-sm text-gray-600 mt-1">현재 날짜: {editScheduleForm.date}</p>
+                  <p className="text-sm text-gray-600 mt-1">현재 날짜: {editScheduleForm.date.includes('-') ? new Date(editScheduleForm.date).toLocaleDateString('ko-KR', { year: 'numeric', month: 'numeric', day: 'numeric', weekday: 'short' }) : editScheduleForm.date}</p>
                 )}
               </div>
 
@@ -4042,19 +4128,21 @@ It's Campers와 함께하는 캠핑 일정에 참여하세요!
                   type="date"
                   value={createScheduleForm.date}
                   onChange={(e) => {
-                    const selectedDate = new Date(e.target.value)
+                    const isoDate = e.target.value  // "2025-11-17"
+                    const selectedDate = new Date(isoDate)
                     const days = ['일', '월', '화', '수', '목', '금', '토']
                     const month = selectedDate.getMonth() + 1
                     const day = selectedDate.getDate()
                     const dayOfWeek = days[selectedDate.getDay()]
                     const formattedDate = `${month}/${day}(${dayOfWeek})`
-                    setCreateScheduleForm({ ...createScheduleForm, date: formattedDate })
+                    // Store ISO date for form, will save both formats to Firestore
+                    setCreateScheduleForm({ ...createScheduleForm, date: isoDate })
                   }}
                   min={new Date().toISOString().split('T')[0]}
                   className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#3182F6]"
                 />
                 {createScheduleForm.date && (
-                  <p className="text-sm text-gray-600 mt-1">선택된 날짜: {createScheduleForm.date}</p>
+                  <p className="text-sm text-gray-600 mt-1">선택된 날짜: {new Date(createScheduleForm.date).toLocaleDateString('ko-KR', { year: 'numeric', month: 'numeric', day: 'numeric', weekday: 'short' })}</p>
                 )}
               </div>
 

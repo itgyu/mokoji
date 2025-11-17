@@ -4,6 +4,7 @@ import "./globals.css"
 import { Analytics } from "@vercel/analytics/next"
 import { AuthProvider } from "@/contexts/AuthContext"
 import VersionChecker from "@/components/VersionChecker"
+import { BRAND } from "@/lib/brand"
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -21,11 +22,31 @@ export const viewport: Viewport = {
   maximumScale: 5,
   userScalable: true,
   viewportFit: 'cover',
+  themeColor: '#FF9B50',
 }
 
 export const metadata: Metadata = {
-  title: "It's Campers - 캠핑 크루와 함께하는 아웃도어 라이프",
-  description: "캠핑 크루 매칭, 일정 관리, 장비 공유 - 당신의 캠핑 라이프를 더욱 특별하게",
+  title: `${BRAND.NAME} - ${BRAND.TAGLINE}`,
+  description: BRAND.FULL_DESCRIPTION,
+  keywords: ['모꼬지', '동네모임', '취미모임', '크루', '소모임', '지역커뮤니티'],
+  manifest: '/manifest.json',
+  icons: {
+    icon: [
+      { url: '/icon', sizes: '180x180', type: 'image/png' },
+      { url: '/favicon.svg', type: 'image/svg+xml' },
+    ],
+  },
+  appleWebApp: {
+    capable: true,
+    statusBarStyle: 'default',
+    title: '모꼬지',
+  },
+  openGraph: {
+    title: `${BRAND.NAME} - ${BRAND.TAGLINE}`,
+    description: BRAND.FULL_DESCRIPTION,
+    type: 'website',
+    locale: 'ko_KR',
+  },
   generator: "v0.app",
 }
 
