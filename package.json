@@ -15,7 +15,12 @@
     "check:minji": "tsx scripts/check-minji-data.ts",
     "create:minji-profile": "tsx scripts/create-minji-profile.ts",
     "migrate:dates": "tsx scripts/migrate-dates-to-string.ts",
-    "migrate:schedule-dates": "tsx scripts/migrate-schedule-dates.ts"
+    "migrate:schedule-dates": "tsx scripts/migrate-schedule-dates.ts",
+    "functions:build": "cd functions && npm run build",
+    "functions:serve": "cd functions && npm run serve",
+    "functions:deploy": "cd functions && npm run deploy",
+    "functions:logs": "cd functions && npm run logs",
+    "emulators": "firebase emulators:start"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.928.0",
