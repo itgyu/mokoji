@@ -54,7 +54,7 @@ export default function Icon() {
               borderRadius: '50%',
               background: '#A8D08D',
               position: 'absolute',
-              top: -10,
+              top: 10,
             }}
           />
 
@@ -66,7 +66,7 @@ export default function Icon() {
               borderRadius: '50%',
               background: '#FF6B6B',
               position: 'absolute',
-              right: -10,
+              right: 10,
             }}
           />
 
@@ -78,7 +78,7 @@ export default function Icon() {
               borderRadius: '50%',
               background: '#FF9B50',
               position: 'absolute',
-              bottom: -10,
+              bottom: 10,
               opacity: 0.8,
             }}
           />
@@ -91,7 +91,7 @@ export default function Icon() {
               borderRadius: '50%',
               background: '#A8D08D',
               position: 'absolute',
-              left: -10,
+              left: 10,
               opacity: 0.8,
             }}
           />
