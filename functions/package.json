@@ -1,5 +1,5 @@
 {
-  "name": "its-campers-functions",
+  "name": "mokoji-functions",
   "version": "1.0.0",
   "description": "모꼬지 Cloud Functions",
   "main": "lib/index.js",
