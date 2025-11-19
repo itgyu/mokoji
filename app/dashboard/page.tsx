@@ -8,7 +8,7 @@ import { useAuth } from '@/contexts/AuthContext'
 import { signOut } from 'firebase/auth'
 import { auth, db } from '@/lib/firebase'
 import { collection, query, where, getDocs, doc, getDoc, updateDoc, onSnapshot, addDoc, arrayUnion, arrayRemove, deleteDoc, writeBatch } from 'firebase/firestore'
-import { Home, Users, Calendar, User, MapPin, Bell, Settings, Target, MessageCircle, Sparkles, Star, Tent, Search, Plus, Check } from 'lucide-react'
+import { Home, Users, Calendar, User, MapPin, Bell, Settings, Target, MessageCircle, Sparkles, Star, Tent, Search, Plus, Check, Edit, LogOut } from 'lucide-react'
 import { uploadToS3 } from '@/lib/s3-client'
 import ScheduleDeepLink from '@/components/ScheduleDeepLink'
 import { getCities, getDistricts } from '@/lib/locations'
@@ -1628,9 +1628,13 @@ ${BRAND.NAME}와 함께하는 모임 일정에 참여하세요!
     const today = new Date()
     today.setHours(0, 0, 0, 0) // 시간 부분 제거
 
+    console.log(`📊 [경과일 계산] ${memberName} - 전체 일정 수: ${schedules.length}`)
+
     // 멤버가 참여한 과거 일정만 찾기 (미래 일정 제외)
     const participatedSchedules = schedules.filter(schedule => {
-      if (!schedule.participants.includes(memberName)) {
+      const isParticipant = schedule.participants && schedule.participants.includes(memberName)
+
+      if (!isParticipant) {
         return false
       }
 
@@ -1639,8 +1643,16 @@ ${BRAND.NAME}와 함께하는 모임 일정에 참여하세요!
       scheduleDate.setHours(0, 0, 0, 0)
 
       // 과거 일정만 포함 (오늘 포함)
-      return scheduleDate.getTime() <= today.getTime()
+      const isPast = scheduleDate.getTime() <= today.getTime()
+
+      if (isPast) {
+        console.log(`  ✅ 참여한 과거 일정: ${schedule.title} (${schedule.date})`)
+      }
+
+      return isPast
     })
+
+    console.log(`📊 [경과일 계산] ${memberName} - 참여한 과거 일정 수: ${participatedSchedules.length}`)
 
     if (participatedSchedules.length === 0) {
       return null // 참여 이력 없음 (과거 일정 기준)
@@ -3319,13 +3331,19 @@ ${BRAND.NAME}와 함께하는 모임 일정에 참여하세요!
                 }}
                 className="w-full bg-[#FF9B50] text-white py-3.5 sm:py-4 rounded-xl sm:rounded-2xl text-sm sm:text-base font-bold hover:bg-[#FF8A3D] active:scale-[0.98] transition-all"
               >
-                ✏️ 정보 수정
+                <span className="inline-flex items-center gap-2">
+                  <Edit className="w-4 h-4" />
+                  정보 수정
+                </span>
               </button>
               <button
                 onClick={handleLogout}
                 className="w-full bg-[#F5F5F4] text-[#F04452] py-3.5 sm:py-4 rounded-xl sm:rounded-2xl text-sm sm:text-base font-bold hover:bg-[#FFE5E8] active:scale-[0.98] transition-all"
               >
-                🚪 로그아웃
+                <span className="inline-flex items-center gap-2">
+                  <LogOut className="w-4 h-4" />
+                  로그아웃
+                </span>
               </button>
             </div>
           </div>
