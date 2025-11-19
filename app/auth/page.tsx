@@ -158,9 +158,12 @@ export default function AuthPage() {
         {step === 'login' && (
           <div className="bg-white rounded-2xl shadow-xl p-8">
             <div className="text-center mb-8">
-              <div className="text-5xl mb-4">⛺</div>
-              <h1 className="text-2xl font-bold text-gray-900 mb-2">{BRAND.NAME}</h1>
-              <p className="text-gray-600">{BRAND.DESCRIPTION}</p>
+              {/* 브랜드 로고 컨테이너 */}
+              <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-gradient-to-br from-[#FF9B50] to-[#FF8A3D] mb-6 shadow-lg">
+                <span className="text-3xl font-bold text-white">{BRAND.NAME[0]}</span>
+              </div>
+              <h1 className="text-title mb-2">{BRAND.NAME}</h1>
+              <p className="text-body text-[#78716C]">{BRAND.DESCRIPTION}</p>
             </div>
 
             <form onSubmit={handleLogin} className="space-y-4">
@@ -216,8 +219,13 @@ export default function AuthPage() {
         {step === 'signup' && (
           <div className="bg-white rounded-2xl shadow-xl p-8">
             <div className="text-center mb-8">
-              <div className="text-5xl mb-4">👋</div>
-              <h1 className="text-2xl font-bold text-gray-900 mb-2">환영합니다!</h1>
+              {/* 환영 아이콘 */}
+              <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-gradient-to-br from-[#FF9B50] to-[#FF8A3D] mb-6">
+                <svg className="w-8 h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14 10h4.764a2 2 0 011.789 2.894l-3.5 7A2 2 0 0115.263 21h-4.017c-.163 0-.326-.02-.485-.06L7 20m7-10V5a2 2 0 00-2-2h-.095c-.5 0-.905.405-.905.905 0 .714-.211 1.412-.608 2.006L7 11v9m7-10h-2M7 20H5a2 2 0 01-2-2v-6a2 2 0 012-2h2.5" />
+                </svg>
+              </div>
+              <h1 className="text-title mb-2">환영합니다!</h1>
             </div>
 
             <form onSubmit={handleSignup} className="space-y-4">

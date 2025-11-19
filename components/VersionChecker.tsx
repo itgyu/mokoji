@@ -92,17 +92,19 @@ export default function VersionChecker() {
           {/* 아이콘 */}
           <div className="flex justify-center mb-6">
             <div className="w-20 h-20 rounded-full bg-gradient-to-br from-[#FF9B50] to-[#FF8A3D] flex items-center justify-center shadow-lg">
-              <span className="text-4xl">✨</span>
+              <svg className="w-10 h-10 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+              </svg>
             </div>
           </div>
 
           {/* 제목 */}
-          <h2 className="text-2xl font-bold text-center text-[#292524] mb-3">
+          <h2 className="text-subtitle text-center mb-3">
             새로운 버전이 있어요!
           </h2>
 
           {/* 설명 */}
-          <p className="text-center text-[#78716C] mb-6">
+          <p className="text-body text-center text-[#78716C] mb-6">
             모꼬지가 업데이트되었습니다.<br />
             최신 기능을 사용하려면 새로고침이 필요해요.
           </p>
@@ -110,7 +112,7 @@ export default function VersionChecker() {
           {/* 카운트다운 */}
           {autoReloadEnabled && (
             <div className="bg-[#FFF5ED] rounded-2xl p-4 mb-6 text-center">
-              <p className="text-sm text-[#CC5A18] font-semibold">
+              <p className="text-body text-[#CC5A18] font-semibold">
                 {countdown}초 후 자동으로 새로고침됩니다
               </p>
               <div className="mt-3 h-2 bg-[#FFE8D5] rounded-full overflow-hidden">
@@ -126,13 +128,13 @@ export default function VersionChecker() {
           <div className="flex gap-3">
             <button
               onClick={handleCancel}
-              className="flex-1 px-6 py-3 rounded-xl border-2 border-[#E7E5E4] text-[#78716C] font-semibold hover:bg-[#F5F5F4] transition-colors"
+              className="flex-1 text-body px-6 py-3 rounded-xl border-2 border-[#E7E5E4] text-[#78716C] font-semibold hover:bg-[#F5F5F4] transition-colors"
             >
               나중에
             </button>
             <button
               onClick={handleReload}
-              className="flex-1 px-6 py-3 rounded-xl bg-gradient-to-r from-[#FF9B50] to-[#FF8A3D] text-white font-semibold hover:shadow-lg transition-all active:scale-95"
+              className="flex-1 text-body px-6 py-3 rounded-xl bg-gradient-to-r from-[#FF9B50] to-[#FF8A3D] text-white font-semibold hover:shadow-lg transition-all active:scale-95"
             >
               지금 새로고침
             </button>
