@@ -119,6 +119,7 @@ export function ScheduleDetailClient({
     error: chatError,
     isSending,
     sendMessage,
+    sendMedia,
     retryFailedMessage,
   } = useScheduleChat(
     scheduleId,
@@ -504,6 +505,7 @@ export function ScheduleDetailClient({
           isLoading={isLoadingMessages}
           currentUserId={currentUserId}
           onSendMessage={sendMessage}
+          onSendMedia={sendMedia}
           onRetryMessage={retryFailedMessage}
         />
       )}

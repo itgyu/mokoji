@@ -15,6 +15,7 @@ import {
 import { db } from '@/lib/firebase';
 import type { ScheduleChatMessage } from '@/types/firestore';
 import { chatMessageConverter } from '@/lib/firestore/converters';
+import { uploadChatMedia } from '@/lib/chat-helpers';
 
 /**
  * 일정 채팅을 위한 실시간 Hook
@@ -191,6 +192,107 @@ export function useScheduleChat(
   );
 
   /**
+   * 미디어 메시지 전송 (이미지/동영상)
+   */
+  const sendMedia = useCallback(
+    async (file: File, caption?: string) => {
+      if (isSending) return;
+
+      setIsSending(true);
+
+      // 임시 ID 생성
+      const tempId = `temp-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+      tempMessageIds.current.add(tempId);
+
+      // Optimistic UI: 즉시 로컬 상태에 추가
+      const optimisticMessage: ScheduleChatMessage = {
+        id: tempId,
+        scheduleId,
+        senderId: currentUserId,
+        senderName: currentUserName,
+        senderAvatar: currentUserAvatar,
+        content: caption || '',
+        type: file.type.startsWith('image/') ? 'image' : 'file',
+        attachments: [
+          {
+            type: file.type.startsWith('image/') ? 'image' : 'file',
+            url: URL.createObjectURL(file), // 임시 미리보기 URL
+            fileName: file.name,
+            size: file.size,
+            mimeType: file.type,
+          },
+        ],
+        createdAt: { toDate: () => new Date() } as Timestamp,
+        updatedAt: { toDate: () => new Date() } as Timestamp,
+        isDeleted: false,
+        _status: 'sending',
+      };
+
+      setMessages((prev) => [...prev, optimisticMessage]);
+
+      try {
+        console.log('[useScheduleChat] 미디어 전송 시작:', file.name);
+
+        // Firebase Storage에 파일 업로드
+        const attachment = await uploadChatMedia(file, scheduleId, tempId);
+
+        // Firestore에 메시지 저장
+        const messagesRef = collection(db, 'schedule_chats');
+        const docRef = await addDoc(messagesRef, {
+          scheduleId,
+          senderId: currentUserId,
+          senderName: currentUserName,
+          senderAvatar: currentUserAvatar || null,
+          content: caption || '',
+          type: file.type.startsWith('image/') ? 'image' : 'file',
+          attachments: [attachment],
+          createdAt: serverTimestamp(),
+          updatedAt: serverTimestamp(),
+          isDeleted: false,
+          readBy: [currentUserId],
+        });
+
+        console.log('[useScheduleChat] 미디어 전송 성공:', docRef.id);
+
+        // Optimistic 메시지를 실제 메시지로 교체
+        setMessages((prev) =>
+          prev.map((msg) =>
+            msg.id === tempId
+              ? {
+                  ...msg,
+                  id: docRef.id,
+                  attachments: [attachment],
+                  _status: 'sent',
+                }
+              : msg
+          )
+        );
+
+        // 임시 URL 정리
+        if (optimisticMessage.attachments?.[0]?.url) {
+          URL.revokeObjectURL(optimisticMessage.attachments[0].url);
+        }
+
+        tempMessageIds.current.delete(tempId);
+        setIsSending(false);
+      } catch (err) {
+        console.error('[useScheduleChat] 미디어 전송 실패:', err);
+
+        // 실패 상태로 업데이트
+        setMessages((prev) =>
+          prev.map((msg) =>
+            msg.id === tempId ? { ...msg, _status: 'failed' } : msg
+          )
+        );
+
+        tempMessageIds.current.delete(tempId);
+        setIsSending(false);
+      }
+    },
+    [scheduleId, currentUserId, currentUserName, currentUserAvatar, isSending]
+  );
+
+  /**
    * 실패한 메시지 재전송
    */
   const retryFailedMessage = useCallback(
@@ -212,6 +314,7 @@ export function useScheduleChat(
     error,
     isSending,
     sendMessage,
+    sendMedia,
     retryFailedMessage,
   };
 }

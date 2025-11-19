@@ -16,6 +16,7 @@ interface InlineChatSectionProps {
   isLoading: boolean;
   currentUserId: string;
   onSendMessage: (content: string) => Promise<void>;
+  onSendMedia?: (file: File, caption?: string) => Promise<void>;
   onRetryMessage?: (message: ScheduleChatMessage) => Promise<void>;
   onViewAll?: () => void;
   onToggleNotifications?: () => void;
@@ -39,6 +40,7 @@ export function InlineChatSection({
   isLoading,
   currentUserId,
   onSendMessage,
+  onSendMedia,
   onRetryMessage,
   onViewAll,
   onToggleNotifications,
@@ -205,7 +207,11 @@ export function InlineChatSection({
       )}
 
       {/* 입력 바 */}
-      <ChatInputBar onSend={onSendMessage} disabled={isLoading} />
+      <ChatInputBar
+        onSend={onSendMessage}
+        onSendMedia={onSendMedia}
+        disabled={isLoading}
+      />
       </div>
 
       {/* 채팅 알림 설정 바텀시트 */}

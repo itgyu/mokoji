@@ -141,7 +141,45 @@ function MyMessage({
               : 'bg-primary text-primary-foreground'
           )}
         >
-          <p className="text-[13px] leading-snug whitespace-pre-wrap break-words">{message.content}</p>
+          {/* 첨부 파일 (이미지/동영상) */}
+          {message.attachments && message.attachments.length > 0 && (
+            <div className="space-y-1 mb-2">
+              {message.attachments.map((attachment, index) => (
+                <div key={index} className="rounded-lg overflow-hidden">
+                  {attachment.type === 'image' ? (
+                    <img
+                      src={attachment.url}
+                      alt={attachment.fileName || '이미지'}
+                      className="max-w-full rounded-lg"
+                      style={{ maxHeight: '300px' }}
+                    />
+                  ) : attachment.mimeType?.startsWith('video/') ? (
+                    <video
+                      src={attachment.url}
+                      controls
+                      className="max-w-full rounded-lg"
+                      style={{ maxHeight: '300px' }}
+                    />
+                  ) : (
+                    <a
+                      href={attachment.url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="flex items-center gap-2 p-2 bg-background/10 rounded-lg hover:bg-background/20"
+                    >
+                      <span>📎</span>
+                      <span className="text-[13px] truncate">{attachment.fileName}</span>
+                    </a>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
+
+          {/* 텍스트 내용 */}
+          {message.content && (
+            <p className="text-[13px] leading-snug whitespace-pre-wrap break-words">{message.content}</p>
+          )}
         </div>
 
         {/* 시간 및 상태 표시 */}
@@ -234,9 +272,47 @@ function OtherMessage({
 
         {/* 메시지 버블 */}
         <div className="bg-card border border-border rounded-2xl rounded-tl-sm px-3 py-2 shadow-sm">
-          <p className="text-[13px] leading-snug text-foreground whitespace-pre-wrap break-words">
-            {message.content}
-          </p>
+          {/* 첨부 파일 (이미지/동영상) */}
+          {message.attachments && message.attachments.length > 0 && (
+            <div className="space-y-1 mb-2">
+              {message.attachments.map((attachment, index) => (
+                <div key={index} className="rounded-lg overflow-hidden">
+                  {attachment.type === 'image' ? (
+                    <img
+                      src={attachment.url}
+                      alt={attachment.fileName || '이미지'}
+                      className="max-w-full rounded-lg"
+                      style={{ maxHeight: '300px' }}
+                    />
+                  ) : attachment.mimeType?.startsWith('video/') ? (
+                    <video
+                      src={attachment.url}
+                      controls
+                      className="max-w-full rounded-lg"
+                      style={{ maxHeight: '300px' }}
+                    />
+                  ) : (
+                    <a
+                      href={attachment.url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="flex items-center gap-2 p-2 bg-muted rounded-lg hover:bg-muted-dark"
+                    >
+                      <span>📎</span>
+                      <span className="text-[13px] truncate">{attachment.fileName}</span>
+                    </a>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
+
+          {/* 텍스트 내용 */}
+          {message.content && (
+            <p className="text-[13px] leading-snug text-foreground whitespace-pre-wrap break-words">
+              {message.content}
+            </p>
+          )}
         </div>
 
         {/* 시간 */}
