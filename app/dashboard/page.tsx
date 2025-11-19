@@ -1628,11 +1628,21 @@ ${BRAND.NAME}와 함께하는 모임 일정에 참여하세요!
     const today = new Date()
     today.setHours(0, 0, 0, 0) // 시간 부분 제거
 
-    console.log(`📊 [경과일 계산] ${memberName} - 전체 일정 수: ${schedules.length}`)
-
     // 멤버가 참여한 과거 일정만 찾기 (미래 일정 제외)
     const participatedSchedules = schedules.filter(schedule => {
-      const isParticipant = schedule.participants && schedule.participants.includes(memberName)
+      if (!schedule.participants || schedule.participants.length === 0) {
+        return false
+      }
+
+      // participants가 문자열 배열인지 객체 배열인지 확인
+      let isParticipant = false
+      if (typeof schedule.participants[0] === 'string') {
+        // 문자열 배열: ["이태규", "유시몬", ...]
+        isParticipant = schedule.participants.includes(memberName)
+      } else {
+        // 객체 배열: [{name: "이태규", uid: "..."}, ...]
+        isParticipant = schedule.participants.some((p: any) => p.name === memberName)
+      }
 
       if (!isParticipant) {
         return false
@@ -1643,16 +1653,8 @@ ${BRAND.NAME}와 함께하는 모임 일정에 참여하세요!
       scheduleDate.setHours(0, 0, 0, 0)
 
       // 과거 일정만 포함 (오늘 포함)
-      const isPast = scheduleDate.getTime() <= today.getTime()
-
-      if (isPast) {
-        console.log(`  ✅ 참여한 과거 일정: ${schedule.title} (${schedule.date})`)
-      }
-
-      return isPast
+      return scheduleDate.getTime() <= today.getTime()
     })
-
-    console.log(`📊 [경과일 계산] ${memberName} - 참여한 과거 일정 수: ${participatedSchedules.length}`)
 
     if (participatedSchedules.length === 0) {
       return null // 참여 이력 없음 (과거 일정 기준)
