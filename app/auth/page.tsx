@@ -11,7 +11,7 @@ import { collection, addDoc, doc, setDoc, updateDoc, serverTimestamp, getDoc, qu
 import { BRAND } from '@/lib/brand'
 import { auth, db } from '@/lib/firebase'
 import { getCities, getDistricts } from '@/lib/locations'
-import { uploadToS3 } from '@/lib/s3-utils'
+import { uploadToS3 } from '@/lib/s3-client'
 import { CREW_CATEGORIES } from '@/lib/constants'
 
 type AuthStep = 'email' | 'login' | 'signup' | 'forgot-password'
