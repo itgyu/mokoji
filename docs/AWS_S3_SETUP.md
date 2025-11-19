@@ -28,7 +28,7 @@ https://s3.console.aws.amazon.com/s3/buckets/its-campers
     "AllowedMethods": ["GET", "PUT", "POST", "HEAD"],
     "AllowedOrigins": [
       "http://localhost:3000",
-      "https://its-campers.vercel.app",
+      "https://mokoji.vercel.app",
       "https://*.vercel.app"
     ],
     "ExposeHeaders": ["ETag", "x-amz-server-side-encryption"]
@@ -55,7 +55,7 @@ https://s3.console.aws.amazon.com/s3/buckets/its-campers
 - **AllowedMethods**: GET, PUT, POST, HEAD 요청 허용
 - **AllowedOrigins**:
   - `http://localhost:3000` - 로컬 개발 환경
-  - `https://its-campers.vercel.app` - 프로덕션 환경
+  - `https://mokoji.vercel.app` - 프로덕션 환경
   - `https://*.vercel.app` - Vercel 프리뷰 배포
 - **ExposeHeaders**: ETag, x-amz-server-side-encryption 헤더 노출
 

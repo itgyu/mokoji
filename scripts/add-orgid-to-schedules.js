@@ -1,4 +1,4 @@
-// Firebase schedules 컬렉션에 orgId 추가 스크립트
+// Mokoji - Firebase schedules 컬렉션에 orgId 추가 스크립트
 // orgId가 없는 모든 일정에 기본 크루 ID를 추가합니다.
 
 const { initializeApp } = require('firebase/app');
@@ -16,7 +16,7 @@ const firebaseConfig = {
 const app = initializeApp(firebaseConfig);
 const db = getFirestore(app);
 
-// It's Campers Crew ID
+// Mokoji Default Crew ID
 const DEFAULT_ORG_ID = 'LDOcG25Y4SvxNqGifSek';
 
 async function addOrgIdToSchedules() {

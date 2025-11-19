@@ -17,8 +17,8 @@ https://github.com/new
 
 다음과 같이 입력:
 
-- **Repository name**: `mokoji` (또는 `its-campers`)
-- **Description**: 모꼬지 - 크루 모임 관리 플랫폼
+- **Repository name**: `mokoji`
+- **Description**: Mokoji (모꼬지) - Multi-crew Management Platform
 - **Visibility**: **Private** 선택 ✅
 - **Initialize this repository**: **체크 안 함** (이미 로컬에 코드 있음)
 - **Create repository** 클릭

@@ -14,21 +14,21 @@ async function migrateCrewMembership() {
   try {
     console.log('🚀 크루 멤버십 마이그레이션 시작...\n')
 
-    // 1. 잇츠캠퍼즈 크루 찾기
-    console.log('📍 Step 1: 잇츠캠퍼즈 크루 찾기...')
+    // 1. 기본 크루 찾기
+    console.log('📍 Step 1: 기본 크루 찾기...')
     const orgsSnapshot = await db.collection('organizations').get()
-    let itsCampersOrg = null
+    let defaultOrg = null
 
     orgsSnapshot.forEach(doc => {
       const data = doc.data()
       if (data.name === '잇츠 캠퍼즈') {
-        itsCampersOrg = { id: doc.id, ...data }
-        console.log(`✅ 잇츠캠퍼즈 크루 발견: ${doc.id}`)
+        defaultOrg = { id: doc.id, ...data }
+        console.log(`✅ 기본 크루 발견: ${doc.id}`)
       }
     })
 
-    if (!itsCampersOrg) {
-      console.error('❌ 잇츠캠퍼즈 크루를 찾을 수 없습니다!')
+    if (!defaultOrg) {
+      console.error('❌ 기본 크루를 찾을 수 없습니다!')
       return
     }
 
@@ -48,8 +48,8 @@ async function migrateCrewMembership() {
       const userId = doc.id
       const userName = userData.name || '이름없음'
 
-      // 이미 joinedOrganizations가 있고 잇츠캠퍼즈가 포함되어 있으면 스킵
-      if (userData.joinedOrganizations && userData.joinedOrganizations.includes(itsCampersOrg.id)) {
+      // 이미 joinedOrganizations가 있고 기본 크루가 포함되어 있으면 스킵
+      if (userData.joinedOrganizations && userData.joinedOrganizations.includes(defaultOrg.id)) {
         console.log(`⏭️  ${userName} (${userId}): 이미 가입됨`)
         skippedCount++
         continue
@@ -57,13 +57,13 @@ async function migrateCrewMembership() {
 
       // joinedOrganizations 필드 추가 또는 업데이트
       const existingOrgs = userData.joinedOrganizations || []
-      const updatedOrgs = [...new Set([...existingOrgs, itsCampersOrg.id])] // 중복 제거
+      const updatedOrgs = [...new Set([...existingOrgs, defaultOrg.id])] // 중복 제거
 
       await db.collection('userProfiles').doc(userId).update({
         joinedOrganizations: updatedOrgs
       })
 
-      console.log(`✅ ${userName} (${userId}): 잇츠캠퍼즈 크루 자동 가입 완료`)
+      console.log(`✅ ${userName} (${userId}): 기본 크루 자동 가입 완료`)
       updatedCount++
     }
 

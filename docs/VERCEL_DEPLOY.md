@@ -80,9 +80,9 @@ Install Command: npm install (자동)
 | Name | Value | Environment |
 |------|-------|-------------|
 | `NEXT_PUBLIC_FIREBASE_API_KEY` | `AIzaSyC...` | Production |
-| `NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN` | `it-s-campers-95640.firebaseapp.com` | Production |
-| `NEXT_PUBLIC_FIREBASE_PROJECT_ID` | `it-s-campers-95640` | Production |
-| `NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET` | `it-s-campers-95640.firebasestorage.app` | Production |
+| `NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN` | `mokoji-95640.firebaseapp.com` | Production |
+| `NEXT_PUBLIC_FIREBASE_PROJECT_ID` | `mokoji-95640` | Production |
+| `NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET` | `mokoji-95640.firebasestorage.app` | Production |
 | `NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID` | `123456789` | Production |
 | `NEXT_PUBLIC_FIREBASE_APP_ID` | `1:123456789:web:abc...` | Production |
 

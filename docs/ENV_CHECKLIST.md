@@ -115,7 +115,7 @@ NEXT_PUBLIC_FIREBASE_API_KEY=AIzaSyC...
 - **필수**: ✅ Yes
 - **확인 방법**:
   1. [Firebase Console](https://console.firebase.google.com/)
-  2. 프로젝트 선택 (`it-s-campers-95640`)
+  2. 프로젝트 선택 (`mokoji-95640`)
   3. **프로젝트 설정** (⚙️ 아이콘) 클릭
   4. **일반** 탭 → **내 앱** 섹션
   5. **웹 앱** 선택 (없으면 앱 추가)
@@ -124,35 +124,35 @@ NEXT_PUBLIC_FIREBASE_API_KEY=AIzaSyC...
 ### 3-2. NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN
 
 ```bash
-NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN=it-s-campers-95640.firebaseapp.com
+NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN=mokoji-95640.firebaseapp.com
 ```
 
 - **설명**: Firebase 인증 도메인
 - **값**: `{프로젝트ID}.firebaseapp.com`
 - **필수**: ✅ Yes
-- **형식**: `it-s-campers-95640.firebaseapp.com`
+- **형식**: `mokoji-95640.firebaseapp.com`
 
 ### 3-3. NEXT_PUBLIC_FIREBASE_PROJECT_ID
 
 ```bash
-NEXT_PUBLIC_FIREBASE_PROJECT_ID=it-s-campers-95640
+NEXT_PUBLIC_FIREBASE_PROJECT_ID=mokoji-95640
 ```
 
 - **설명**: Firebase 프로젝트 ID
-- **값**: `it-s-campers-95640`
+- **값**: `mokoji-95640`
 - **필수**: ✅ Yes
 - **확인 방법**: Firebase Console → 프로젝트 설정 → 프로젝트 ID
 
 ### 3-4. NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET
 
 ```bash
-NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET=it-s-campers-95640.firebasestorage.app
+NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET=mokoji-95640.firebasestorage.app
 ```
 
 - **설명**: Firebase Storage 버킷
 - **값**: `{프로젝트ID}.firebasestorage.app`
 - **필수**: ✅ Yes
-- **형식**: `it-s-campers-95640.firebasestorage.app`
+- **형식**: `mokoji-95640.firebasestorage.app`
 
 ### 3-5. NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID
 

@@ -158,25 +158,25 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         // ============================================
         let joinedOrgs = userProfileData.joinedOrganizations || []
         if (joinedOrgs.length === 0 && memberships.length === 0) {
-          console.log('🔄 기존 유저 감지 - 잇츠캠퍼즈 크루 자동 가입 중...')
-          // 잇츠 캠퍼즈 크루 ID 찾기
+          console.log('🔄 기존 유저 감지 - 기본 크루 자동 가입 중...')
+          // 모꼬지 기본 크루 ID 찾기
           const orgsSnapshot = await getDocs(collection(db, 'organizations'))
-          let itsCampersId = ''
+          let defaultCrewId = ''
           orgsSnapshot.forEach(orgDoc => {
             if (orgDoc.data().name === '잇츠 캠퍼즈') {
-              itsCampersId = orgDoc.id
+              defaultCrewId = orgDoc.id
             }
           })
 
-          if (itsCampersId) {
-            joinedOrgs = [itsCampersId]
+          if (defaultCrewId) {
+            joinedOrgs = [defaultCrewId]
             // Firestore에 저장
             if (userDocSnap.exists()) {
               await updateDoc(userDocRef, {
                 joinedOrganizations: joinedOrgs
               })
             }
-            console.log('✅ 잇츠캠퍼즈 크루 자동 가입 완료')
+            console.log('✅ 기본 크루 자동 가입 완료')
           }
         } else if (memberships.length > 0) {
           // organizationMembers에서 가져온 데이터로 업데이트

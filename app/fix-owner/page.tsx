@@ -19,7 +19,7 @@ export default function FixOwnerPage() {
       const userProfileDoc = await getDoc(doc(db, 'userProfiles', targetUid));
       const targetName = userProfileDoc.exists() ? userProfileDoc.data().name : '이태규';
 
-      // 1. "it's campers" 조직 찾기
+      // 1. 기본 크루 찾기
       const orgsSnapshot = await getDocs(collection(db, 'organizations'));
 
       let found = false;
@@ -27,8 +27,8 @@ export default function FixOwnerPage() {
       for (const orgDoc of orgsSnapshot.docs) {
         const orgData = orgDoc.data();
 
-        // "it's campers" 조직만 업데이트
-        if (orgData.name === "it's campers" || orgData.name === "it's campers" || orgData.name.toLowerCase().includes("it's campers")) {
+        // 기본 크루 업데이트 (legacy name check)
+        if (orgData.name === "잇츠 캠퍼즈" || orgData.name === "it's campers" || orgData.name.toLowerCase().includes("mokoji")) {
           setStatus(`처리 중: ${orgData.name}...`);
 
           await updateDoc(doc(db, 'organizations', orgDoc.id), {
@@ -44,9 +44,9 @@ export default function FixOwnerPage() {
       }
 
       if (found) {
-        setStatus(`🎉 완료! "it's campers" 크루의 크루장으로 설정되었습니다.`);
+        setStatus(`🎉 완료! Mokoji 크루의 크루장으로 설정되었습니다.`);
       } else {
-        setStatus(`❌ "it's campers" 크루를 찾을 수 없습니다.`);
+        setStatus(`❌ Mokoji 크루를 찾을 수 없습니다.`);
       }
       setLoading(false);
 
@@ -74,7 +74,7 @@ export default function FixOwnerPage() {
           disabled={loading}
           className="w-full bg-blue-600 text-white py-3 rounded-lg hover:bg-blue-700 disabled:bg-gray-400 disabled:cursor-not-allowed font-bold"
         >
-          {loading ? '처리 중...' : `"it's campers" 크루장으로 설정`}
+          {loading ? '처리 중...' : 'Mokoji 크루장으로 설정'}
         </button>
 
         {status && (
