@@ -1859,9 +1859,14 @@ ${BRAND.NAME}와 함께하는 모임 일정에 참여하세요!
           return true
         }
 
-        // 객체 배열인 경우 확인 (예: [{uid: '...', name: '...'}])
+        // 객체 배열인 경우 확인 (새 일정: {userId, userName, status}, 기존 일정: {uid, name})
         const hasObjectMatch = participants.some(p =>
-          typeof p === 'object' && p !== null && (p.name === myName || p.uid === myUid)
+          typeof p === 'object' && p !== null && (
+            p.userId === myUid ||     // 새 일정 형식
+            p.userName === myName ||  // 새 일정 형식
+            p.uid === myUid ||        // 기존 일정 형식 (호환)
+            p.name === myName         // 기존 일정 형식 (호환)
+          )
         )
 
         if (hasObjectMatch) {

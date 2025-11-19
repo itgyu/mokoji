@@ -29,16 +29,10 @@ export interface FeatureFlags {
  */
 export const FEATURE_FLAGS: FeatureFlags = {
   SCHEDULE_CHAT: {
-    enabled: process.env.NEXT_PUBLIC_ENABLE_SCHEDULE_CHAT === 'true',
-    rolloutPercentage: parseInt(
-      process.env.NEXT_PUBLIC_CHAT_ROLLOUT_PERCENTAGE || '100'
-    ),
-    testUserIds: (process.env.NEXT_PUBLIC_CHAT_TEST_USERS || '')
-      .split(',')
-      .filter(Boolean),
-    testOrgIds: (process.env.NEXT_PUBLIC_CHAT_TEST_ORGS || '')
-      .split(',')
-      .filter(Boolean),
+    enabled: true, // 모든 사용자에게 활성화
+    rolloutPercentage: 100, // 100% 롤아웃
+    testUserIds: [],
+    testOrgIds: [],
   },
 
   CHAT_IMAGE_UPLOAD: {
