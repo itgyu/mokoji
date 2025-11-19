@@ -4,6 +4,7 @@ import { OrgSchedule } from '@/types/firestore';
 import { Card, Badge, DDayBadge } from '@/components/ui';
 import { format } from 'date-fns';
 import { ko } from 'date-fns/locale';
+import { Calendar, MapPin, Users } from 'lucide-react'
 
 interface ScheduleSummaryCardProps {
   schedule: OrgSchedule;
@@ -67,7 +68,7 @@ export function ScheduleSummaryCard({ schedule }: ScheduleSummaryCardProps) {
       {/* 날짜/시간 */}
       <div className="flex items-center gap-2 text-foreground">
         <span className="text-2xl" aria-hidden="true">
-          📅
+          <Calendar className="w-4 h-4 text-[#FF9B50] flex-shrink-0" />
         </span>
         <span className="font-semibold">
           {formattedDate}
@@ -79,7 +80,7 @@ export function ScheduleSummaryCard({ schedule }: ScheduleSummaryCardProps) {
       {schedule.location && (
         <div className="flex items-center gap-2 text-muted-foreground">
           <span className="text-2xl" aria-hidden="true">
-            📍
+            <MapPin className="w-4 h-4 text-[#FF9B50] flex-shrink-0" />
           </span>
           <span>{schedule.location.name || schedule.location.address}</span>
         </div>
@@ -113,7 +114,7 @@ export function ScheduleSummaryCard({ schedule }: ScheduleSummaryCardProps) {
       {/* 최대 인원 */}
       {schedule.maxParticipants && (
         <div className="flex items-center gap-2 text-sm text-muted-foreground">
-          <span>👥</span>
+          <Users className="w-4 h-4 text-[#FF9B50] flex-shrink-0" />
           <span>
             최대 {schedule.maxParticipants}명 (현재 {going}명)
           </span>

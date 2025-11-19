@@ -1,6 +1,7 @@
 'use client';
 
 import { Button } from '@/components/ui';
+import { Lightbulb, MessageCircle } from 'lucide-react'
 
 interface EmptyChatStateProps {
   scheduleTitle: string;
@@ -25,7 +26,7 @@ export function EmptyChatState({ scheduleTitle, onQuickAction }: EmptyChatStateP
       {/* 메인 메시지 */}
       <div className="text-center space-y-3">
         <div className="text-5xl animate-bounce-slow" aria-hidden="true">
-          💬
+          <MessageCircle className="w-5 h-5 text-[#FF9B50]" />
         </div>
         <h3 className="font-semibold text-lg text-foreground">첫 대화를 시작해보세요</h3>
         <p className="text-sm text-muted-foreground max-w-md px-4">
@@ -40,7 +41,7 @@ export function EmptyChatState({ scheduleTitle, onQuickAction }: EmptyChatStateP
       {/* 퀵 액션 버튼 */}
       <div className="flex flex-col gap-2 w-full max-w-sm px-4">
         <p className="text-xs text-muted-foreground text-center mb-1">
-          💡 이런 주제로 대화를 시작해보세요
+          <Lightbulb className="w-5 h-5 text-[#FF9B50]" /> 이런 주제로 대화를 시작해보세요
         </p>
         {quickActions.map((action) => (
           <Button
@@ -58,7 +59,7 @@ export function EmptyChatState({ scheduleTitle, onQuickAction }: EmptyChatStateP
       {/* 추가 안내 */}
       <div className="text-center space-y-2 pt-4">
         <p className="text-xs text-muted-foreground px-4">
-          💡 Tip: 메시지는 일정 참여자만 볼 수 있습니다
+          <Lightbulb className="w-5 h-5 text-[#FF9B50]" /> Tip: 메시지는 일정 참여자만 볼 수 있습니다
         </p>
       </div>
     </div>

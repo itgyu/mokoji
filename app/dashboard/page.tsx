@@ -527,7 +527,7 @@ export default function DashboardPage() {
       // 거리순으로 정렬
       recommended.sort((a, b) => a.distance - b.distance)
 
-      console.log(`\n🎯 총 ${recommended.length}개의 크루를 추천합니다.`)
+      console.log(`\n\uD83C\uDFAF 총 ${recommended.length}개의 크루를 추천합니다.`)
       setRecommendedOrgs(recommended)
     } catch (error) {
       console.error('Error fetching recommended organizations:', error)
@@ -1943,7 +1943,7 @@ ${BRAND.NAME}와 함께하는 모임 일정에 참여하세요!
               {/* 헤더 */}
               <div className="flex items-center justify-between mb-3 px-4 sm:px-5">
                 <div className="flex items-center gap-2">
-                  <span className="text-xl sm:text-base md:text-lg md:text-xl md:text-2xl">📍</span>
+                  <MapPin className="w-5 h-5 sm:w-4 sm:h-4 md:w-5 md:h-5 md:w-6 md:h-6 text-[#FF9B50]" />
                   <h2 className="text-lg sm:text-base md:text-lg md:text-xl font-bold text-gray-900">내 동네 크루</h2>
                   {userProfile?.locations && userProfile.locations.length > 0 && (
                     <span className="px-2 sm:px-3 py-0.5 sm:py-1 bg-orange-50 text-orange-600 text-xs sm:text-sm font-semibold rounded-full">
@@ -1971,7 +1971,7 @@ ${BRAND.NAME}와 함께하는 모임 일정에 참여하세요!
                   // 빈 상태 - 동네 미인증
                   return (
                     <div className="mx-4 sm:mx-5 p-3 md:p-6 sm:p-4 md:p-8 bg-gray-50 rounded-xl sm:rounded-2xl text-center">
-                      <div className="text-4xl sm:text-5xl mb-2 sm:mb-3">📍</div>
+                      <div className="flex justify-center mb-2 sm:mb-3"><MapPin className="w-12 h-12 sm:w-14 sm:h-14 text-[#FF9B50]" /></div>
                       <p className="text-gray-900 font-semibold text-sm sm:text-base mb-1">
                         동네 인증이 필요해요
                       </p>
@@ -2035,7 +2035,7 @@ ${BRAND.NAME}와 함께하는 모임 일정에 참여하세요!
               </div>
               {mySchedules.length === 0 ? (
                 <div className="text-center py-12">
-                  <div className="text-6xl mb-4">📅</div>
+                  <div className="flex justify-center mb-4"><Calendar className="w-16 h-16 text-[#FF9B50]" /></div>
                   <p className="text-[#292524] font-bold text-base md:text-lg md:text-xl mb-2">등록된 일정이 없어요</p>
                   <p className="text-[#57534E] text-base font-medium">첫 일정을 만들어보세요</p>
                 </div>
@@ -2055,20 +2055,19 @@ ${BRAND.NAME}와 함께하는 모임 일정에 참여하세요!
                       </div>
                       <div className="space-y-2.5">
                         <p className="text-[#78716C] text-base font-medium flex items-center gap-2">
-                          <span className="text-base md:text-lg">📅</span>
+                          <Calendar className="w-4 h-4 md:w-5 md:h-5 text-[#FF9B50] flex-shrink-0" />
                           <span>{formatDateWithYear(schedule.date)} {schedule.time}</span>
                         </p>
                         <p className="text-[#78716C] text-base font-medium flex items-center gap-2">
-                          <span className="text-base md:text-lg">📍</span>
+                          <MapPin className="w-4 h-4 md:w-5 md:h-5 text-[#FF9B50] flex-shrink-0" />
                           <span>{schedule.location}</span>
                         </p>
                         <p className="text-[#78716C] text-base font-medium flex items-center gap-2">
-                          <span className="text-base md:text-lg">🎯</span>
+                          <Target className="w-4 h-4 md:w-5 md:h-5 text-[#FF9B50] flex-shrink-0" />
                           <span>벙주: {schedule.createdBy}</span>
                         </p>
                         <div className="flex items-center justify-between pt-2 mt-2 border-t border-gray-200">
-                          <p className="text-[#A8A29E] text-sm font-bold">
-                            👥 참여 인원
+                          <p className="text-[#A8A29E] text-sm font-bold"><Users className="w-4 h-4 text-[#FF9B50] inline-block mr-1.5" />참여 인원
                           </p>
                           <p className="text-[#292524] text-base md:text-lg font-bold">
                             {schedule.participants?.length || 0}<span className="text-[#A8A29E]">/{schedule.maxParticipants}</span>
@@ -2116,7 +2115,7 @@ ${BRAND.NAME}와 함께하는 모임 일정에 참여하세요!
               <div className="mb-6">
                 <div className="flex items-center justify-between mb-3 px-1">
                   <h3 className="text-base md:text-lg font-bold tracking-tight text-[#292524]">
-                    ✨ 나를 위한 추천 크루
+                    <span className="inline-flex items-center gap-2"><Sparkles className="w-4 h-4 text-[#FF9B50]" />나를 위한 추천 크루</span>
                   </h3>
                   <span className="text-xs font-bold text-[#FF9B50] bg-orange-50 px-3 py-1 rounded-full">
                     {recommendedOrgs.length}개
@@ -2136,7 +2135,7 @@ ${BRAND.NAME}와 함께하는 모임 일정에 참여하세요!
                           {org.avatar ? (
                             <img src={org.avatar} alt={org.name} className="w-full h-full object-cover" />
                           ) : (
-                            <div className="w-full h-full flex items-center justify-center text-base md:text-lg md:text-xl md:text-2xl">⛺</div>
+                            <div className="w-full h-full flex items-center justify-center"><Tent className="w-5 h-5 md:w-6 md:h-6 text-[#FF9B50]" /></div>
                           )}
                         </div>
                         <div className="flex-1 min-w-0">
@@ -2166,7 +2165,7 @@ ${BRAND.NAME}와 함께하는 모임 일정에 참여하세요!
             <div className="mb-6">
               <div className="flex items-center justify-between mb-3 px-1">
                 <h3 className="text-base md:text-lg font-bold tracking-tight text-[#292524]">
-                  🌟 내 반경 내 전체 크루
+                  <span className="inline-flex items-center gap-2"><Star className="w-4 h-4 text-[#FF9B50]" />내 반경 내 전체 크루</span>
                 </h3>
                 <span className="text-xs font-bold text-[#57534E] bg-stone-100 px-3 py-1 rounded-full">
                   {(() => {
@@ -2180,7 +2179,7 @@ ${BRAND.NAME}와 함께하는 모임 일정에 참여하세요!
                 if (!userProfile?.locations || userProfile.locations.length === 0) {
                   return (
                     <div className="bg-white rounded-2xl p-4 md:p-8 text-center">
-                      <div className="text-5xl mb-3">📍</div>
+                      <div className="flex justify-center mb-3"><MapPin className="w-14 h-14 text-[#FF9B50]" /></div>
                       <p className="text-base font-bold text-[#292524] mb-1">동네 인증이 필요해요</p>
                       <p className="text-sm text-[#57534E]">내 동네를 인증하고 주변 크루를 만나보세요</p>
                     </div>
@@ -2189,7 +2188,7 @@ ${BRAND.NAME}와 함께하는 모임 일정에 참여하세요!
                 if (nearby.length === 0) {
                   return (
                     <div className="bg-white rounded-2xl p-4 md:p-8 text-center">
-                      <div className="text-5xl mb-3">🔍</div>
+                      <div className="flex justify-center mb-3"><Search className="w-14 h-14 text-[#FF9B50]" /></div>
                       <p className="text-base font-bold text-[#292524] mb-1">10km 이내 크루가 없어요</p>
                       <p className="text-sm text-[#57534E]">새로운 크루를 만들어보세요!</p>
                     </div>
@@ -2210,7 +2209,7 @@ ${BRAND.NAME}와 함께하는 모임 일정에 참여하세요!
                           {org.avatar ? (
                             <img src={org.avatar} alt={org.name} className="w-full h-full object-cover" />
                           ) : (
-                            <div className="w-full h-full flex items-center justify-center text-base md:text-lg md:text-xl md:text-2xl">⛺</div>
+                            <div className="w-full h-full flex items-center justify-center"><Tent className="w-5 h-5 md:w-6 md:h-6 text-[#FF9B50]" /></div>
                           )}
                         </div>
                         <div className="flex-1 min-w-0">
@@ -2251,7 +2250,7 @@ ${BRAND.NAME}와 함께하는 모임 일정에 참여하세요!
                   <h3 className="text-base md:text-lg md:text-xl font-bold mb-1">새 크루 만들기</h3>
                   <p className="text-sm opacity-90">나만의 크루를 시작하세요</p>
                 </div>
-                <div className="text-4xl">➕</div>
+                <div className="flex items-center justify-center"><Plus className="w-10 h-10 text-[#FF9B50]" /></div>
               </div>
             </button>
           </div>
@@ -2264,7 +2263,7 @@ ${BRAND.NAME}와 함께하는 모임 일정에 참여하세요!
           {/* 헤더 */}
           <header className="sticky top-0 bg-white z-10 safe-top border-b border-stone-100">
             <div className="px-3 md:px-6 py-3 md:py-6 pb-3">
-              <h1 className="text-base md:text-lg md:text-xl md:text-2xl font-bold tracking-tight text-[#292524]">⛺ 내 크루</h1>
+              <h1 className="text-base md:text-lg md:text-xl md:text-2xl font-bold tracking-tight text-[#292524] flex items-center gap-2"><Tent className="w-5 h-5 md:w-6 md:h-6 text-[#FF9B50]" />내 크루</h1>
               <p className="text-sm text-[#A8A29E] mt-1">가입한 크루 목록</p>
             </div>
           </header>
@@ -2273,7 +2272,7 @@ ${BRAND.NAME}와 함께하는 모임 일정에 참여하세요!
           <div className="px-5 py-3 md:py-6">
             {organizations.length === 0 ? (
               <div className="text-center py-16">
-                <div className="text-6xl mb-4">⛺</div>
+                <div className="flex justify-center mb-4"><Tent className="w-16 h-16 text-[#FF9B50]" /></div>
                 <p className="text-base font-bold text-[#292524] mb-2">가입한 크루가 없어요</p>
                 <p className="text-sm text-[#A8A29E]">크루를 찾아서 가입해보세요!</p>
               </div>
@@ -2303,7 +2302,7 @@ ${BRAND.NAME}와 함께하는 모임 일정에 참여하세요!
                           {org.avatar ? (
                             <img src={org.avatar} alt={org.name} className="w-full h-full object-cover" />
                           ) : (
-                            <div className="w-full h-full flex items-center justify-center text-base md:text-lg md:text-xl md:text-2xl md:text-3xl">⛺</div>
+                            <div className="w-full h-full flex items-center justify-center"><Tent className="w-5 h-5 md:w-6 md:h-6 md:w-7 md:h-7 text-[#FF9B50]" /></div>
                           )}
                         </div>
                         <div className="flex-1 min-w-0">
@@ -2315,11 +2314,11 @@ ${BRAND.NAME}와 함께하는 모임 일정에 참여하세요!
                           </h3>
                           <div className="flex items-center gap-3 text-sm text-[#57534E]">
                             <span className="flex items-center gap-1">
-                              <span>👥</span>
+                              <Users className="w-4 h-4 text-[#FF9B50] flex-shrink-0" />
                               <span className="font-semibold">{memberCount}명</span>
                             </span>
                             <span className="flex items-center gap-1">
-                              <span>📅</span>
+                              <Calendar className="w-4 h-4 text-[#FF9B50] flex-shrink-0" />
                               <span className="font-semibold">{orgScheduleCount}개 일정</span>
                             </span>
                           </div>
@@ -2355,7 +2354,7 @@ ${BRAND.NAME}와 함께하는 모임 일정에 참여하세요!
           <header className="sticky top-0 bg-white z-10 safe-top border-b border-stone-100">
             <div className="px-3 md:px-6 py-3 md:py-6 pb-3 flex items-center justify-between">
               <div>
-                <h1 className="text-base md:text-lg md:text-xl md:text-2xl font-bold tracking-tight text-[#292524]">📅 다가오는 일정</h1>
+                <h1 className="text-base md:text-lg md:text-xl md:text-2xl font-bold tracking-tight text-[#292524] flex items-center gap-2"><Calendar className="w-5 h-5 md:w-6 md:h-6 text-[#FF9B50]" />다가오는 일정</h1>
                 <p className="text-sm text-[#A8A29E] mt-1">모든 크루의 일정을 확인하세요</p>
               </div>
               <button
@@ -2445,7 +2444,7 @@ ${BRAND.NAME}와 함께하는 모임 일정에 참여하세요!
               if (filteredSchedules.length === 0) {
                 return (
                   <div className="text-center py-16">
-                    <div className="text-6xl mb-4">📅</div>
+                    <div className="flex justify-center mb-4"><Calendar className="w-16 h-16 text-[#FF9B50]" /></div>
                     <p className="text-base font-bold text-[#A8A29E]">
                       {scheduleFilter === 'all' && '다가오는 일정이 없습니다'}
                       {scheduleFilter === 'joined' && '참여 중인 일정이 없습니다'}
@@ -2502,21 +2501,21 @@ ${BRAND.NAME}와 함께하는 모임 일정에 참여하세요!
                                 </div>
                                 <div className="space-y-2 text-sm text-[#57534E]">
                                   <p className="flex items-center gap-2">
-                                    <span>📅</span>
+                                    <Calendar className="w-4 h-4 text-[#FF9B50] flex-shrink-0" />
                                     <span className="font-medium">{formatDateWithYear(schedule.date)} {schedule.time}</span>
                                   </p>
                                   <p className="flex items-center gap-2">
-                                    <span>📍</span>
+                                    <MapPin className="w-4 h-4 text-[#FF9B50] flex-shrink-0" />
                                     <span className="font-medium">{schedule.location}</span>
                                   </p>
                                   <p className="flex items-center gap-2">
-                                    <span>👥</span>
+                                    <Users className="w-4 h-4 text-[#FF9B50] flex-shrink-0" />
                                     <span className="font-medium">{schedule.participants?.length || 0}/{schedule.maxParticipants}명</span>
                                   </p>
                                 </div>
                                 {isParticipating && (
                                   <div className="mt-4 text-xs bg-[#E8F5E9] text-[#2E7D32] px-3 py-2 rounded-xl font-bold text-center">
-                                    ✓ 참여 중
+                                    <span className="inline-flex items-center gap-1"><Check className="w-3.5 h-3.5 text-green-600" />참여 중</span>
                                   </div>
                                 )}
                               </div>
@@ -2558,7 +2557,7 @@ ${BRAND.NAME}와 함께하는 모임 일정에 참여하세요!
                         onClick={() => handleOpenOrgEdit(selectedOrg)}
                         className="px-4 py-2 bg-[#F5F5F4] text-[#292524] text-sm font-semibold rounded-xl hover:bg-[#E5E8EB] active:scale-95 transition-all"
                       >
-                        ⚙️ 크루 정보 수정
+                        <span className="inline-flex items-center gap-2"><Settings className="w-4 h-4" />크루 정보 수정</span>
                       </button>
                     )}
                   </div>
@@ -2651,7 +2650,7 @@ ${BRAND.NAME}와 함께하는 모임 일정에 참여하세요!
                   if (filteredSchedules.length === 0) {
                     return (
                       <div className="text-center py-16">
-                        <div className="text-6xl mb-4">📅</div>
+                        <div className="flex justify-center mb-4"><Calendar className="w-16 h-16 text-[#FF9B50]" /></div>
                         <p className="text-base font-bold text-[#A8A29E]">다가오는 일정이 없습니다</p>
                       </div>
                     )
@@ -2675,25 +2674,25 @@ ${BRAND.NAME}와 함께하는 모임 일정에 참여하세요!
                       </div>
                       <div className="space-y-2 text-sm text-[#57534E]">
                         <p className="flex items-center gap-2">
-                          <span>📅</span>
+                          <Calendar className="w-4 h-4 text-[#FF9B50] flex-shrink-0" />
                           <span className="font-medium">{formatDateWithYear(schedule.date)} {schedule.time}</span>
                         </p>
                         <p className="flex items-center gap-2">
-                          <span>📍</span>
+                          <MapPin className="w-4 h-4 text-[#FF9B50] flex-shrink-0" />
                           <span className="font-medium">{schedule.location}</span>
                         </p>
                         <p className="flex items-center gap-2">
-                          <span>👥</span>
+                          <Users className="w-4 h-4 text-[#FF9B50] flex-shrink-0" />
                           <span className="font-medium">{schedule.participants?.length || 0}/{schedule.maxParticipants}명</span>
                         </p>
                         <p className="flex items-center gap-2">
-                          <span>🎯</span>
+                          <Target className="w-4 h-4 text-[#FF9B50] flex-shrink-0" />
                           <span className="font-medium">벙주: {schedule.createdBy}</span>
                         </p>
                       </div>
                       {isParticipating && (
                         <div className="mt-4 text-xs bg-[#E8F5E9] text-[#2E7D32] px-3 py-2 rounded-xl font-bold text-center">
-                          ✓ 참여 중
+                          <span className="inline-flex items-center gap-1"><Check className="w-3.5 h-3.5 text-green-600" />참여 중</span>
                         </div>
                       )}
                     </div>
@@ -2723,14 +2722,14 @@ ${BRAND.NAME}와 함께하는 모임 일정에 참여하세요!
                           </span>
                         </div>
                         <div className="space-y-2 text-sm text-gray-500">
-                          <p>📅 {formatDateWithYear(schedule.date)} {schedule.time}</p>
-                          <p>📍 {schedule.location}</p>
-                          <p>👥 {schedule.participants?.length || 0}/{schedule.maxParticipants}명</p>
-                          <p>🎯 벙주: {schedule.createdBy}</p>
+                          <p><Calendar className="w-4 h-4 text-[#FF9B50] inline-block mr-1.5" />{formatDateWithYear(schedule.date)} {schedule.time}</p>
+                          <p><MapPin className="w-4 h-4 text-[#FF9B50] inline-block mr-1.5" />{schedule.location}</p>
+                          <p><Users className="w-4 h-4 text-[#FF9B50] inline-block mr-1.5" />{schedule.participants?.length || 0}/{schedule.maxParticipants}명</p>
+                          <p><Target className="w-4 h-4 text-[#FF9B50] inline-block mr-1.5" />벙주: {schedule.createdBy}</p>
                         </div>
                         {isParticipating && (
                           <div className="mt-3 text-xs bg-gray-200 text-stone-600 px-3 py-2 rounded-lg font-semibold text-center">
-                            ✓ 참여함
+                            <span className="inline-flex items-center gap-1"><Check className="w-3.5 h-3.5 text-green-600" />참여함</span>
                           </div>
                         )}
                       </div>
@@ -2997,7 +2996,7 @@ ${BRAND.NAME}와 함께하는 모임 일정에 참여하세요!
               {/* 일정 정보 카드 */}
               <div className="bg-[#FFFBF7] rounded-2xl p-5 space-y-2 md:space-y-4">
                 <div>
-                  <div className="text-sm font-bold text-[#A8A29E] mb-2">📅 일시</div>
+                  <div className="text-sm font-bold text-[#A8A29E] mb-2 flex items-center gap-1.5"><Calendar className="w-4 h-4" />일시</div>
                   <div className="text-base font-bold text-[#292524]">
                     {formatDateWithYear(selectedSchedule.date)} {selectedSchedule.time}
                   </div>
@@ -3006,14 +3005,14 @@ ${BRAND.NAME}와 함께하는 모임 일정에 참여하세요!
                 <div className="h-px bg-[#E5E8EB]"></div>
 
                 <div>
-                  <div className="text-sm font-bold text-[#A8A29E] mb-2">📍 장소</div>
+                  <div className="text-sm font-bold text-[#A8A29E] mb-2 flex items-center gap-1.5"><MapPin className="w-4 h-4" />장소</div>
                   <div className="text-base font-bold text-[#292524]">{selectedSchedule.location}</div>
                 </div>
 
                 <div className="h-px bg-[#E5E8EB]"></div>
 
                 <div>
-                  <div className="text-sm font-bold text-[#A8A29E] mb-2">🎯 벙주</div>
+                  <div className="text-sm font-bold text-[#A8A29E] mb-2 flex items-center gap-1.5"><Target className="w-4 h-4" />벙주</div>
                   <div className="text-base font-bold text-[#292524]">{selectedSchedule.createdBy || '정보 없음'}</div>
                 </div>
               </div>
@@ -3021,7 +3020,7 @@ ${BRAND.NAME}와 함께하는 모임 일정에 참여하세요!
               {/* 참여 인원 섹션 */}
               <div>
                 <div className="flex items-center justify-between mb-3">
-                  <div className="text-base font-bold text-[#292524]">👥 참여 인원</div>
+                  <div className="text-base font-bold text-[#292524] flex items-center gap-1.5"><Users className="w-5 h-5 text-[#FF9B50]" />참여 인원</div>
                   <div className="text-base font-bold text-[#FF9B50]">
                     {selectedSchedule.participants?.length || 0} / {selectedSchedule.maxParticipants}명
                   </div>
@@ -3081,7 +3080,7 @@ ${BRAND.NAME}와 함께하는 모임 일정에 참여하세요!
               {/* 댓글 섹션 */}
               <div className="border-t border-stone-100 pt-6">
                 <div className="flex items-center gap-2 mb-4">
-                  <span className="text-base font-bold text-[#292524]">💬 댓글</span>
+                  <span className="text-base font-bold text-[#292524] inline-flex items-center gap-2"><MessageCircle className="w-5 h-5 text-[#FF9B50]" />댓글</span>
                   <span className="text-sm font-bold text-[#A8A29E]">({selectedSchedule.comments?.length || 0})</span>
                 </div>
                 {selectedSchedule.comments && selectedSchedule.comments.length > 0 && (
@@ -3131,7 +3130,7 @@ ${BRAND.NAME}와 함께하는 모임 일정에 참여하세요!
                   onClick={() => handleShareSchedule(selectedSchedule)}
                   className="w-full bg-[#FEE500] text-[#292524] py-4 rounded-2xl font-bold hover:bg-[#FDD835] transition-all active:scale-[0.98] flex items-center justify-center gap-2 shadow-sm"
                 >
-                  <span className="text-base md:text-lg md:text-xl">💬</span>
+                  <MessageCircle className="w-5 h-5 md:w-6 md:h-6 text-[#FF9B50]" />
                   <span>카카오톡 공유하기</span>
                 </button>
               </div>
@@ -3623,7 +3622,7 @@ ${BRAND.NAME}와 함께하는 모임 일정에 참여하세요!
                           위치 가져오는 중...
                         </span>
                       ) : (
-                        '📍 현재 위치로 설정'
+                        '현재 위치로 설정'
                       )}
                     </button>
                   )}
@@ -3830,7 +3829,7 @@ ${BRAND.NAME}와 함께하는 모임 일정에 참여하세요!
                           위치 가져오는 중...
                         </span>
                       ) : (
-                        '📍 현재 위치로 설정'
+                        '현재 위치로 설정'
                       )}
                     </button>
                   )}
@@ -4428,7 +4427,7 @@ function NearbyCrewsCarousel({
 
                 {/* 위치 */}
                 <div className="flex items-center gap-1 text-stone-600 text-xs sm:text-sm mb-2">
-                  <span>📍</span>
+                  <MapPin className="w-4 h-4 text-[#FF9B50] flex-shrink-0" />
                   <span className="truncate">
                     {crew.location?.dong || crew.description?.split(' ').slice(0, 2).join(' ') || '위치 미설정'}
                   </span>
@@ -4455,7 +4454,7 @@ function NearbyCrewsCarousel({
 
                 {/* 멤버 수 */}
                 <div className="flex items-center gap-1 text-gray-500 text-xs sm:text-sm">
-                  <span>👥</span>
+                  <Users className="w-4 h-4 text-[#FF9B50] flex-shrink-0" />
                   <span>멤버 {orgMemberCounts[crew.id] || 0}명</span>
                 </div>
               </div>

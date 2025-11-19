@@ -13,6 +13,7 @@ import { canUseScheduleChat, logFeatureFlags } from '@/lib/feature-flags';
 import { Card, CardBody } from '@/components/ui/Card';
 import { Button } from '@/components/ui';
 import type { OrgSchedule } from '@/types/firestore';
+import { Users } from 'lucide-react'
 
 interface ScheduleDetailClientProps {
   schedule: OrgSchedule;
@@ -341,7 +342,10 @@ export function ScheduleDetailClient({
                 }}
                 className="flex-1"
               >
-                👥 참석자 추가
+                <span className="inline-flex items-center gap-1.5">
+                  <Users className="w-4 h-4" />
+                  참석자 추가
+                </span>
               </Button>
             </div>
           )}

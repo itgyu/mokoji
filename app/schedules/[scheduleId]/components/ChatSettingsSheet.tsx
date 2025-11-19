@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 import { doc, getDoc, setDoc } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
+import { MessageCircle } from 'lucide-react';
 import {
   BottomSheet,
   BottomSheetHeader,
@@ -178,7 +179,7 @@ export function ChatSettingsSheet({
             {/* 안내 메시지 */}
             <div className="p-3 bg-muted rounded-lg space-y-2">
               <p className="text-sm text-muted-foreground">
-                💬 일정 자체 알림(D-1, 시간 변경)은 계속 받습니다.
+                <MessageCircle className="w-4 h-4 text-[#FF9B50] inline-block" /> 일정 자체 알림(D-1, 시간 변경)은 계속 받습니다.
               </p>
               <p className="text-xs text-muted-foreground">
                 이 설정은 채팅 메시지 알림만 제어합니다.
