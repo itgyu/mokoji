@@ -25,7 +25,8 @@
     "emulators": "firebase emulators:start"
   },
   "dependencies": {
-    "@aws-sdk/client-s3": "^3.928.0",
+    "@aws-sdk/client-s3": "^3.934.0",
+    "@aws-sdk/lib-storage": "^3.934.0",
     "@aws-sdk/s3-request-presigner": "^3.928.0",
     "@hookform/resolvers": "^3.10.0",
     "@radix-ui/react-accordion": "1.2.2",
