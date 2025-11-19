@@ -158,25 +158,30 @@ export default function AuthPage() {
         {step === 'login' && (
           <div className="bg-white rounded-2xl shadow-xl p-8">
             <div className="text-center mb-8">
-              {/* 브랜드 로고 - 웹 아이콘과 완전히 동일한 디자인 */}
+              {/* 브랜드 로고 - icon.tsx와 완전히 동일 */}
               <div className="flex justify-center mb-6">
-                <div className="relative w-[140px] h-[140px]">
+                <div
+                  className="relative w-[180px] h-[180px] rounded-2xl flex items-center justify-center"
+                  style={{
+                    background: 'linear-gradient(135deg, #FFF9F5 0%, #FFE8D6 100%)'
+                  }}
+                >
                   {/* 큰 원 테두리 */}
-                  <div className="absolute inset-0 rounded-full border-[6px] border-[#FF9B50] flex items-center justify-center">
+                  <div className="relative w-[140px] h-[140px] rounded-full border-[6px] border-[#FF9B50] flex items-center justify-center">
                     {/* 중앙 동그라미 */}
                     <div className="absolute w-[24px] h-[24px] rounded-full bg-[#FF9B50]" />
 
                     {/* 위 */}
-                    <div className="absolute w-[20px] h-[20px] rounded-full bg-[#A8D08D] -top-[10px] left-1/2 -translate-x-1/2" />
+                    <div className="absolute w-[20px] h-[20px] rounded-full bg-[#A8D08D] -top-[10px]" />
 
                     {/* 오른쪽 */}
-                    <div className="absolute w-[20px] h-[20px] rounded-full bg-[#FF6B6B] -right-[10px] top-1/2 -translate-y-1/2" />
+                    <div className="absolute w-[20px] h-[20px] rounded-full bg-[#FF6B6B] -right-[10px]" />
 
                     {/* 아래 */}
-                    <div className="absolute w-[20px] h-[20px] rounded-full bg-[#FF9B50] opacity-80 -bottom-[10px] left-1/2 -translate-x-1/2" />
+                    <div className="absolute w-[20px] h-[20px] rounded-full bg-[#FF9B50] opacity-80 -bottom-[10px]" />
 
                     {/* 왼쪽 */}
-                    <div className="absolute w-[20px] h-[20px] rounded-full bg-[#A8D08D] opacity-80 -left-[10px] top-1/2 -translate-y-1/2" />
+                    <div className="absolute w-[20px] h-[20px] rounded-full bg-[#A8D08D] opacity-80 -left-[10px]" />
                   </div>
                 </div>
               </div>
