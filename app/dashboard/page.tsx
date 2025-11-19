@@ -1625,26 +1625,35 @@ ${BRAND.NAME}와 함께하는 모임 일정에 참여하세요!
 
   // 아바타 URL 검증 함수 (이모티콘이나 잘못된 URL 필터링)
   const getValidAvatarUrl = (avatar: string | undefined | null): string => {
+    console.log('[getValidAvatarUrl] 입력값:', avatar)
+
     if (!avatar || avatar.trim() === '') {
+      console.log('[getValidAvatarUrl] 빈 값 → 기본 아바타')
       return '/default-avatar.svg'
     }
 
     // 이모티콘인지 확인 (유니코드 이모티콘 범위)
     const emojiRegex = /[\u{1F600}-\u{1F64F}\u{1F300}-\u{1F5FF}\u{1F680}-\u{1F6FF}\u{1F1E0}-\u{1F1FF}\u{2600}-\u{26FF}\u{2700}-\u{27BF}\u{1F900}-\u{1F9FF}\u{1FA00}-\u{1FA6F}]/u
     if (emojiRegex.test(avatar)) {
+      console.log('[getValidAvatarUrl] 이모티콘 감지 → 기본 아바타')
       return '/default-avatar.svg'
     }
 
     // URL 형식인지 확인 (http, https, / 로 시작)
     if (!avatar.startsWith('http') && !avatar.startsWith('/')) {
+      console.log('[getValidAvatarUrl] URL 형식 아님 → 기본 아바타:', avatar)
       return '/default-avatar.svg'
     }
 
+    console.log('[getValidAvatarUrl] 유효한 URL → 그대로 사용')
     return avatar
   }
 
   // 멤버의 마지막 참여일로부터 경과일 계산 함수
   const getMemberLastParticipationDays = (memberName: string): number | null => {
+    console.log('[getMemberLastParticipationDays] 멤버:', memberName)
+    console.log('[getMemberLastParticipationDays] 전체 일정 수:', schedules.length)
+
     const today = new Date()
     today.setHours(0, 0, 0, 0) // 시간 부분 제거
 
@@ -1654,17 +1663,24 @@ ${BRAND.NAME}와 함께하는 모임 일정에 참여하세요!
         return false
       }
 
+      console.log('[getMemberLastParticipationDays] 일정:', schedule.title)
+      console.log('  - participants:', schedule.participants)
+      console.log('  - 첫 번째 참가자 타입:', typeof schedule.participants[0])
+
       // participants가 문자열 배열인지 객체 배열인지 확인
       let isParticipant = false
       if (typeof schedule.participants[0] === 'string') {
         // 문자열 배열: ["이태규", "유시몬", ...]
         isParticipant = schedule.participants.includes(memberName)
+        console.log('  - 문자열 배열 체크:', isParticipant)
       } else {
         // 객체 배열: [{name: "이태규", uid: "..."}, ...]
         isParticipant = schedule.participants.some((p: any) => p.name === memberName)
+        console.log('  - 객체 배열 체크:', isParticipant)
       }
 
       if (!isParticipant) {
+        console.log('  - 결과: 참여하지 않음')
         return false
       }
 
@@ -1672,9 +1688,15 @@ ${BRAND.NAME}와 함께하는 모임 일정에 참여하세요!
       const scheduleDate = parseScheduleDate(schedule.date)
       scheduleDate.setHours(0, 0, 0, 0)
 
+      console.log('  - 일정 날짜:', scheduleDate)
+      console.log('  - 오늘:', today)
+      console.log('  - 과거 일정?', scheduleDate.getTime() <= today.getTime())
+
       // 과거 일정만 포함 (오늘 포함)
       return scheduleDate.getTime() <= today.getTime()
     })
+
+    console.log('[getMemberLastParticipationDays] 참여한 과거 일정 수:', participatedSchedules.length)
 
     if (participatedSchedules.length === 0) {
       return null // 참여 이력 없음 (과거 일정 기준)
@@ -1694,6 +1716,9 @@ ${BRAND.NAME}와 함께하는 모임 일정에 참여하세요!
     // 경과일 계산
     const diffTime = today.getTime() - scheduleDate.getTime()
     const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24))
+
+    console.log('[getMemberLastParticipationDays] 가장 최근 일정:', mostRecentSchedule.title)
+    console.log('[getMemberLastParticipationDays] 경과일:', diffDays)
 
     return diffDays
   }
