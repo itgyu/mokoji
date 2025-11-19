@@ -256,31 +256,41 @@
    ======================================== */
 
 @layer utilities {
-  /* 텍스트 스타일 */
-  .text-heading-1 {
-    @apply text-3xl font-bold leading-tight;
+  /* ========================================
+     Typography System (3단계 + 캡션)
+     깔끔하고 명확한 정보 위계
+     ======================================== */
+
+  /* 1. 타이틀 - 페이지/섹션 제목 */
+  .text-title {
+    @apply text-2xl md:text-3xl font-bold leading-tight tracking-tight;
+    color: var(--foreground);
   }
 
-  .text-heading-2 {
-    @apply text-2xl font-bold leading-tight;
+  /* 2. 서브타이틀 - 카드 제목, 중요한 텍스트 */
+  .text-subtitle {
+    @apply text-lg md:text-xl font-semibold leading-snug;
+    color: var(--foreground);
   }
 
-  .text-heading-3 {
-    @apply text-xl font-semibold leading-tight;
+  /* 3. 본문 - 일반 텍스트, 설명 */
+  .text-body {
+    @apply text-sm md:text-base font-normal leading-relaxed;
+    color: var(--foreground);
   }
 
-  .text-body-1 {
-    @apply text-base font-normal leading-normal;
-  }
-
-  .text-body-2 {
-    @apply text-sm font-normal leading-normal;
-  }
-
+  /* 4. 캡션 - 작은 설명, 부가 정보 (옵션) */
   .text-caption {
-    @apply text-xs font-normal leading-normal;
+    @apply text-xs md:text-sm font-normal leading-normal;
     color: var(--text-tertiary);
   }
+
+  /* Legacy support (기존 코드 호환) */
+  .text-heading-1 { @apply text-title; }
+  .text-heading-2 { @apply text-subtitle; }
+  .text-heading-3 { @apply text-subtitle; }
+  .text-body-1 { @apply text-body; }
+  .text-body-2 { @apply text-body; }
 }
 
 /* ========================================
