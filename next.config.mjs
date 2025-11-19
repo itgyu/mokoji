@@ -19,6 +19,16 @@ const nextConfig = {
           },
         ],
       },
+      {
+        // HTML 페이지도 짧은 캐시로 설정 (1분)
+        source: '/:path*',
+        headers: [
+          {
+            key: 'Cache-Control',
+            value: 'public, max-age=60, must-revalidate',
+          },
+        ],
+      },
     ]
   },
 }

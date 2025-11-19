@@ -45,8 +45,8 @@ export default function VersionChecker() {
     // 초기 체크
     checkVersion()
 
-    // 30초마다 버전 체크 (더 빠른 업데이트 감지)
-    const interval = setInterval(checkVersion, 30 * 1000)
+    // 10초마다 버전 체크 (더 빠른 업데이트 감지)
+    const interval = setInterval(checkVersion, 10 * 1000)
 
     return () => clearInterval(interval)
   }, [currentVersion])
@@ -64,7 +64,13 @@ export default function VersionChecker() {
   }, [showUpdateModal, countdown, autoReloadEnabled])
 
   const handleReload = () => {
-    // localStorage 업데이트 후 새로고침
+    // 캐시 완전 삭제 후 새로고침
+    if ('caches' in window) {
+      caches.keys().then(names => {
+        names.forEach(name => caches.delete(name))
+      })
+    }
+    // 하드 리로드 (캐시 무시)
     window.location.reload()
   }
 
