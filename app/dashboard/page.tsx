@@ -1639,8 +1639,8 @@ ${BRAND.NAME}와 함께하는 모임 일정에 참여하세요!
       return '/default-avatar.svg'
     }
 
-    // URL 형식인지 확인 (http, https, / 로 시작)
-    if (!avatar.startsWith('http') && !avatar.startsWith('/')) {
+    // URL 형식인지 확인 (http, https, data:, / 로 시작)
+    if (!avatar.startsWith('http') && !avatar.startsWith('/') && !avatar.startsWith('data:')) {
       console.log('[getValidAvatarUrl] URL 형식 아님 → 기본 아바타:', avatar)
       return '/default-avatar.svg'
     }
@@ -1675,8 +1675,14 @@ ${BRAND.NAME}와 함께하는 모임 일정에 참여하세요!
         console.log('  - 문자열 배열 체크:', isParticipant)
       } else {
         // 객체 배열: [{name: "이태규", uid: "..."}, ...]
-        isParticipant = schedule.participants.some((p: any) => p.name === memberName)
-        console.log('  - 객체 배열 체크:', isParticipant)
+        console.log('  - 첫 번째 참가자 객체:', schedule.participants[0])
+        console.log('  - 객체 keys:', Object.keys(schedule.participants[0]))
+
+        // name 또는 userName 필드로 체크
+        isParticipant = schedule.participants.some((p: any) =>
+          p.name === memberName || p.userName === memberName
+        )
+        console.log('  - 객체 배열 체크 (name/userName):', isParticipant)
       }
 
       if (!isParticipant) {
