@@ -98,17 +98,17 @@ function SystemMessage({ message }: { message: ScheduleChatMessage }) {
   const style = getSystemStyle();
 
   return (
-    <div className="flex justify-center py-2">
+    <div className="flex justify-center py-1">
       <div
         className={clsx(
-          'flex items-center gap-1.5 px-3 py-1.5 rounded-full',
+          'flex items-center gap-1 px-2.5 py-1 rounded-full',
           style.bgColor
         )}
       >
-        <span className="text-sm" aria-hidden="true">
+        <span className="text-xs" aria-hidden="true">
           {style.emoji}
         </span>
-        <span className={clsx('text-xs font-medium', style.textColor)}>
+        <span className={clsx('text-[11px] font-medium', style.textColor)}>
           {message.content}
         </span>
       </div>
@@ -130,40 +130,40 @@ function MyMessage({
   const status = (message as any)._status; // 'sending' | 'sent' | 'failed'
 
   return (
-    <div className="flex justify-end items-end gap-2">
-      <div className="max-w-[75%] space-y-1">
+    <div className="flex justify-end items-end gap-1.5">
+      <div className="max-w-[75%] space-y-0.5">
         {/* 메시지 버블 */}
         <div
           className={clsx(
-            'rounded-2xl rounded-tr-sm px-4 py-2.5',
+            'rounded-2xl rounded-tr-sm px-3 py-2',
             status === 'failed'
               ? 'bg-destructive/10 text-foreground border border-destructive'
               : 'bg-primary text-primary-foreground'
           )}
         >
-          <p className="text-sm whitespace-pre-wrap break-words">{message.content}</p>
+          <p className="text-[13px] leading-snug whitespace-pre-wrap break-words">{message.content}</p>
         </div>
 
         {/* 시간 및 상태 표시 */}
-        <div className="flex items-center justify-end gap-1.5 px-1">
+        <div className="flex items-center justify-end gap-1 px-1">
           {/* 상태 아이콘 */}
           {status === 'sending' && (
-            <span className="text-xs text-muted-foreground">전송 중...</span>
+            <span className="text-[11px] text-muted-foreground">전송 중...</span>
           )}
           {status === 'failed' && (
-            <span className="text-xs text-destructive font-medium">전송 실패</span>
+            <span className="text-[11px] text-destructive font-medium">전송 실패</span>
           )}
           {status === 'sent' && message.readBy && message.readBy.length > 0 && (
-            <span className="text-xs text-muted-foreground">
+            <span className="text-[11px] text-muted-foreground">
               읽음 {message.readBy.length}
             </span>
           )}
           {!status && message.readBy && message.readBy.length > 0 && (
-            <span className="text-xs text-muted-foreground">
+            <span className="text-[11px] text-muted-foreground">
               읽음 {message.readBy.length}
             </span>
           )}
-          <span className="text-xs text-muted-foreground">{formattedTime}</span>
+          <span className="text-[11px] text-muted-foreground">{formattedTime}</span>
         </div>
       </div>
 
@@ -209,7 +209,7 @@ function OtherMessage({
   const formattedTime = format(message.createdAt.toDate(), 'HH:mm');
 
   return (
-    <div className="flex justify-start gap-2">
+    <div className="flex justify-start gap-1.5">
       {/* 아바타 */}
       {showAvatar ? (
         <Avatar
@@ -217,30 +217,30 @@ function OtherMessage({
           alt={message.senderName || '익명'}
           fallback={message.senderName || '?'}
           size="sm"
-          className="mt-1"
+          className="mt-0.5"
         />
       ) : (
         <div className="w-8" /> // 아바타 공간 유지
       )}
 
       {/* 메시지 내용 */}
-      <div className="max-w-[75%] space-y-1">
+      <div className="max-w-[75%] space-y-0.5">
         {/* 발신자 이름 */}
         {showSenderName && message.senderName && (
-          <span className="text-xs text-muted-foreground px-2">
+          <span className="text-[11px] text-muted-foreground px-1.5">
             {message.senderName}
           </span>
         )}
 
         {/* 메시지 버블 */}
-        <div className="bg-card border border-border rounded-2xl rounded-tl-sm px-4 py-2.5 shadow-sm">
-          <p className="text-sm text-foreground whitespace-pre-wrap break-words">
+        <div className="bg-card border border-border rounded-2xl rounded-tl-sm px-3 py-2 shadow-sm">
+          <p className="text-[13px] leading-snug text-foreground whitespace-pre-wrap break-words">
             {message.content}
           </p>
         </div>
 
         {/* 시간 */}
-        <span className="text-xs text-muted-foreground px-2">{formattedTime}</span>
+        <span className="text-[11px] text-muted-foreground px-1.5">{formattedTime}</span>
       </div>
     </div>
   );
@@ -253,9 +253,9 @@ export function DateDivider({ date }: { date: Date }) {
   const formattedDate = format(date, 'M월 d일 (E)', { locale: ko });
 
   return (
-    <div className="flex items-center gap-3 py-4">
+    <div className="flex items-center gap-2 py-2">
       <div className="flex-1 h-px bg-border" />
-      <span className="text-xs text-muted-foreground font-medium">{formattedDate}</span>
+      <span className="text-[11px] text-muted-foreground font-medium">{formattedDate}</span>
       <div className="flex-1 h-px bg-border" />
     </div>
   );

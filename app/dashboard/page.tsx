@@ -2044,7 +2044,7 @@ ${BRAND.NAME}와 함께하는 모임 일정에 참여하세요!
                   {mySchedules.slice(0, 3).map((schedule) => (
                     <div
                       key={schedule.id}
-                      onClick={() => router.push(`/schedules/${schedule.id}?from=${currentPage}`)}
+                      onClick={() => router.push(`/schedules/${schedule.id}?from=${currentPage}${urlOrgId ? `&orgId=${urlOrgId}` : ''}`)}
                       className="bg-[#FFFBF7] rounded-2xl p-3 md:p-6 hover:bg-[#F5F5F4] active:scale-[0.98] transition-all cursor-pointer border border-transparent hover:border-[#FF9B50]/20"
                     >
                       <div className="flex justify-between items-start mb-4">
@@ -2461,7 +2461,7 @@ ${BRAND.NAME}와 함께하는 모임 일정에 참여하세요!
                             return (
                               <div
                                 key={schedule.id}
-                                onClick={() => router.push(`/schedules/${schedule.id}?from=${currentPage}`)}
+                                onClick={() => router.push(`/schedules/${schedule.id}?from=${currentPage}${urlOrgId ? `&orgId=${urlOrgId}` : ''}`)}
                                 className={`bg-white rounded-2xl p-5 shadow-sm border transition-all cursor-pointer active:scale-[0.98] ${
                                   isParticipating ? 'border-[#FF9B50] shadow-md' : 'border-stone-100 hover:border-[#FF9B50] hover:shadow-md'
                                 }`}
@@ -2606,7 +2606,7 @@ ${BRAND.NAME}와 함께하는 모임 일정에 참여하세요!
                   return (
                     <div
                       key={schedule.id}
-                      onClick={() => router.push(`/schedules/${schedule.id}?from=${currentPage}`)}
+                      onClick={() => router.push(`/schedules/${schedule.id}?from=${currentPage}${urlOrgId ? `&orgId=${urlOrgId}` : ''}`)}
                       className={`bg-white rounded-2xl p-5 shadow-sm border transition-all cursor-pointer active:scale-[0.98] ${
                         isParticipating ? 'border-[#FF9B50] shadow-md' : 'border-stone-100 hover:border-[#FF9B50] hover:shadow-md'
                       }`}
@@ -2657,7 +2657,7 @@ ${BRAND.NAME}와 함께하는 모임 일정에 참여하세요!
                     return (
                       <div
                         key={schedule.id}
-                        onClick={() => router.push(`/schedules/${schedule.id}?from=${currentPage}`)}
+                        onClick={() => router.push(`/schedules/${schedule.id}?from=${currentPage}${urlOrgId ? `&orgId=${urlOrgId}` : ''}`)}
                         className="bg-gray-50 rounded-xl p-5 shadow-sm hover:shadow-md transition-shadow cursor-pointer opacity-60"
                       >
                         <div className="flex justify-between items-start mb-3">

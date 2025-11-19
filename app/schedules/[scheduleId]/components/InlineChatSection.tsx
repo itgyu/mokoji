@@ -45,12 +45,23 @@ export function InlineChatSection({
 }: InlineChatSectionProps) {
   const [showNewMessageIndicator, setShowNewMessageIndicator] = useState(false);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+  const [hasInitiallyScrolled, setHasInitiallyScrolled] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
 
-  // 자동 스크롤 (맨 아래에 있을 때만)
+  // 초기 로드 시 맨 아래로 스크롤
   useEffect(() => {
-    if (!containerRef.current) return;
+    if (messages.length > 0 && !hasInitiallyScrolled && !isLoading) {
+      setTimeout(() => {
+        scrollToBottom(false);
+        setHasInitiallyScrolled(true);
+      }, 100);
+    }
+  }, [messages.length, isLoading, hasInitiallyScrolled]);
+
+  // 새 메시지 추가 시 자동 스크롤 (맨 아래에 있을 때만)
+  useEffect(() => {
+    if (!containerRef.current || !hasInitiallyScrolled) return;
 
     const container = containerRef.current;
     const isAtBottom =
@@ -62,7 +73,7 @@ export function InlineChatSection({
       // 스크롤이 위에 있으면 새 메시지 인디케이터 표시
       setShowNewMessageIndicator(true);
     }
-  }, [messages]);
+  }, [messages, hasInitiallyScrolled]);
 
   const scrollToBottom = (smooth = true) => {
     messagesEndRef.current?.scrollIntoView({
@@ -94,9 +105,9 @@ export function InlineChatSection({
 
   return (
     <>
-      <div className="flex flex-col h-[50vh] bg-card rounded-2xl overflow-hidden shadow-sm border border-border">
+      <div className="flex flex-col h-[65vh] bg-card rounded-2xl overflow-hidden shadow-sm border border-border">
       {/* 헤더 */}
-      <div className="flex items-center justify-between p-4 border-b border-border bg-card/50 backdrop-blur-sm">
+      <div className="flex items-center justify-between p-3 border-b border-border bg-card/50 backdrop-blur-sm">
         <div className="flex items-center gap-2">
           <span className="text-base font-semibold text-foreground">채팅</span>
           {messages.length > 0 && (
@@ -132,7 +143,7 @@ export function InlineChatSection({
       <div
         ref={containerRef}
         onScroll={handleScroll}
-        className="flex-1 overflow-y-auto p-4 space-y-3 scroll-smooth"
+        className="flex-1 overflow-y-auto p-3 space-y-2 scroll-smooth"
       >
         {isLoading ? (
           // 로딩 스켈레톤
@@ -156,7 +167,7 @@ export function InlineChatSection({
                 <DateDivider date={group.date} />
 
                 {/* 해당 날짜의 메시지들 */}
-                <div className="space-y-3">
+                <div className="space-y-2">
                   {group.messages.map((message, messageIndex) => {
                     const isMyMessage = message.senderId === currentUserId;
                     const prevMessage = messageIndex > 0 ? group.messages[messageIndex - 1] : null;
