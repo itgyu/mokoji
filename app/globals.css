@@ -286,11 +286,30 @@
   }
 
   /* Legacy support (기존 코드 호환) */
-  .text-heading-1 { @apply text-title; }
-  .text-heading-2 { @apply text-subtitle; }
-  .text-heading-3 { @apply text-subtitle; }
-  .text-body-1 { @apply text-body; }
-  .text-body-2 { @apply text-body; }
+  .text-heading-1 {
+    @apply text-2xl md:text-3xl font-bold leading-tight tracking-tight;
+    color: var(--foreground);
+  }
+
+  .text-heading-2 {
+    @apply text-xl md:text-2xl font-bold leading-tight;
+    color: var(--foreground);
+  }
+
+  .text-heading-3 {
+    @apply text-lg md:text-xl font-semibold leading-snug;
+    color: var(--foreground);
+  }
+
+  .text-body-1 {
+    @apply text-sm md:text-base font-normal leading-relaxed;
+    color: var(--foreground);
+  }
+
+  .text-body-2 {
+    @apply text-sm md:text-base font-normal leading-relaxed;
+    color: var(--foreground);
+  }
 }
 
 /* ========================================
