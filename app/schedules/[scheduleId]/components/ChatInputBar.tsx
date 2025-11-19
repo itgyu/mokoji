@@ -61,29 +61,7 @@ export function ChatInputBar({
   const canSend = value.trim().length > 0 && !isSending && !disabled;
 
   return (
-    <div className="flex items-end gap-2 p-4 border-t border-border bg-background">
-      {/* 첨부 파일 버튼 (미래 기능) */}
-      <button
-        className="p-2 hover:bg-muted rounded-lg transition-colors mb-1 flex-shrink-0"
-        disabled={disabled || isSending}
-        aria-label="파일 첨부"
-        title="파일 첨부 (준비 중)"
-      >
-        <svg
-          className="w-5 h-5 text-muted-foreground"
-          fill="none"
-          viewBox="0 0 24 24"
-          stroke="currentColor"
-        >
-          <path
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            strokeWidth={2}
-            d="M12 4v16m8-8H4"
-          />
-        </svg>
-      </button>
-
+    <div className="flex items-end gap-2 p-2.5 border-t border-border bg-background">
       {/* 메시지 입력 필드 */}
       <div className="flex-1">
         <Textarea
@@ -94,8 +72,8 @@ export function ChatInputBar({
           placeholder={placeholder}
           disabled={disabled || isSending}
           autoResize
-          maxHeight={120}
-          className="min-h-[44px] resize-none"
+          maxHeight={100}
+          className="min-h-[36px] resize-none text-sm"
           rows={1}
         />
       </div>
@@ -103,12 +81,12 @@ export function ChatInputBar({
       {/* 전송 버튼 */}
       <Button
         variant="primary"
-        size="md"
+        size="sm"
         onClick={handleSend}
         disabled={!canSend}
         isLoading={isSending}
         iconOnly
-        className="mb-1 flex-shrink-0"
+        className="flex-shrink-0"
         aria-label="메시지 전송"
       >
         {!isSending && (
