@@ -3,10 +3,9 @@
  */
 
 import type { MessageAttachment } from '@/types/firestore';
-import { uploadChatMedia as s3UploadChatMedia } from '@/lib/aws/s3-upload';
 
 /**
- * 파일을 AWS S3에 업로드하고 URL을 반환
+ * 파일을 AWS S3에 업로드하고 URL을 반환 (API Route 사용)
  *
  * @param file - 업로드할 파일
  * @param scheduleId - 일정 ID
@@ -18,8 +17,87 @@ export async function uploadChatMedia(
   scheduleId: string,
   messageId: string
 ): Promise<MessageAttachment> {
-  // AWS S3 업로드 함수 사용
-  return await s3UploadChatMedia(file, scheduleId, messageId);
+  try {
+    console.log('[uploadChatMedia] 업로드 시작:', file.name, file.type);
+
+    // 이미지 크기 추출 (클라이언트에서)
+    let width: number | undefined;
+    let height: number | undefined;
+
+    if (file.type.startsWith('image/')) {
+      try {
+        const dimensions = await getImageDimensions(file);
+        width = dimensions.width;
+        height = dimensions.height;
+      } catch (error) {
+        console.warn('[uploadChatMedia] 이미지 크기 추출 실패:', error);
+      }
+    }
+
+    // FormData 생성
+    const formData = new FormData();
+    formData.append('file', file);
+    formData.append('scheduleId', scheduleId);
+    formData.append('messageId', messageId);
+
+    // API Route로 업로드
+    const response = await fetch('/api/upload-chat-media', {
+      method: 'POST',
+      body: formData,
+    });
+
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.error || '업로드 실패');
+    }
+
+    const data = await response.json();
+
+    // MessageAttachment 객체 생성
+    const attachment: MessageAttachment = {
+      type: data.type,
+      url: data.url,
+      fileName: data.fileName,
+      size: data.size,
+      mimeType: data.mimeType,
+      width,
+      height,
+    };
+
+    console.log('[uploadChatMedia] 업로드 완료:', attachment);
+
+    return attachment;
+  } catch (error) {
+    console.error('[uploadChatMedia] 업로드 실패:', error);
+    throw error;
+  }
+}
+
+/**
+ * 이미지 크기 추출
+ */
+function getImageDimensions(file: File): Promise<{ width: number; height: number }> {
+  return new Promise((resolve, reject) => {
+    if (!file.type.startsWith('image/')) {
+      reject(new Error('이미지 파일이 아닙니다.'));
+      return;
+    }
+
+    const img = new Image();
+    const url = URL.createObjectURL(file);
+
+    img.onload = () => {
+      URL.revokeObjectURL(url);
+      resolve({ width: img.width, height: img.height });
+    };
+
+    img.onerror = () => {
+      URL.revokeObjectURL(url);
+      reject(new Error('이미지 로드 실패'));
+    };
+
+    img.src = url;
+  });
 }
 
 /**
