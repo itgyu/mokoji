@@ -158,30 +158,82 @@ export default function AuthPage() {
         {step === 'login' && (
           <div className="bg-white rounded-2xl shadow-xl p-8">
             <div className="text-center mb-8">
-              {/* 브랜드 로고 - icon.tsx와 완전히 동일 */}
+              {/* 브랜드 로고 - icon.tsx와 동일한 구조 (배경 없음) */}
               <div className="flex justify-center mb-6">
-                <div
-                  className="relative w-[180px] h-[180px] rounded-2xl flex items-center justify-center"
-                  style={{
-                    background: 'linear-gradient(135deg, #FFF9F5 0%, #FFE8D6 100%)'
-                  }}
-                >
+                <div className="relative w-[140px] h-[140px] flex items-center justify-center">
                   {/* 큰 원 테두리 */}
-                  <div className="relative w-[140px] h-[140px] rounded-full border-[6px] border-[#FF9B50] flex items-center justify-center">
+                  <div
+                    style={{
+                      width: 140,
+                      height: 140,
+                      borderRadius: '50%',
+                      border: '6px solid #FF9B50',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      position: 'relative',
+                    }}
+                  >
                     {/* 중앙 동그라미 */}
-                    <div className="absolute w-[24px] h-[24px] rounded-full bg-[#FF9B50]" />
+                    <div
+                      style={{
+                        width: 24,
+                        height: 24,
+                        borderRadius: '50%',
+                        background: '#FF9B50',
+                        position: 'absolute',
+                      }}
+                    />
 
                     {/* 위 */}
-                    <div className="absolute w-[20px] h-[20px] rounded-full bg-[#A8D08D] -top-[10px]" />
+                    <div
+                      style={{
+                        width: 20,
+                        height: 20,
+                        borderRadius: '50%',
+                        background: '#A8D08D',
+                        position: 'absolute',
+                        top: -10,
+                      }}
+                    />
 
                     {/* 오른쪽 */}
-                    <div className="absolute w-[20px] h-[20px] rounded-full bg-[#FF6B6B] -right-[10px]" />
+                    <div
+                      style={{
+                        width: 20,
+                        height: 20,
+                        borderRadius: '50%',
+                        background: '#FF6B6B',
+                        position: 'absolute',
+                        right: -10,
+                      }}
+                    />
 
                     {/* 아래 */}
-                    <div className="absolute w-[20px] h-[20px] rounded-full bg-[#FF9B50] opacity-80 -bottom-[10px]" />
+                    <div
+                      style={{
+                        width: 20,
+                        height: 20,
+                        borderRadius: '50%',
+                        background: '#FF9B50',
+                        position: 'absolute',
+                        bottom: -10,
+                        opacity: 0.8,
+                      }}
+                    />
 
                     {/* 왼쪽 */}
-                    <div className="absolute w-[20px] h-[20px] rounded-full bg-[#A8D08D] opacity-80 -left-[10px]" />
+                    <div
+                      style={{
+                        width: 20,
+                        height: 20,
+                        borderRadius: '50%',
+                        background: '#A8D08D',
+                        position: 'absolute',
+                        left: -10,
+                        opacity: 0.8,
+                      }}
+                    />
                   </div>
                 </div>
               </div>
