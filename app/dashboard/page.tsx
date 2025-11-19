@@ -1623,6 +1623,26 @@ ${BRAND.NAME}와 함께하는 모임 일정에 참여하세요!
     return new Date(dateString)
   }
 
+  // 아바타 URL 검증 함수 (이모티콘이나 잘못된 URL 필터링)
+  const getValidAvatarUrl = (avatar: string | undefined | null): string => {
+    if (!avatar || avatar.trim() === '') {
+      return '/default-avatar.svg'
+    }
+
+    // 이모티콘인지 확인 (유니코드 이모티콘 범위)
+    const emojiRegex = /[\u{1F600}-\u{1F64F}\u{1F300}-\u{1F5FF}\u{1F680}-\u{1F6FF}\u{1F1E0}-\u{1F1FF}\u{2600}-\u{26FF}\u{2700}-\u{27BF}\u{1F900}-\u{1F9FF}\u{1FA00}-\u{1FA6F}]/u
+    if (emojiRegex.test(avatar)) {
+      return '/default-avatar.svg'
+    }
+
+    // URL 형식인지 확인 (http, https, / 로 시작)
+    if (!avatar.startsWith('http') && !avatar.startsWith('/')) {
+      return '/default-avatar.svg'
+    }
+
+    return avatar
+  }
+
   // 멤버의 마지막 참여일로부터 경과일 계산 함수
   const getMemberLastParticipationDays = (memberName: string): number | null => {
     const today = new Date()
@@ -2895,7 +2915,7 @@ ${BRAND.NAME}와 함께하는 모임 일정에 참여하세요!
                           className="w-10 h-10 md:w-12 md:h-12 rounded-full flex items-center justify-center overflow-hidden cursor-pointer hover:ring-2 hover:ring-[#FF9B50] bg-gray-200"
                         >
                           <img
-                            src={member.avatar || '/default-avatar.svg'}
+                            src={getValidAvatarUrl(member.avatar)}
                             alt={member.name}
                             className="w-full h-full object-cover"
                             onError={(e) => {
@@ -3232,7 +3252,7 @@ ${BRAND.NAME}와 함께하는 모임 일정에 참여하세요!
                 <div className="relative w-16 h-16 md:w-20 md:h-20 sm:w-24 sm:h-24 mx-auto mb-3 sm:mb-4 group">
                   <div className="w-full h-full bg-gradient-to-br from-orange-50 to-indigo-50 rounded-full flex items-center justify-center text-base md:text-lg md:text-xl md:text-2xl md:text-3xl sm:text-4xl overflow-hidden">
                     <img
-                      src={profile.avatar || '/default-avatar.svg'}
+                      src={getValidAvatarUrl(profile.avatar)}
                       alt={profile.name}
                       className="w-full h-full object-cover"
                       onError={(e) => {
