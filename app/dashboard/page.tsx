@@ -2408,10 +2408,38 @@ ${BRAND.NAME}와 함께하는 모임 일정에 참여하세요!
               // 필터 적용
               let filteredSchedules = upcomingSchedules
               const myName = userProfile?.name || user?.displayName || '익명'
+              const myUid = user?.uid || ''
+
+              // 참여 여부 확인 헬퍼 함수
+              const isParticipating = (schedule: any) => {
+                const participants = schedule.participants
+                if (!participants) return false
+
+                // 배열인 경우
+                if (Array.isArray(participants)) {
+                  // 문자열 배열 체크 (기존 방식)
+                  if (participants.some(p => typeof p === 'string' && p === myName)) {
+                    return true
+                  }
+
+                  // 객체 배열 체크 (새 방식)
+                  return participants.some(p =>
+                    typeof p === 'object' && p !== null && (
+                      p.userId === myUid ||
+                      p.userName === myName ||
+                      p.uid === myUid ||
+                      p.name === myName
+                    )
+                  )
+                }
+
+                return false
+              }
+
               if (scheduleFilter === 'joined') {
-                filteredSchedules = upcomingSchedules.filter(s => s.participants?.includes(myName))
+                filteredSchedules = upcomingSchedules.filter(s => isParticipating(s))
               } else if (scheduleFilter === 'not-joined') {
-                filteredSchedules = upcomingSchedules.filter(s => !s.participants?.includes(myName))
+                filteredSchedules = upcomingSchedules.filter(s => !isParticipating(s))
               }
 
               if (filteredSchedules.length === 0) {
@@ -2586,10 +2614,38 @@ ${BRAND.NAME}와 함께하는 모임 일정에 참여하세요!
                 {(() => {
                   let filteredSchedules = upcomingSchedules
                   const myName = userProfile?.name || user?.displayName || '익명'
+                  const myUid = user?.uid || ''
+
+                  // 참여 여부 확인 헬퍼 함수
+                  const isParticipating = (schedule: any) => {
+                    const participants = schedule.participants
+                    if (!participants) return false
+
+                    // 배열인 경우
+                    if (Array.isArray(participants)) {
+                      // 문자열 배열 체크 (기존 방식)
+                      if (participants.some(p => typeof p === 'string' && p === myName)) {
+                        return true
+                      }
+
+                      // 객체 배열 체크 (새 방식)
+                      return participants.some(p =>
+                        typeof p === 'object' && p !== null && (
+                          p.userId === myUid ||
+                          p.userName === myName ||
+                          p.uid === myUid ||
+                          p.name === myName
+                        )
+                      )
+                    }
+
+                    return false
+                  }
+
                   if (scheduleFilter === 'joined') {
-                    filteredSchedules = upcomingSchedules.filter(s => s.participants?.includes(myName))
+                    filteredSchedules = upcomingSchedules.filter(s => isParticipating(s))
                   } else if (scheduleFilter === 'not-joined') {
-                    filteredSchedules = upcomingSchedules.filter(s => !s.participants?.includes(myName))
+                    filteredSchedules = upcomingSchedules.filter(s => !isParticipating(s))
                   }
 
                   if (filteredSchedules.length === 0) {
@@ -2602,13 +2658,13 @@ ${BRAND.NAME}와 함께하는 모임 일정에 참여하세요!
                   }
 
                   return filteredSchedules.map((schedule) => {
-                  const isParticipating = schedule.participants?.includes(myName)
+                  const scheduleIsParticipating = isParticipating(schedule)
                   return (
                     <div
                       key={schedule.id}
                       onClick={() => router.push(`/schedules/${schedule.id}?from=${currentPage}${urlOrgId ? `&orgId=${urlOrgId}` : ''}`)}
                       className={`bg-white rounded-2xl p-5 shadow-sm border transition-all cursor-pointer active:scale-[0.98] ${
-                        isParticipating ? 'border-[#FF9B50] shadow-md' : 'border-stone-100 hover:border-[#FF9B50] hover:shadow-md'
+                        scheduleIsParticipating ? 'border-[#FF9B50] shadow-md' : 'border-stone-100 hover:border-[#FF9B50] hover:shadow-md'
                       }`}
                     >
                       <div className="flex justify-between items-start mb-4">
