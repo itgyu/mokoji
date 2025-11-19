@@ -158,30 +158,29 @@ export default function AuthPage() {
         {step === 'login' && (
           <div className="bg-white rounded-2xl shadow-xl p-8">
             <div className="text-center mb-8">
-              {/* 브랜드 로고 - 웹 아이콘과 동일한 디자인 */}
+              {/* 브랜드 로고 - 웹 아이콘과 완전히 동일한 디자인 */}
               <div className="flex justify-center mb-6">
-                <div className="relative w-20 h-20">
+                <div className="relative w-[140px] h-[140px]">
                   {/* 큰 원 테두리 */}
-                  <div className="absolute inset-0 rounded-full border-[3px] border-[#FF9B50] flex items-center justify-center">
+                  <div className="absolute inset-0 rounded-full border-[6px] border-[#FF9B50] flex items-center justify-center">
                     {/* 중앙 동그라미 */}
-                    <div className="absolute w-3.5 h-3.5 rounded-full bg-[#FF9B50]" />
+                    <div className="absolute w-[24px] h-[24px] rounded-full bg-[#FF9B50]" />
 
                     {/* 위 */}
-                    <div className="absolute w-3 h-3 rounded-full bg-[#A8D08D] -top-1.5 left-1/2 -translate-x-1/2" />
+                    <div className="absolute w-[20px] h-[20px] rounded-full bg-[#A8D08D] -top-[10px] left-1/2 -translate-x-1/2" />
 
                     {/* 오른쪽 */}
-                    <div className="absolute w-3 h-3 rounded-full bg-[#FF6B6B] -right-1.5 top-1/2 -translate-y-1/2" />
+                    <div className="absolute w-[20px] h-[20px] rounded-full bg-[#FF6B6B] -right-[10px] top-1/2 -translate-y-1/2" />
 
                     {/* 아래 */}
-                    <div className="absolute w-3 h-3 rounded-full bg-[#FF9B50] opacity-80 -bottom-1.5 left-1/2 -translate-x-1/2" />
+                    <div className="absolute w-[20px] h-[20px] rounded-full bg-[#FF9B50] opacity-80 -bottom-[10px] left-1/2 -translate-x-1/2" />
 
                     {/* 왼쪽 */}
-                    <div className="absolute w-3 h-3 rounded-full bg-[#A8D08D] opacity-80 -left-1.5 top-1/2 -translate-y-1/2" />
+                    <div className="absolute w-[20px] h-[20px] rounded-full bg-[#A8D08D] opacity-80 -left-[10px] top-1/2 -translate-y-1/2" />
                   </div>
                 </div>
               </div>
               <h1 className="text-title mb-2">{BRAND.NAME}</h1>
-              <p className="text-body text-[#78716C] mb-1">{BRAND.DESCRIPTION}</p>
               <p className="text-caption text-[#A8A29E]">제주어로 '친목 도모를 위한 모임'을 뜻합니다</p>
             </div>
 
