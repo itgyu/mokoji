@@ -158,9 +158,20 @@ export default function AuthPage() {
         {step === 'login' && (
           <div className="bg-white rounded-2xl shadow-xl p-8">
             <div className="text-center mb-8">
-              {/* 브랜드 로고 컨테이너 */}
-              <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-gradient-to-br from-[#FF9B50] to-[#FF8A3D] mb-6 shadow-lg">
-                <span className="text-3xl font-bold text-white">{BRAND.NAME[0]}</span>
+              {/* 브랜드 로고 */}
+              <div className="flex justify-center mb-6">
+                <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-[#FF9B50] to-[#FF8A3D] flex items-center justify-center shadow-lg relative overflow-hidden">
+                  <div className="absolute inset-0 opacity-10">
+                    <svg className="w-full h-full" viewBox="0 0 100 100" fill="none">
+                      <circle cx="20" cy="20" r="15" fill="white" />
+                      <circle cx="80" cy="80" r="15" fill="white" />
+                      <circle cx="50" cy="50" r="20" fill="white" opacity="0.5" />
+                    </svg>
+                  </div>
+                  <svg className="w-8 h-8 text-white relative z-10" fill="currentColor" viewBox="0 0 24 24">
+                    <path d="M12 12.75c1.63 0 3.07.39 4.24.9 1.08.48 1.76 1.56 1.76 2.73V18H6v-1.61c0-1.18.68-2.26 1.76-2.73 1.17-.52 2.61-.91 4.24-.91zM4 13c1.1 0 2-.9 2-2s-.9-2-2-2-2 .9-2 2 .9 2 2 2zm1.13 1.1c-.37-.06-.74-.1-1.13-.1-.99 0-1.93.21-2.78.58A2.01 2.01 0 000 16.43V18h4.5v-1.61c0-.83.23-1.61.63-2.29zM20 13c1.1 0 2-.9 2-2s-.9-2-2-2-2 .9-2 2 .9 2 2 2zm4 3.43c0-.81-.48-1.53-1.22-1.85A6.95 6.95 0 0020 14c-.39 0-.76.04-1.13.1.4.68.63 1.46.63 2.29V18H24v-1.57zM12 6c1.66 0 3 1.34 3 3s-1.34 3-3 3-3-1.34-3-3 1.34-3 3-3z" />
+                  </svg>
+                </div>
               </div>
               <h1 className="text-title mb-2">{BRAND.NAME}</h1>
               <p className="text-body text-[#78716C]">{BRAND.DESCRIPTION}</p>
@@ -220,10 +231,12 @@ export default function AuthPage() {
           <div className="bg-white rounded-2xl shadow-xl p-8">
             <div className="text-center mb-8">
               {/* 환영 아이콘 */}
-              <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-gradient-to-br from-[#FF9B50] to-[#FF8A3D] mb-6">
-                <svg className="w-8 h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14 10h4.764a2 2 0 011.789 2.894l-3.5 7A2 2 0 0115.263 21h-4.017c-.163 0-.326-.02-.485-.06L7 20m7-10V5a2 2 0 00-2-2h-.095c-.5 0-.905.405-.905.905 0 .714-.211 1.412-.608 2.006L7 11v9m7-10h-2M7 20H5a2 2 0 01-2-2v-6a2 2 0 012-2h2.5" />
-                </svg>
+              <div className="flex justify-center mb-6">
+                <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-[#FF9B50] to-[#FF8A3D] flex items-center justify-center shadow-lg">
+                  <svg className="w-8 h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M18 9v3m0 0v3m0-3h3m-3 0h-3m-2-5a4 4 0 11-8 0 4 4 0 018 0zM3 20a6 6 0 0112 0v1H3v-1z" />
+                  </svg>
+                </div>
               </div>
               <h1 className="text-title mb-2">환영합니다!</h1>
             </div>
