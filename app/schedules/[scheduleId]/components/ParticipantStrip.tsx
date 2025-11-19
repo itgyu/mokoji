@@ -16,7 +16,7 @@ interface ParticipantStripProps {
 export function ParticipantStrip({ participants, maxDisplay = 10 }: ParticipantStripProps) {
   // 상태별로 그룹화
   const going = participants.filter((p) => p.status === 'going');
-  const maybe = participants.filter((p) => p.status === 'maybe');
+  const waiting = participants.filter((p) => p.status === 'waiting');
   const declined = participants.filter((p) => p.status === 'declined');
 
   if (participants.length === 0) {
@@ -39,8 +39,8 @@ export function ParticipantStrip({ participants, maxDisplay = 10 }: ParticipantS
             </span>
           </div>
           <div className="flex gap-2 overflow-x-auto pb-2 hide-scrollbar">
-            {going.slice(0, maxDisplay).map((participant) => (
-              <ParticipantItem key={participant.userId} participant={participant} />
+            {going.slice(0, maxDisplay).map((participant, index) => (
+              <ParticipantItem key={`${participant.userId}-${index}`} participant={participant} />
             ))}
             {going.length > maxDisplay && (
               <div className="flex items-center justify-center px-3 py-2 text-sm text-muted-foreground bg-muted rounded-lg whitespace-nowrap">
@@ -51,22 +51,22 @@ export function ParticipantStrip({ participants, maxDisplay = 10 }: ParticipantS
         </div>
       )}
 
-      {/* 미정 */}
-      {maybe.length > 0 && (
+      {/* 대기 */}
+      {waiting.length > 0 && (
         <div className="space-y-2">
           <div className="flex items-center gap-2">
             <RSVPBadge status="maybe" size="sm" />
             <span className="text-sm font-medium text-foreground">
-              {maybe.length}명
+              {waiting.length}명
             </span>
           </div>
           <div className="flex gap-2 overflow-x-auto pb-2 hide-scrollbar">
-            {maybe.slice(0, maxDisplay).map((participant) => (
-              <ParticipantItem key={participant.userId} participant={participant} />
+            {waiting.slice(0, maxDisplay).map((participant, index) => (
+              <ParticipantItem key={`${participant.userId}-${index}`} participant={participant} />
             ))}
-            {maybe.length > maxDisplay && (
+            {waiting.length > maxDisplay && (
               <div className="flex items-center justify-center px-3 py-2 text-sm text-muted-foreground bg-muted rounded-lg whitespace-nowrap">
-                +{maybe.length - maxDisplay}
+                +{waiting.length - maxDisplay}
               </div>
             )}
           </div>
@@ -83,9 +83,9 @@ export function ParticipantStrip({ participants, maxDisplay = 10 }: ParticipantS
             </span>
           </div>
           <div className="flex gap-2 overflow-x-auto pb-2 hide-scrollbar">
-            {declined.slice(0, maxDisplay).map((participant) => (
+            {declined.slice(0, maxDisplay).map((participant, index) => (
               <ParticipantItem
-                key={participant.userId}
+                key={`${participant.userId}-${index}`}
                 participant={participant}
                 dimmed
               />

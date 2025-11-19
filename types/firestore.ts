@@ -48,8 +48,11 @@ export type ScheduleStatus = 'scheduled' | 'ongoing' | 'completed' | 'cancelled'
 
 /**
  * 참석 응답 상태
+ * - going: 참석 (선착순 마감)
+ * - waiting: 대기 (정원 초과 시)
+ * - declined: 불참
  */
-export type RSVPStatus = 'going' | 'maybe' | 'declined';
+export type RSVPStatus = 'going' | 'waiting' | 'declined';
 
 /**
  * 일정 참여자

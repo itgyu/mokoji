@@ -29,7 +29,7 @@ export function ScheduleSummaryCard({ schedule }: ScheduleSummaryCardProps) {
 
   // 참가 요약 계산
   const going = schedule.participants.filter((p) => p.status === 'going').length;
-  const maybe = schedule.participants.filter((p) => p.status === 'maybe').length;
+  const waiting = schedule.participants.filter((p) => p.status === 'waiting').length;
   const declined = schedule.participants.filter((p) => p.status === 'declined').length;
 
   // 날짜 포맷
@@ -93,8 +93,8 @@ export function ScheduleSummaryCard({ schedule }: ScheduleSummaryCardProps) {
         </div>
         <span className="text-muted-foreground">·</span>
         <div className="flex items-center gap-1">
-          <span className="text-muted-foreground">미정</span>
-          <strong className="text-amber-600 dark:text-amber-400">{maybe}</strong>
+          <span className="text-muted-foreground">대기</span>
+          <strong className="text-amber-600 dark:text-amber-400">{waiting}</strong>
         </div>
         <span className="text-muted-foreground">·</span>
         <div className="flex items-center gap-1">

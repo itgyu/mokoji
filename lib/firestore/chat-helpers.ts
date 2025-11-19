@@ -78,12 +78,12 @@ export async function createRSVPSystemMessage(
   scheduleId: string,
   userName: string,
   userId: string,
-  newStatus: 'going' | 'maybe' | 'declined',
+  newStatus: 'going' | 'waiting' | 'declined',
   oldStatus?: string
 ): Promise<void> {
   const statusText = {
     going: '참석',
-    maybe: '미정',
+    waiting: '대기',
     declined: '불참',
   }[newStatus];
 

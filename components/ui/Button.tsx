@@ -106,6 +106,10 @@ export interface ButtonProps
    * 오른쪽 아이콘
    */
   rightIcon?: React.ReactNode;
+  /**
+   * 아이콘만 표시하는 버튼 (텍스트 없음)
+   */
+  iconOnly?: boolean;
 }
 
 /**
@@ -135,6 +139,7 @@ export const Button = forwardRef<HTMLButtonElement, ButtonProps>(
       children,
       disabled,
       type = 'button',
+      iconOnly,
       ...props
     },
     ref

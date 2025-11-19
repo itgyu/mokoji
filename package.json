@@ -16,6 +16,8 @@
     "create:minji-profile": "tsx scripts/create-minji-profile.ts",
     "migrate:dates": "tsx scripts/migrate-dates-to-string.ts",
     "migrate:schedule-dates": "tsx scripts/migrate-schedule-dates.ts",
+    "fix:all-schedules": "tsx scripts/fix-all-schedules.ts",
+    "check:crew-leader": "tsx scripts/check-crew-leader.ts",
     "functions:build": "cd functions && npm run build",
     "functions:serve": "cd functions && npm run serve",
     "functions:deploy": "cd functions && npm run deploy",

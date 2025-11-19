@@ -49,7 +49,7 @@ export default function ScheduleDeepLink({
       // Firestore에서 일정 문서 직접 조회
       const fetchScheduleAndSelectOrg = async () => {
         try {
-          const scheduleDoc = await getDoc(doc(db, 'schedules', scheduleId))
+          const scheduleDoc = await getDoc(doc(db, 'org_schedules', scheduleId))
           if (scheduleDoc.exists()) {
             const scheduleData = scheduleDoc.data()
             const orgId = scheduleData.orgId

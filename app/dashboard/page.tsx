@@ -2,8 +2,8 @@
 
 export const dynamic = 'force-dynamic'
 
-import { useState, useEffect, Suspense, useCallback } from 'react'
-import { useRouter } from 'next/navigation'
+import { useState, useEffect, Suspense, useCallback, useMemo } from 'react'
+import { useRouter, useSearchParams } from 'next/navigation'
 import { useAuth } from '@/contexts/AuthContext'
 import { signOut } from 'firebase/auth'
 import { auth, db } from '@/lib/firebase'
@@ -95,13 +95,33 @@ interface Organization {
 export default function DashboardPage() {
   const { user, userProfile, memberships, loading } = useAuth()
   const router = useRouter()
-  const [currentPage, setCurrentPage] = useState<Page>('home')
+  const searchParams = useSearchParams()
+
+  // URL에서 page 파라미터를 읽어 현재 페이지를 직접 계산 (useState 대신 useMemo 사용)
+  const currentPage = useMemo(() => {
+    const page = searchParams.get('page')
+    if (page && ['home', 'category', 'mycrew', 'myprofile', 'schedules'].includes(page)) {
+      return page as Page
+    }
+    return 'home' as Page
+  }, [searchParams])
+
   const [schedules, setSchedules] = useState<Schedule[]>([])
   const [members, setMembers] = useState<Member[]>([])
   const [organizations, setOrganizations] = useState<Organization[]>([]) // 내가 가입한 크루
   const [allOrganizations, setAllOrganizations] = useState<Organization[]>([]) // 모든 크루 (크루 찾기용)
   const [recommendedOrgs, setRecommendedOrgs] = useState<Organization[]>([])
-  const [selectedOrg, setSelectedOrg] = useState<Organization | null>(null)
+
+  // URL에서 orgId 파라미터를 읽어 선택된 크루를 직접 계산 (useState 대신 useMemo 사용)
+  const urlOrgId = searchParams.get('orgId')
+  const selectedOrg = useMemo(() => {
+    if (!urlOrgId || organizations.length === 0) return null
+    const org = organizations.find(o => o.id === urlOrgId)
+    if (org) {
+      console.log('[Dashboard] Selected org from URL:', org.name)
+    }
+    return org || null
+  }, [urlOrgId, organizations])
   const [selectedSchedule, setSelectedSchedule] = useState<Schedule | null>(null)
   const [showMemberList, setShowMemberList] = useState(false)
   const [scheduleFilter, setScheduleFilter] = useState<'all' | 'joined' | 'not-joined'>('all')
@@ -520,7 +540,7 @@ export default function DashboardPage() {
 
       // schedules 컬렉션에서 해당 크루의 일정을 실시간으로 감지 (서버 사이드 필터링)
       const q = query(
-        collection(db, 'schedules'),
+        collection(db, 'org_schedules'),
         where('orgId', '==', orgId)
       )
       console.log('📡 Query 객체 생성 완료 (orgId 필터 적용)')
@@ -568,7 +588,7 @@ export default function DashboardPage() {
 
       orgIds.forEach((orgId) => {
         const q = query(
-          collection(db, 'schedules'),
+          collection(db, 'org_schedules'),
           where('orgId', '==', orgId)
         )
 
@@ -1021,10 +1041,10 @@ export default function DashboardPage() {
       })
 
       // 3. schedules에서 해당 크루의 모든 일정 삭제
-      const schedulesQuery = query(collection(db, 'schedules'), where('orgId', '==', editingOrg.id))
+      const schedulesQuery = query(collection(db, 'org_schedules'), where('orgId', '==', editingOrg.id))
       const schedulesSnapshot = await getDocs(schedulesQuery)
       schedulesSnapshot.docs.forEach((scheduleDoc) => {
-        batch.delete(doc(db, 'schedules', scheduleDoc.id))
+        batch.delete(doc(db, 'org_schedules', scheduleDoc.id))
       })
 
       // 4. 모든 userProfiles의 organizations 배열에서 크루 ID 제거
@@ -1044,7 +1064,7 @@ export default function DashboardPage() {
       alert(`"${editingOrg.name}" 크루가 해체되었습니다.`)
       setEditingOrg(null)
       setShowDeleteCrewConfirm(false)
-      setSelectedOrg(null)
+      router.replace('/dashboard?page=mycrew', { scroll: false })
 
       // 크루 목록 새로고침
       fetchOrganizations()
@@ -1122,7 +1142,7 @@ export default function DashboardPage() {
       // 새로 생성한 크루를 선택
       const newOrg = await getDoc(docRef)
       if (newOrg.exists()) {
-        setSelectedOrg({ id: newOrg.id, ...newOrg.data() } as Organization)
+        router.replace(`/dashboard?page=mycrew&orgId=${newOrg.id}`, { scroll: false })
       }
     } catch (error) {
       console.error('❌ 크루 생성 실패:', error)
@@ -1265,11 +1285,8 @@ export default function DashboardPage() {
       alert(`${member.name}님이 크루에 가입되었습니다!`)
       fetchOrganizations()
 
-      // 현재 선택된 크루 정보 새로고침
+      // 멤버 리스트 새로고침
       if (selectedOrg) {
-        const updatedOrg = await getDoc(orgRef)
-        setSelectedOrg({ id: updatedOrg.id, ...updatedOrg.data() } as Organization)
-        // 멤버 리스트도 새로고침
         await fetchMembers(orgId)
       }
 
@@ -1295,12 +1312,6 @@ export default function DashboardPage() {
 
       alert(`${member.name}님의 가입 신청이 거절되었습니다.`)
       fetchOrganizations()
-
-      // 현재 선택된 크루 정보 새로고침
-      if (selectedOrg) {
-        const updatedOrg = await getDoc(orgRef)
-        setSelectedOrg({ id: updatedOrg.id, ...updatedOrg.data() } as Organization)
-      }
 
     } catch (error) {
       console.error('거절 실패:', error)
@@ -1346,7 +1357,7 @@ export default function DashboardPage() {
       const dayOfWeek = days[selectedDate.getDay()]
       const displayDate = `${month}/${day}(${dayOfWeek})`
 
-      await addDoc(collection(db, 'schedules'), {
+      await addDoc(collection(db, 'org_schedules'), {
         title: createScheduleForm.title,
         date: displayDate,      // Display format for UI
         dateISO: isoDate,       // ISO format for comparison
@@ -1359,7 +1370,10 @@ export default function DashboardPage() {
         createdByUid: user.uid,
         orgId: selectedOrg.id,
         comments: [],
-        createdAt: new Date().toISOString()
+        createdAt: new Date().toISOString(),
+        hasChat: true,  // 채팅 기능 활성화
+        lastChatMessageAt: null,
+        lastChatMessagePreview: null
       })
 
       alert('일정이 생성되었습니다.')
@@ -1404,7 +1418,7 @@ export default function DashboardPage() {
     }
 
     try {
-      const scheduleRef = doc(db, 'schedules', editingSchedule.id)
+      const scheduleRef = doc(db, 'org_schedules', editingSchedule.id)
 
       // editScheduleForm.date is now in ISO format: "2025-11-22"
       const isoDate = editScheduleForm.date
@@ -1440,7 +1454,7 @@ export default function DashboardPage() {
 
     try {
       const { deleteDoc } = await import('firebase/firestore')
-      const scheduleRef = doc(db, 'schedules', schedule.id)
+      const scheduleRef = doc(db, 'org_schedules', schedule.id)
       await deleteDoc(scheduleRef)
 
       alert('일정이 삭제되었습니다.')
@@ -1459,7 +1473,7 @@ export default function DashboardPage() {
         return
       }
 
-      const scheduleRef = doc(db, 'schedules', schedule.id)
+      const scheduleRef = doc(db, 'org_schedules', schedule.id)
       const updatedParticipants = [...(schedule.participants || []), memberName]
       await updateDoc(scheduleRef, { participants: updatedParticipants })
 
@@ -1478,7 +1492,7 @@ export default function DashboardPage() {
 
   const handleRemoveParticipant = async (schedule: Schedule, memberName: string) => {
     try {
-      const scheduleRef = doc(db, 'schedules', schedule.id)
+      const scheduleRef = doc(db, 'org_schedules', schedule.id)
       const updatedParticipants = schedule.participants.filter(name => name !== memberName)
       await updateDoc(scheduleRef, { participants: updatedParticipants })
 
@@ -1542,7 +1556,7 @@ ${BRAND.NAME}와 함께하는 모임 일정에 참여하세요!
     if (!commentText.trim() || !user) return
 
     try {
-      const scheduleRef = doc(db, 'schedules', schedule.id)
+      const scheduleRef = doc(db, 'org_schedules', schedule.id)
       const newComment: Comment = {
         id: Date.now().toString(),
         userName: userProfile?.name || user.displayName || '익명',
@@ -1563,7 +1577,7 @@ ${BRAND.NAME}와 함께하는 모임 일정에 참여하세요!
     if (!window.confirm('정말 이 댓글을 삭제하시겠습니까?')) return
 
     try {
-      const scheduleRef = doc(db, 'schedules', schedule.id)
+      const scheduleRef = doc(db, 'org_schedules', schedule.id)
       const updatedComments = schedule.comments?.filter(comment => comment.id !== commentId) || []
       await updateDoc(scheduleRef, { comments: updatedComments })
     } catch (error) {
@@ -1709,7 +1723,7 @@ ${BRAND.NAME}와 함께하는 모임 일정에 참여하세요!
       if (!selectedOrg) return
 
       const myName = userProfile?.name || user?.displayName || '익명'
-      const scheduleRef = doc(db, 'schedules', schedule.id)
+      const scheduleRef = doc(db, 'org_schedules', schedule.id)
       const isParticipating = schedule.participants?.includes(myName)
 
       let updatedParticipants: string[]
@@ -1737,7 +1751,8 @@ ${BRAND.NAME}와 함께하는 모임 일정에 참여하세요!
     }
   }
 
-  if (loading) {
+  // 초기 로딩 중이고 유저가 없을 때만 로딩 화면 표시 (이미 인증된 상태에서는 깜빡임 방지)
+  if (loading && !user) {
     return <LoadingScreen />
   }
 
@@ -1889,7 +1904,6 @@ ${BRAND.NAME}와 함께하는 모임 일정에 참여하세요!
           selectedSchedule={selectedSchedule}
           setSelectedSchedule={setSelectedSchedule}
           organizations={organizations}
-          setSelectedOrg={setSelectedOrg}
         />
       </Suspense>
 
@@ -1936,7 +1950,7 @@ ${BRAND.NAME}와 함께하는 모임 일정에 참여하세요!
                 {/* 동네 인증 버튼 (미인증 시) */}
                 {(!userProfile?.locations || userProfile.locations.length === 0) && (
                   <button
-                    onClick={() => setCurrentPage('myprofile')}
+                    onClick={() => router.replace('/dashboard?page=myprofile', { scroll: false })}
                     className="px-3 sm:px-4 py-1.5 sm:py-2 bg-orange-500 text-white text-xs sm:text-sm font-semibold rounded-lg hover:bg-orange-600 active:scale-95 transition-all"
                   >
                     동네 인증
@@ -1979,7 +1993,7 @@ ${BRAND.NAME}와 함께하는 모임 일정에 참여하세요!
                 }
 
                 // 크루 카드 가로 슬라이드 (Embla Carousel)
-                return <NearbyCrewsCarousel nearbyCrews={nearbyCrews} setSelectedOrg={setSelectedOrg} setCurrentPage={setCurrentPage} orgMemberCounts={orgMemberCounts} formatDistance={formatDistance} />
+                return <NearbyCrewsCarousel nearbyCrews={nearbyCrews} router={router} orgMemberCounts={orgMemberCounts} formatDistance={formatDistance} />
               })()}
             </div>
 
@@ -2007,7 +2021,7 @@ ${BRAND.NAME}와 함께하는 모임 일정에 참여하세요!
                   onClick={() => {
                     console.log('📅 내 참여 일정 전체보기 클릭')
                     setScheduleFilter('joined')  // ← 중요: 참여한 일정만 보기
-                    setCurrentPage('schedules')  // 독립적인 일정 페이지로 이동
+                    router.replace('/dashboard?page=schedules', { scroll: false })  // 독립적인 일정 페이지로 이동
                   }}
                   className="text-[#FF9B50] text-sm font-bold hover:text-[#FF8A3D] active:scale-95 transition-all px-3 py-2 rounded-lg hover:bg-orange-50"
                 >
@@ -2025,7 +2039,7 @@ ${BRAND.NAME}와 함께하는 모임 일정에 참여하세요!
                   {mySchedules.slice(0, 3).map((schedule) => (
                     <div
                       key={schedule.id}
-                      onClick={() => setSelectedSchedule(schedule)}
+                      onClick={() => router.push(`/schedules/${schedule.id}?from=${currentPage}`)}
                       className="bg-[#FFFBF7] rounded-2xl p-3 md:p-6 hover:bg-[#F5F5F4] active:scale-[0.98] transition-all cursor-pointer border border-transparent hover:border-[#FF9B50]/20"
                     >
                       <div className="flex justify-between items-start mb-4">
@@ -2108,8 +2122,7 @@ ${BRAND.NAME}와 함께하는 모임 일정에 참여하세요!
                     <div
                       key={org.id}
                       onClick={() => {
-                        setSelectedOrg(org)
-                        setCurrentPage('mycrew')
+                        router.replace(`/dashboard?page=mycrew&orgId=${org.id}`, { scroll: false })
                       }}
                       className="bg-white rounded-2xl p-5 shadow-sm border border-stone-100 hover:border-[#FF9B50] hover:shadow-md transition-all cursor-pointer active:scale-[0.98]"
                     >
@@ -2183,8 +2196,7 @@ ${BRAND.NAME}와 함께하는 모임 일정에 참여하세요!
                     <div
                       key={org.id}
                       onClick={() => {
-                        setSelectedOrg(org)
-                        setCurrentPage('mycrew')
+                        router.replace(`/dashboard?page=mycrew&orgId=${org.id}`, { scroll: false })
                       }}
                       className="bg-white rounded-2xl p-5 shadow-sm border border-stone-100 hover:border-[#FF9B50] hover:shadow-md transition-all cursor-pointer active:scale-[0.98]"
                     >
@@ -2242,7 +2254,7 @@ ${BRAND.NAME}와 함께하는 모임 일정에 참여하세요!
       )}
 
       {/* My Crew List Page - 가입한 크루 목록 */}
-      {currentPage === 'mycrew' && !selectedOrg && (
+      {currentPage === 'mycrew' && !urlOrgId && (
         <div className="bg-[#FFFBF7] min-h-screen">
           {/* 헤더 */}
           <header className="sticky top-0 bg-white z-10 safe-top border-b border-stone-100">
@@ -2276,7 +2288,9 @@ ${BRAND.NAME}와 함께하는 모임 일정에 참여하세요!
                   return (
                     <div
                       key={org.id}
-                      onClick={() => setSelectedOrg(org)}
+                      onClick={() => {
+                        router.replace(`/dashboard?page=mycrew&orgId=${org.id}`, { scroll: false })
+                      }}
                       className="bg-white rounded-2xl p-5 shadow-sm border border-stone-100 hover:border-[#FF9B50] hover:shadow-md transition-all cursor-pointer active:scale-[0.98]"
                     >
                       <div className="flex items-center gap-2 md:gap-4">
@@ -2340,7 +2354,7 @@ ${BRAND.NAME}와 함께하는 모임 일정에 참여하세요!
                 <p className="text-sm text-[#A8A29E] mt-1">모든 크루의 일정을 확인하세요</p>
               </div>
               <button
-                onClick={() => setCurrentPage('home')}
+                onClick={() => router.replace('/dashboard?page=home', { scroll: false })}
                 className="text-[#292524] text-base md:text-lg md:text-xl md:text-2xl p-2 hover:bg-gray-50 rounded-xl active:scale-95 transition-all"
               >
                 ✕
@@ -2442,7 +2456,7 @@ ${BRAND.NAME}와 함께하는 모임 일정에 참여하세요!
                             return (
                               <div
                                 key={schedule.id}
-                                onClick={() => setSelectedSchedule(schedule)}
+                                onClick={() => router.push(`/schedules/${schedule.id}?from=${currentPage}`)}
                                 className={`bg-white rounded-2xl p-5 shadow-sm border transition-all cursor-pointer active:scale-[0.98] ${
                                   isParticipating ? 'border-[#FF9B50] shadow-md' : 'border-stone-100 hover:border-[#FF9B50] hover:shadow-md'
                                 }`}
@@ -2487,32 +2501,39 @@ ${BRAND.NAME}와 함께하는 모임 일정에 참여하세요!
       )}
 
       {/* Crew Detail Page - 토스 스타일 */}
-      {currentPage === 'mycrew' && selectedOrg && (
+      {currentPage === 'mycrew' && urlOrgId && (
         <div className="bg-[#FFFBF7] min-h-screen">
-          {/* 헤더 */}
-          <header className="sticky top-0 bg-white z-10 safe-top border-b border-stone-100">
-            <div className="px-3 md:px-6 py-3 md:py-6">
-              <div className="flex items-center justify-between mb-3">
-                <button
-                  onClick={() => setSelectedOrg(null)}
-                  className="text-[#292524] text-base md:text-lg md:text-xl md:text-2xl p-2 hover:bg-gray-50 rounded-xl active:scale-95 transition-all -ml-2"
-                >
-                  ←
-                </button>
-                {canManageOrg(selectedOrg.id) && (
-                  <button
-                    onClick={() => handleOpenOrgEdit(selectedOrg)}
-                    className="px-4 py-2 bg-[#F5F5F4] text-[#292524] text-sm font-semibold rounded-xl hover:bg-[#E5E8EB] active:scale-95 transition-all"
-                  >
-                    ⚙️ 크루 정보 수정
-                  </button>
-                )}
-              </div>
-              {selectedOrg.subtitle && (
-                <p className="text-sm font-bold text-[#A8A29E] mb-1">{selectedOrg.subtitle}</p>
-              )}
-              <h1 className="text-base md:text-lg md:text-xl md:text-2xl font-bold tracking-tight text-[#292524]">{selectedOrg.name}</h1>
-            </div>
+          {!selectedOrg ? (
+            // organizations 로딩 중일 때 빈 화면 표시 (깜빡임 방지)
+            <div className="bg-[#FFFBF7] min-h-screen" />
+          ) : (
+            <>
+              {/* 헤더 */}
+              <header className="sticky top-0 bg-white z-10 safe-top border-b border-stone-100">
+                <div className="px-3 md:px-6 py-3 md:py-6">
+                  <div className="flex items-center justify-between mb-3">
+                    <button
+                      onClick={() => {
+                        router.replace('/dashboard?page=mycrew', { scroll: false })
+                      }}
+                      className="text-[#292524] text-base md:text-lg md:text-xl md:text-2xl p-2 hover:bg-gray-50 rounded-xl active:scale-95 transition-all -ml-2"
+                    >
+                      ←
+                    </button>
+                    {canManageOrg(selectedOrg.id) && (
+                      <button
+                        onClick={() => handleOpenOrgEdit(selectedOrg)}
+                        className="px-4 py-2 bg-[#F5F5F4] text-[#292524] text-sm font-semibold rounded-xl hover:bg-[#E5E8EB] active:scale-95 transition-all"
+                      >
+                        ⚙️ 크루 정보 수정
+                      </button>
+                    )}
+                  </div>
+                  {selectedOrg.subtitle && (
+                    <p className="text-sm font-bold text-[#A8A29E] mb-1">{selectedOrg.subtitle}</p>
+                  )}
+                  <h1 className="text-base md:text-lg md:text-xl md:text-2xl font-bold tracking-tight text-[#292524]">{selectedOrg.name}</h1>
+                </div>
 
             {/* 통계 카드 */}
             <div className="px-3 md:px-6 pb-6 grid grid-cols-3 gap-3">
@@ -2580,7 +2601,7 @@ ${BRAND.NAME}와 함께하는 모임 일정에 참여하세요!
                   return (
                     <div
                       key={schedule.id}
-                      onClick={() => setSelectedSchedule(schedule)}
+                      onClick={() => router.push(`/schedules/${schedule.id}?from=${currentPage}`)}
                       className={`bg-white rounded-2xl p-5 shadow-sm border transition-all cursor-pointer active:scale-[0.98] ${
                         isParticipating ? 'border-[#FF9B50] shadow-md' : 'border-stone-100 hover:border-[#FF9B50] hover:shadow-md'
                       }`}
@@ -2631,7 +2652,7 @@ ${BRAND.NAME}와 함께하는 모임 일정에 참여하세요!
                     return (
                       <div
                         key={schedule.id}
-                        onClick={() => setSelectedSchedule(schedule)}
+                        onClick={() => router.push(`/schedules/${schedule.id}?from=${currentPage}`)}
                         className="bg-gray-50 rounded-xl p-5 shadow-sm hover:shadow-md transition-shadow cursor-pointer opacity-60"
                       >
                         <div className="flex justify-between items-start mb-3">
@@ -2673,6 +2694,8 @@ ${BRAND.NAME}와 함께하는 모임 일정에 참여하세요!
               +
             </button>
           </div>
+            </>
+          )}
         </div>
       )}
 
@@ -4186,8 +4209,8 @@ ${BRAND.NAME}와 함께하는 모임 일정에 참여하세요!
                 <label className="block text-sm font-medium text-stone-700 mb-1">최대 인원 *</label>
                 <input
                   type="number"
-                  value={createScheduleForm.maxParticipants}
-                  onChange={(e) => setCreateScheduleForm({ ...createScheduleForm, maxParticipants: parseInt(e.target.value) })}
+                  value={createScheduleForm.maxParticipants || ''}
+                  onChange={(e) => setCreateScheduleForm({ ...createScheduleForm, maxParticipants: parseInt(e.target.value) || 0 })}
                   min="1"
                   className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#FF9B50]"
                 />
@@ -4225,15 +4248,17 @@ ${BRAND.NAME}와 함께하는 모임 일정에 참여하세요!
             <button
               key={id}
               onClick={() => {
-                setCurrentPage(id)
-                // 내크루 탭을 누르면 선택 초기화하여 크루 목록 표시 + 멤버 수 새로고침
+                // 탭 전환 시 스크롤을 맨 위로 리셋
+                window.scrollTo({ top: 0, behavior: 'smooth' })
+
+                // 탭 전환 시 URL만 업데이트 (currentPage는 URL에서 자동 계산됨)
                 if (id === 'mycrew') {
-                  setSelectedOrg(null)  // 크루 선택 해제 (크루 목록 표시)
+                  router.replace('/dashboard?page=mycrew', { scroll: false })
                   fetchOrganizations() // 멤버 수 새로고침
-                }
-                // 홈 탭을 누르면 첫 번째 크루 자동 선택
-                if (id === 'home' && organizations.length > 0 && !selectedOrg) {
-                  setSelectedOrg(organizations[0])
+                } else if (id === 'home' && organizations.length > 0) {
+                  router.replace(`/dashboard?page=home&orgId=${organizations[0].id}`, { scroll: false })
+                } else {
+                  router.replace(`/dashboard?page=${id}`, { scroll: false })
                 }
               }}
               className={`flex-1 py-3 flex flex-col items-center gap-1 active:scale-95 transition-all ${
@@ -4264,14 +4289,12 @@ ${BRAND.NAME}와 함께하는 모임 일정에 참여하세요!
 // Nearby Crews Carousel Component
 function NearbyCrewsCarousel({
   nearbyCrews,
-  setSelectedOrg,
-  setCurrentPage,
+  router,
   orgMemberCounts,
   formatDistance
 }: {
   nearbyCrews: any[]
-  setSelectedOrg: (org: any) => void
-  setCurrentPage: (page: Page) => void
+  router: any
   orgMemberCounts: { [key: string]: number }
   formatDistance: (distance: number) => string
 }) {
@@ -4304,8 +4327,7 @@ function NearbyCrewsCarousel({
             <button
               key={crew.id}
               onClick={() => {
-                setSelectedOrg(crew)
-                setCurrentPage('mycrew')
+                router.replace(`/dashboard?page=mycrew&orgId=${crew.id}`, { scroll: false })
               }}
               className="flex-shrink-0 w-[110px] sm:w-[240px] md:w-[280px] bg-white rounded-xl sm:rounded-2xl overflow-hidden border border-gray-200 hover:shadow-md transition-all hover:scale-[1.02] active:scale-95"
             >
