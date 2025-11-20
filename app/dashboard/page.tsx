@@ -1874,11 +1874,11 @@ ${BRAND.NAME}와 함께하는 모임 일정에 참여하세요!
             </div>
           </header>
 
-          <div className="px-6 py-4 md:py-6 space-y-5">
+          <div className="px-4 py-4 space-y-5">
             {/* 내 동네 크루 섹션 - 당근마켓 스타일 */}
             <div className="mb-6">
               {/* 헤더 */}
-              <div className="flex items-center justify-between mb-3 px-6">
+              <div className="flex items-center justify-between mb-3">
                 <div className="flex items-center gap-2">
                   <MapPin className="w-6 h-6 text-[#FF9B50]" />
                   <h2 className="text-xl leading-7 md:text-2xl font-extrabold text-gray-900">내 동네 크루</h2>
