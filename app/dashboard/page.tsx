@@ -118,7 +118,6 @@ export default function DashboardPage() {
     if (!urlOrgId || organizations.length === 0) return null
     const org = organizations.find(o => o.id === urlOrgId)
     if (org) {
-      console.log('[Dashboard] Selected org from URL:', org.name)
     }
     return org || null
   }, [urlOrgId, organizations])
@@ -219,23 +218,17 @@ export default function DashboardPage() {
 
   // 홈 화면 및 내 크루 화면에서 모든 크루의 일정을 가져오기
   useEffect(() => {
-    console.log('🔄 useEffect [user, organizations, currentPage, selectedOrg] 실행됨')
-    console.log('  - currentPage:', currentPage)
-    console.log('  - selectedOrg:', selectedOrg ? 'exists' : 'null')
-    console.log('  - organizations:', organizations.length)
 
     let unsubscribe: (() => void) | undefined
 
     // 홈 화면 또는 내 크루 화면이고 특정 크루가 선택되지 않은 경우, 모든 크루의 일정을 가져옴
     if (user && (currentPage === 'home' || currentPage === 'mycrew') && !selectedOrg && organizations.length > 0) {
-      console.log('✅ 모든 크루 일정 리스너 설정 시작...')
       const orgIds = organizations.map(org => org.id)
       unsubscribe = fetchAllUserSchedules(orgIds)
     }
 
     return () => {
       if (unsubscribe) {
-        console.log('🔌 모든 크루 일정 리스너 해제')
         unsubscribe()
       }
     }
@@ -243,25 +236,19 @@ export default function DashboardPage() {
 
   // 특정 크루 선택 시 해당 크루의 일정과 멤버 가져오기
   useEffect(() => {
-    console.log('🔄 useEffect [user, selectedOrg] 실행됨')
-    console.log('  - user:', user ? user.uid : 'null')
-    console.log('  - selectedOrg:', selectedOrg ? `${selectedOrg.name} (${selectedOrg.id})` : 'null')
 
     let unsubscribe: (() => void) | undefined
 
     if (user && selectedOrg) {
-      console.log('✅ 조건 충족: 일정 실시간 리스너 설정 시작...')
       // 실시간 리스너 설정
       unsubscribe = fetchSchedules(selectedOrg.id)
       fetchMembers(selectedOrg.id)
     } else {
-      console.log('⚠️ 조건 불충족: user 또는 selectedOrg가 없음')
     }
 
     // Cleanup: 컴포넌트 언마운트 또는 selectedOrg 변경 시 리스너 해제
     return () => {
       if (unsubscribe) {
-        console.log('🔌 일정 실시간 리스너 해제')
         unsubscribe()
       }
     }
@@ -332,7 +319,6 @@ export default function DashboardPage() {
     try {
       if (!user) return
 
-      console.log('🔍 사용자 크루 목록 조회 시작')
 
       // 1. memberships 기반으로 가입한 크루 ID 목록 가져오기 (신규 방식)
       let userOrgIds: string[] = []
@@ -342,22 +328,18 @@ export default function DashboardPage() {
         userOrgIds = memberships
           .filter(m => m.status === 'active')
           .map(m => m.organizationId)
-        console.log('✅ [신규] memberships에서 크루 ID 가져옴:', userOrgIds)
       } else {
         // ⚠️ 레거시: userProfiles.organizations 배열 사용 (하위 호환)
-        console.log('⚠️ memberships가 비어있음 - 레거시 방식 사용')
         const userProfileRef = doc(db, 'userProfiles', user.uid)
         const userProfileSnap = await getDoc(userProfileRef)
 
         if (userProfileSnap.exists()) {
           const data = userProfileSnap.data()
           userOrgIds = data.joinedOrganizations || data.organizations || []
-          console.log('⚠️ [레거시] userProfiles에서 크루 ID 가져옴:', userOrgIds)
         }
       }
 
       if (userOrgIds.length === 0) {
-        console.log('❌ 가입한 크루가 없습니다.')
         setOrganizations([])
         setOrgMemberCounts({})
         return
@@ -374,7 +356,6 @@ export default function DashboardPage() {
         }
       })
 
-      console.log(`✅ ${fetchedOrgs.length}개의 크루 정보를 가져왔습니다`)
       setOrganizations(fetchedOrgs)
 
       // 3. 각 크루의 멤버 수 가져오기
@@ -385,10 +366,8 @@ export default function DashboardPage() {
           // ✅ 신규: organizationMembers 컬렉션 사용 (더 정확함)
           const members = await getOrganizationMembers(org.id)
           counts[org.id] = members.length
-          console.log(`  ✅ "${org.name}" 멤버: ${members.length}명 (organizationMembers 컬렉션)`)
         } catch (error) {
           // ⚠️ 레거시: organizationMembers가 없으면 userProfiles 사용
-          console.log(`  ⚠️ "${org.name}" organizationMembers 조회 실패, 레거시 방식 사용`)
           const userProfilesRef = collection(db, 'userProfiles')
           const userProfilesSnapshot = await getDocs(userProfilesRef)
 
@@ -401,13 +380,10 @@ export default function DashboardPage() {
             }
           })
           counts[org.id] = memberCount
-          console.log(`  ⚠️ "${org.name}" 멤버: ${memberCount}명 (레거시)`)
         }
       }
 
-      console.log('\n📊 모든 크루 멤버 카운트:', counts)
       setOrgMemberCounts(counts)
-      console.log('✅ 크루 목록 로딩 완료\n')
     } catch (error) {
       console.error('❌ Error fetching organizations:', error)
     }
@@ -416,7 +392,6 @@ export default function DashboardPage() {
   // 모든 크루 가져오기 (크루 찾기용)
   const fetchAllOrganizations = async () => {
     try {
-      console.log('📥 모든 크루 데이터 가져오기 시작')
 
       const orgsRef = collection(db, 'organizations')
       const orgsSnapshot = await getDocs(orgsRef)
@@ -425,13 +400,6 @@ export default function DashboardPage() {
       orgsSnapshot.forEach((doc) => {
         allOrgs.push({ id: doc.id, ...doc.data() } as Organization)
       })
-
-      console.log(`✅ 총 ${allOrgs.length}개의 크루를 가져왔습니다`)
-      console.log('크루 목록:', allOrgs.map(org => ({
-        name: org.name,
-        hasLocation: !!org.location,
-        description: org.description
-      })))
 
       setAllOrganizations(allOrgs)
     } catch (error) {
@@ -443,21 +411,17 @@ export default function DashboardPage() {
     try {
       if (!user || !userProfile) return
 
-      console.log('🔍 추천 크루 검색 시작')
-      console.log('  - 관심 카테고리:', userProfile.interestCategories)
 
       // 사용자의 관심 카테고리 확인
       const userInterests = userProfile.interestCategories || []
 
       if (userInterests.length === 0) {
-        console.log('⚠️ 사용자의 관심 카테고리가 없습니다.')
         setRecommendedOrgs([])
         return
       }
 
       // 사용자가 인증한 위치 확인
       if (!userProfile.locations || userProfile.locations.length === 0) {
-        console.log('⚠️ 인증된 위치가 없습니다.')
         setRecommendedOrgs([])
         return
       }
@@ -467,12 +431,9 @@ export default function DashboardPage() {
         loc => loc.id === userProfile.selectedLocationId
       ) || userProfile.locations[0]
 
-      console.log('  - 인증된 위치:', `${selectedLocation.sigungu} ${selectedLocation.dong}`)
-      console.log('  - GPS 좌표:', { lat: selectedLocation.latitude, lng: selectedLocation.longitude })
 
       // 사용자가 이미 가입한 크루 ID 가져오기
       const userOrgIds = userProfile.organizations || []
-      console.log('  - 이미 가입한 크루:', userOrgIds)
 
       // 모든 organizations 가져오기
       const orgsRef = collection(db, 'organizations')
@@ -508,7 +469,6 @@ export default function DashboardPage() {
           // 10km 이내인 경우만 추천
           if (distance <= 10) {
             recommended.push({ ...org, distance })
-            console.log(`  ✅ 추천: ${org.name} - 카테고리: ${orgCategories.join(', ')} - 거리: ${distance.toFixed(1)}km`)
           }
         }
         // GPS 좌표가 없는 경우: 텍스트 기반 지역 매칭 (fallback)
@@ -519,7 +479,6 @@ export default function DashboardPage() {
 
           if (hasMatchingLocation) {
             recommended.push({ ...org, distance: 999 })
-            console.log(`  ✅ 추천 (텍스트 매칭): ${org.name} - 카테고리: ${orgCategories.join(', ')}`)
           }
         }
       })
@@ -527,7 +486,6 @@ export default function DashboardPage() {
       // 거리순으로 정렬
       recommended.sort((a, b) => a.distance - b.distance)
 
-      console.log(`\n\uD83C\uDFAF 총 ${recommended.length}개의 크루를 추천합니다.`)
       setRecommendedOrgs(recommended)
     } catch (error) {
       console.error('Error fetching recommended organizations:', error)
@@ -536,34 +494,27 @@ export default function DashboardPage() {
 
   const fetchSchedules = (orgId: string) => {
     try {
-      console.log('📡 fetchSchedules 시작 - orgId:', orgId)
 
       // schedules 컬렉션에서 해당 크루의 일정을 실시간으로 감지 (서버 사이드 필터링)
       const q = query(
         collection(db, 'org_schedules'),
         where('orgId', '==', orgId)
       )
-      console.log('📡 Query 객체 생성 완료 (orgId 필터 적용)')
 
       const unsubscribe = onSnapshot(q, (querySnapshot) => {
-        console.log('🔔 onSnapshot 콜백 실행!')
-        console.log('  - 필터링된 문서 수:', querySnapshot.size)
 
         const fetchedSchedules: Schedule[] = []
 
         querySnapshot.forEach((doc) => {
           const data = doc.data()
-          console.log(`  - 문서 ${doc.id}: orgId=${data.orgId}`)
           fetchedSchedules.push({ id: doc.id, ...data } as Schedule)
         })
 
-        console.log(`✅ 일정 실시간 업데이트: ${fetchedSchedules.length}개`)
         setSchedules(fetchedSchedules)
       }, (error) => {
         console.error('❌ 일정 실시간 감지 오류:', error)
       })
 
-      console.log('✅ onSnapshot 리스너 등록 완료')
       return unsubscribe
     } catch (error) {
       console.error('❌ Error setting up schedule listener:', error)
@@ -574,10 +525,8 @@ export default function DashboardPage() {
   // 모든 크루의 일정을 가져오는 함수 (홈 화면용)
   const fetchAllUserSchedules = (orgIds: string[]) => {
     try {
-      console.log('📡 fetchAllUserSchedules 시작 - orgIds:', orgIds)
 
       if (orgIds.length === 0) {
-        console.log('⚠️ 가입한 크루가 없어 일정을 불러올 수 없습니다.')
         setSchedules([])
         return () => {}
       }
@@ -593,7 +542,6 @@ export default function DashboardPage() {
         )
 
         const unsubscribe = onSnapshot(q, (querySnapshot) => {
-          console.log(`🔔 크루 ${orgId}의 일정 업데이트: ${querySnapshot.size}개`)
 
           // 해당 크루의 기존 일정 제거
           allSchedulesMap.forEach((schedule, id) => {
@@ -610,7 +558,6 @@ export default function DashboardPage() {
 
           // 전체 일정을 배열로 변환하여 상태 업데이트
           const allSchedules = Array.from(allSchedulesMap.values())
-          console.log(`✅ 전체 일정 업데이트: ${allSchedules.length}개`)
           setSchedules(allSchedules)
         }, (error) => {
           console.error(`❌ 크루 ${orgId} 일정 감지 오류:`, error)
@@ -619,11 +566,9 @@ export default function DashboardPage() {
         unsubscribers.push(unsubscribe)
       })
 
-      console.log(`✅ ${orgIds.length}개 크루의 일정 리스너 등록 완료`)
 
       // 모든 리스너를 해제하는 함수 반환
       return () => {
-        console.log('🔌 모든 일정 리스너 해제')
         unsubscribers.forEach(unsub => unsub())
       }
     } catch (error) {
@@ -634,8 +579,6 @@ export default function DashboardPage() {
 
   const fetchMembers = async (orgId: string) => {
     try {
-      console.log('🔍 ===== 멤버 조회 시작 =====')
-      console.log('orgId:', orgId)
 
       // userProfiles의 organizations 배열로 크루 멤버 찾기
       const userProfilesRef = collection(db, 'userProfiles')
@@ -650,10 +593,8 @@ export default function DashboardPage() {
           userProfilesMap[doc.id] = data
         }
       })
-      console.log(`✅ userProfiles에서 찾은 멤버 UID: ${memberUids.length}개`)
 
       if (memberUids.length === 0) {
-        console.log('⚠️ 해당 크루에 멤버가 없습니다.')
         setMembers([])
         return
       }
@@ -666,7 +607,6 @@ export default function DashboardPage() {
       membersSnapshot.forEach((doc) => {
         const data = doc.data()
         if (memberUids.includes(data.uid)) {
-          console.log(`✅ ${data.name}: joinDate=${data.joinDate}, role=${data.role}, isCaptain=${data.isCaptain}, isStaff=${data.isStaff}`)
           // userProfiles에서 location 정보 가져와서 병합
           const userProfile = userProfilesMap[data.uid]
 
@@ -685,10 +625,7 @@ export default function DashboardPage() {
         }
       })
 
-      console.log(`✅ 최종 매칭된 멤버 수: ${fetchedMembers.length}`)
-      console.log('👥 멤버 상세 정보:')
       fetchedMembers.forEach(m => {
-        console.log(`   - ${m.name}: role=${m.role}, joinDate=${m.joinDate}, avatar=${m.avatar ? '있음' : '없음'}`)
       })
 
       setMembers(fetchedMembers)
@@ -713,7 +650,6 @@ export default function DashboardPage() {
     if (!confirmRemove) return
 
     try {
-      console.log('🚫 추방 시작:', member.name, 'uid:', member.uid, 'orgId:', selectedOrg.id)
 
       // userProfiles의 organizations 배열에서 제거
       const userProfileRef = doc(db, 'userProfiles', member.uid)
@@ -723,7 +659,6 @@ export default function DashboardPage() {
         const data = userProfileSnap.data()
         const updatedOrgs = (data.organizations || []).filter((id: string) => id !== selectedOrg.id)
         await updateDoc(userProfileRef, { organizations: updatedOrgs })
-        console.log('✅ userProfiles에서 제거 완료')
       } else {
         console.error('❌ userProfile을 찾을 수 없습니다.')
         alert('멤버 프로필을 찾을 수 없습니다.')
@@ -733,10 +668,8 @@ export default function DashboardPage() {
       alert(`${member.name}님이 크루에서 제거되었습니다.`)
 
       // 멤버 리스트 새로고침
-      console.log('🔄 멤버 리스트 새로고침 시작')
       await fetchMembers(selectedOrg.id)
       await fetchOrganizations() // 멤버 카운트도 업데이트
-      console.log('✅ 멤버 리스트 새로고침 완료')
     } catch (error) {
       console.error('❌ Error removing member:', error)
       alert('멤버 제거 중 오류가 발생했습니다.')
@@ -900,9 +833,6 @@ export default function DashboardPage() {
     }
 
     try {
-      console.log('🔄 프로필 수정 시작')
-      console.log('  - User UID:', user.uid)
-      console.log('  - 폼 데이터:', myProfileForm)
 
       // Update 객체 생성 (아바타 제외)
       const updateData: any = {
@@ -914,13 +844,10 @@ export default function DashboardPage() {
         interestCategories: myProfileForm.interestCategories
       }
 
-      console.log('💾 Firestore 업데이트 데이터:', updateData)
 
       // userProfiles 업데이트
       const userProfileRef = doc(db, 'userProfiles', user.uid)
-      console.log('📝 userProfiles 업데이트 중...')
       await updateDoc(userProfileRef, updateData)
-      console.log('✅ userProfiles 업데이트 완료')
 
       // members 컬렉션도 이름 업데이트
       const membersRef = collection(db, 'members')
@@ -1112,16 +1039,13 @@ export default function DashboardPage() {
         orgData.location = orgForm.location
       }
 
-      console.log('🆕 크루 생성 시작:', orgData)
 
       const docRef = await addDoc(collection(db, 'organizations'), orgData)
-      console.log('✅ 크루 문서 생성 완료:', docRef.id)
 
       // 2. 이미지가 있으면 S3에 업로드하고 URL 업데이트
       if (orgAvatarFile) {
         const avatarUrl = await uploadToS3(orgAvatarFile, `organizations/${docRef.id}`)
         await updateDoc(docRef, { avatar: avatarUrl })
-        console.log('✅ 크루 아바타 업로드 완료:', avatarUrl)
       }
 
       // 3. 사용자 프로필의 organizations 배열에 추가
@@ -1129,7 +1053,6 @@ export default function DashboardPage() {
       await updateDoc(userProfileRef, {
         organizations: arrayUnion(docRef.id)
       })
-      console.log('✅ 사용자 프로필에 크루 추가 완료')
 
       alert('크루가 생성되었습니다!')
       setShowCreateCrew(false)
@@ -1184,8 +1107,6 @@ export default function DashboardPage() {
 
   // 내 동네 근처 크루 필터링 (10km 이내)
   const getNearbyOrganizations = () => {
-    console.log('🔍 getNearbyOrganizations 호출')
-    console.log('  - 전체 크루 수:', allOrganizations.length)
 
     // 임시: 일단 모든 크루를 보여줌 (위치 필터링 없이)
     // TODO: 모든 크루에 location 데이터가 입력되면 10km 필터링 활성화
@@ -1194,8 +1115,6 @@ export default function DashboardPage() {
       distance: 0 // 거리 정보 없음
     }))
 
-    console.log('  ✅ 표시할 크루 수:', nearby.length)
-    console.log('  📋 크루 목록:', nearby.map(org => org.name))
 
     return nearby
   }
@@ -1250,7 +1169,6 @@ export default function DashboardPage() {
     if (!confirm(`${member.name}님의 가입을 승인하시겠습니까?`)) return
 
     try {
-      console.log('🎉 가입 승인 시작:', { orgId, memberName: member.name, memberUid: member.uid })
 
       const orgRef = doc(db, 'organizations', orgId)
       const userRef = doc(db, 'userProfiles', member.uid)
@@ -1259,13 +1177,11 @@ export default function DashboardPage() {
       await updateDoc(orgRef, {
         pendingMembers: arrayRemove(member)
       })
-      console.log('✅ pendingMembers에서 제거 완료')
 
       // userProfiles의 organizations 배열에 추가 (joinedOrganizations가 아님!)
       await updateDoc(userRef, {
         organizations: arrayUnion(orgId)
       })
-      console.log('✅ userProfiles.organizations에 추가 완료')
 
       // members 컬렉션에 레코드 추가
       const membersRef = collection(db, 'members')
@@ -1280,7 +1196,6 @@ export default function DashboardPage() {
         joinDate: new Date().toLocaleDateString('ko-KR'),
         orgId: orgId
       })
-      console.log('✅ members 컬렉션에 레코드 추가 완료')
 
       alert(`${member.name}님이 크루에 가입되었습니다!`)
       fetchOrganizations()
@@ -1290,7 +1205,6 @@ export default function DashboardPage() {
         await fetchMembers(orgId)
       }
 
-      console.log('🎊 가입 승인 완료!')
 
     } catch (error) {
       console.error('❌ 승인 실패:', error)
@@ -1625,35 +1539,26 @@ ${BRAND.NAME}와 함께하는 모임 일정에 참여하세요!
 
   // 아바타 URL 검증 함수 (이모티콘이나 잘못된 URL 필터링)
   const getValidAvatarUrl = (avatar: string | undefined | null): string => {
-    console.log('[getValidAvatarUrl] 입력값:', avatar)
-
     if (!avatar || avatar.trim() === '') {
-      console.log('[getValidAvatarUrl] 빈 값 → 기본 아바타')
       return '/default-avatar.svg'
     }
 
     // 이모티콘인지 확인 (유니코드 이모티콘 범위)
     const emojiRegex = /[\u{1F600}-\u{1F64F}\u{1F300}-\u{1F5FF}\u{1F680}-\u{1F6FF}\u{1F1E0}-\u{1F1FF}\u{2600}-\u{26FF}\u{2700}-\u{27BF}\u{1F900}-\u{1F9FF}\u{1FA00}-\u{1FA6F}]/u
     if (emojiRegex.test(avatar)) {
-      console.log('[getValidAvatarUrl] 이모티콘 감지 → 기본 아바타')
       return '/default-avatar.svg'
     }
 
     // URL 형식인지 확인 (http, https, data:, / 로 시작)
     if (!avatar.startsWith('http') && !avatar.startsWith('/') && !avatar.startsWith('data:')) {
-      console.log('[getValidAvatarUrl] URL 형식 아님 → 기본 아바타:', avatar)
       return '/default-avatar.svg'
     }
 
-    console.log('[getValidAvatarUrl] 유효한 URL → 그대로 사용')
     return avatar
   }
 
   // 멤버의 마지막 참여일로부터 경과일 계산 함수
   const getMemberLastParticipationDays = (memberName: string): number | null => {
-    console.log('[getMemberLastParticipationDays] 멤버:', memberName)
-    console.log('[getMemberLastParticipationDays] 전체 일정 수:', schedules.length)
-
     const today = new Date()
     today.setHours(0, 0, 0, 0) // 시간 부분 제거
 
@@ -1663,30 +1568,20 @@ ${BRAND.NAME}와 함께하는 모임 일정에 참여하세요!
         return false
       }
 
-      console.log('[getMemberLastParticipationDays] 일정:', schedule.title)
-      console.log('  - participants:', schedule.participants)
-      console.log('  - 첫 번째 참가자 타입:', typeof schedule.participants[0])
-
       // participants가 문자열 배열인지 객체 배열인지 확인
       let isParticipant = false
       if (typeof schedule.participants[0] === 'string') {
         // 문자열 배열: ["이태규", "유시몬", ...]
         isParticipant = schedule.participants.includes(memberName)
-        console.log('  - 문자열 배열 체크:', isParticipant)
       } else {
         // 객체 배열: [{name: "이태규", uid: "..."}, ...]
-        console.log('  - 첫 번째 참가자 객체:', schedule.participants[0])
-        console.log('  - 객체 keys:', Object.keys(schedule.participants[0]))
-
         // name 또는 userName 필드로 체크
         isParticipant = schedule.participants.some((p: any) =>
           p.name === memberName || p.userName === memberName
         )
-        console.log('  - 객체 배열 체크 (name/userName):', isParticipant)
       }
 
       if (!isParticipant) {
-        console.log('  - 결과: 참여하지 않음')
         return false
       }
 
@@ -1694,15 +1589,9 @@ ${BRAND.NAME}와 함께하는 모임 일정에 참여하세요!
       const scheduleDate = parseScheduleDate(schedule.date)
       scheduleDate.setHours(0, 0, 0, 0)
 
-      console.log('  - 일정 날짜:', scheduleDate)
-      console.log('  - 오늘:', today)
-      console.log('  - 과거 일정?', scheduleDate.getTime() <= today.getTime())
-
       // 과거 일정만 포함 (오늘 포함)
       return scheduleDate.getTime() <= today.getTime()
     })
-
-    console.log('[getMemberLastParticipationDays] 참여한 과거 일정 수:', participatedSchedules.length)
 
     if (participatedSchedules.length === 0) {
       return null // 참여 이력 없음 (과거 일정 기준)
@@ -1722,9 +1611,6 @@ ${BRAND.NAME}와 함께하는 모임 일정에 참여하세요!
     // 경과일 계산
     const diffTime = today.getTime() - scheduleDate.getTime()
     const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24))
-
-    console.log('[getMemberLastParticipationDays] 가장 최근 일정:', mostRecentSchedule.title)
-    console.log('[getMemberLastParticipationDays] 경과일:', diffDays)
 
     return diffDays
   }
@@ -1809,7 +1695,6 @@ ${BRAND.NAME}와 함께하는 모임 일정에 참여하세요!
       })
 
       // 실시간 리스너가 자동으로 업데이트하므로 로컬 상태 업데이트 불필요
-      console.log('✅ 참여 상태 변경 완료 - 실시간으로 반영됩니다')
     } catch (error) {
       console.error('Error toggling participation:', error)
       alert('참여 상태 변경에 실패했습니다.')
@@ -1865,21 +1750,9 @@ ${BRAND.NAME}와 함께하는 모임 일정에 참여하세요!
 
   // 다가오는 일정과 지난 일정 구분 (IIFE로 계산 - Hook 순서 문제 없음)
   const upcomingSchedules = (() => {
-    console.log('\n🔍 ===== upcomingSchedules 계산 시작 =====')
-    console.log('전체 일정 수:', schedules.length)
-
     const filtered = schedules
-      .filter(s => {
-        const isPast = isSchedulePast(s.date)
-        if (isPast) {
-          console.log(`⏭️  [${s.title}] - 과거 일정 (스킵)`)
-        }
-        return !isPast
-      })
+      .filter(s => !isSchedulePast(s.date))
       .sort((a, b) => parseScheduleDate(a.date).getTime() - parseScheduleDate(b.date).getTime())
-
-    console.log('✅ 미래 일정 수:', filtered.length)
-    console.log('===== upcomingSchedules 계산 완료 =====\n')
 
     return filtered
   })()
@@ -1890,17 +1763,7 @@ ${BRAND.NAME}와 함께하는 모임 일정에 참여하세요!
 
   // 내가 참여한 일정만 필터링 (IIFE로 계산)
   const mySchedules = (() => {
-    console.log('\n🔍 ===== mySchedules 필터링 시작 =====')
-    console.log('내 이름:', userProfile?.name)
-    console.log('내 UID:', user?.uid)
-    console.log('필터링할 일정 수:', upcomingSchedules.length)
-
     const filtered = upcomingSchedules.filter(s => {
-      console.log(`\n[일정: ${s.title}]`)
-      console.log('  - participants:', s.participants)
-      console.log('  - participants 타입:', typeof s.participants)
-      console.log('  - 배열인가?', Array.isArray(s.participants))
-
       const participants = s.participants || []
       const myName = userProfile?.name || ''
       const myUid = user?.uid || ''
@@ -1910,30 +1773,13 @@ ${BRAND.NAME}와 함께하는 모임 일정에 참여하세요!
         const hasMyName = participants.includes(myName)
         const hasMyUid = participants.includes(myUid)
 
-        console.log('  - 내 이름 포함?', hasMyName)
-        console.log('  - 내 UID 포함?', hasMyUid)
-
-        // 참가자 배열의 첫 몇 항목 출력
-        if (participants.length > 0) {
-          console.log('  - 참가자 샘플:', participants.slice(0, 3))
-          console.log('  - 첫 번째 참가자 타입:', typeof participants[0])
-        }
-
         if (hasMyName || hasMyUid) {
-          console.log('  ✅ 참여 중!')
           return true
         }
 
         // 객체 배열인 경우 확인 (새 일정: {userId, userName, status}, 기존 일정: {uid, name})
-        console.log('  🔍 객체 매칭 시작...')
         const matchedParticipant = participants.find(p => {
           if (typeof p === 'object' && p !== null) {
-            console.log('    - 참가자 객체:', p)
-            console.log('      • p.userId:', p.userId, '=== myUid:', myUid, '?', p.userId === myUid)
-            console.log('      • p.userName:', p.userName, '=== myName:', myName, '?', p.userName === myName)
-            console.log('      • p.uid:', p.uid, '=== myUid:', myUid, '?', p.uid === myUid)
-            console.log('      • p.name:', p.name, '=== myName:', myName, '?', p.name === myName)
-
             return (
               p.userId === myUid ||     // 새 일정 형식
               p.userName === myName ||  // 새 일정 형식
@@ -1945,33 +1791,22 @@ ${BRAND.NAME}와 함께하는 모임 일정에 참여하세요!
         })
 
         if (matchedParticipant) {
-          console.log('  ✅ 참여 중 (객체 매칭)! 매칭된 참가자:', matchedParticipant)
           return true
         }
-        console.log('  🔍 객체 매칭 결과: 매칭 없음')
       }
 
       // 문자열인 경우
       if (typeof participants === 'string') {
         const names = participants.split(',').map(n => n.trim())
         const hasMyName = names.includes(myName)
-        console.log('  - 문자열 분리:', names)
-        console.log('  - 내 이름 포함?', hasMyName)
 
         if (hasMyName) {
-          console.log('  ✅ 참여 중 (문자열)!')
           return true
         }
       }
 
-      console.log('  ❌ 미참여')
       return false
     })
-
-    console.log('\n===== mySchedules 필터링 완료 =====')
-    console.log('결과:', filtered.length, '개')
-    console.log('일정 제목:', filtered.map(s => s.title))
-    console.log('===== 완료 =====\n')
 
     return filtered
   })()
@@ -2100,7 +1935,6 @@ ${BRAND.NAME}와 함께하는 모임 일정에 참여하세요!
                 </div>
                 <button
                   onClick={() => {
-                    console.log('📅 내 참여 일정 전체보기 클릭')
                     setScheduleFilter('joined')  // ← 중요: 참여한 일정만 보기
                     router.replace('/dashboard?page=schedules', { scroll: false })  // 독립적인 일정 페이지로 이동
                   }}
