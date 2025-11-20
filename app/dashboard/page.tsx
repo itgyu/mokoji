@@ -2144,24 +2144,6 @@ ${BRAND.NAME}와 함께하는 모임 일정에 참여하세요!
                 )
               })()}
             </div>
-
-            {/* 크루 생성 버튼 - 하단으로 이동 */}
-            <button
-              onClick={() => {
-                setShowCreateCrew(true)
-                setOrgForm({ name: '', subtitle: '', description: '', categories: [] })
-                setOrgAvatarFile(null)
-              }}
-              className="w-full bg-gradient-to-r from-[#FF9B50] to-[#2563EB] rounded-2xl p-3 md:p-6 shadow-lg hover:shadow-xl transition-all active:scale-[0.98] text-white"
-            >
-              <div className="flex items-center justify-between">
-                <div className="text-left">
-                  <h3 className="text-base md:text-lg md:text-xl font-bold mb-1">새 크루 만들기</h3>
-                  <p className="text-sm opacity-90">나만의 크루를 시작하세요</p>
-                </div>
-                <div className="flex items-center justify-center"><Plus className="w-10 h-10 text-[#FF9B50]" /></div>
-              </div>
-            </button>
           </div>
         </div>
       )}
@@ -2252,6 +2234,28 @@ ${BRAND.NAME}와 함께하는 모임 일정에 참여하세요!
                 })}
               </div>
             )}
+
+            {/* 새 크루 만들기 버튼 */}
+            <div className="px-5 pb-6 mt-4">
+              <button
+                onClick={() => {
+                  setShowCreateCrew(true)
+                  setOrgForm({ name: '', subtitle: '', description: '', categories: [] })
+                  setOrgAvatarFile(null)
+                }}
+                className="w-full bg-gradient-to-r from-[#FF9B50] to-[#2563EB] rounded-2xl p-3 md:p-6 shadow-lg hover:shadow-xl transition-all active:scale-[0.98] text-white"
+              >
+                <div className="flex items-center justify-between">
+                  <div className="text-left">
+                    <h3 className="text-base md:text-lg md:text-xl font-bold mb-1">새 크루 만들기</h3>
+                    <p className="text-sm opacity-90">나만의 크루를 시작하세요</p>
+                  </div>
+                  <div className="flex items-center justify-center">
+                    <Plus className="w-10 h-10 text-white" />
+                  </div>
+                </div>
+              </button>
+            </div>
           </div>
         </div>
       )}
