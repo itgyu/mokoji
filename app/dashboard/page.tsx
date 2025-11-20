@@ -1925,19 +1925,30 @@ ${BRAND.NAME}와 함께하는 모임 일정에 참여하세요!
         }
 
         // 객체 배열인 경우 확인 (새 일정: {userId, userName, status}, 기존 일정: {uid, name})
-        const hasObjectMatch = participants.some(p =>
-          typeof p === 'object' && p !== null && (
-            p.userId === myUid ||     // 새 일정 형식
-            p.userName === myName ||  // 새 일정 형식
-            p.uid === myUid ||        // 기존 일정 형식 (호환)
-            p.name === myName         // 기존 일정 형식 (호환)
-          )
-        )
+        console.log('  🔍 객체 매칭 시작...')
+        const matchedParticipant = participants.find(p => {
+          if (typeof p === 'object' && p !== null) {
+            console.log('    - 참가자 객체:', p)
+            console.log('      • p.userId:', p.userId, '=== myUid:', myUid, '?', p.userId === myUid)
+            console.log('      • p.userName:', p.userName, '=== myName:', myName, '?', p.userName === myName)
+            console.log('      • p.uid:', p.uid, '=== myUid:', myUid, '?', p.uid === myUid)
+            console.log('      • p.name:', p.name, '=== myName:', myName, '?', p.name === myName)
 
-        if (hasObjectMatch) {
-          console.log('  ✅ 참여 중 (객체 매칭)!')
+            return (
+              p.userId === myUid ||     // 새 일정 형식
+              p.userName === myName ||  // 새 일정 형식
+              p.uid === myUid ||        // 기존 일정 형식 (호환)
+              p.name === myName         // 기존 일정 형식 (호환)
+            )
+          }
+          return false
+        })
+
+        if (matchedParticipant) {
+          console.log('  ✅ 참여 중 (객체 매칭)! 매칭된 참가자:', matchedParticipant)
           return true
         }
+        console.log('  🔍 객체 매칭 결과: 매칭 없음')
       }
 
       // 문자열인 경우
