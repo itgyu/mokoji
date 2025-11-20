@@ -671,7 +671,7 @@ export default function DashboardPage() {
       await fetchOrganizations() // 멤버 카운트도 업데이트
     } catch (error) {
       console.error('❌ Error removing member:', error)
-      alert('멤버 제거 중 오류가 발생했습니다.')
+      alert('멤버를 내보내는 중에 문제가 생겼어요.')
     }
   }
 
@@ -705,7 +705,7 @@ export default function DashboardPage() {
       await fetchMembers(selectedOrg.id)
     } catch (error) {
       console.error('Error updating member role:', error)
-      alert('역할 변경 중 오류가 발생했습니다.')
+      alert('역할을 바꾸는 중에 문제가 생겼어요.')
     }
   }
 
@@ -749,7 +749,7 @@ export default function DashboardPage() {
       setEditingMemberInfo(member)
     } catch (error) {
       console.error('Error loading member info:', error)
-      alert('멤버 정보를 불러오는 중 오류가 발생했습니다.')
+      alert('멤버 정보를 불러오는 중에 문제가 생겼어요.')
     }
   }
 
@@ -777,7 +777,7 @@ export default function DashboardPage() {
       )
       await Promise.all(memberUpdatePromises)
 
-      alert('멤버 정보가 수정되었습니다.')
+      alert('멤버 정보가 수정됐어요.')
       setEditingMemberInfo(null)
 
       // 멤버 리스트 새로고침
@@ -786,7 +786,7 @@ export default function DashboardPage() {
       }
     } catch (error) {
       console.error('Error updating member info:', error)
-      alert('멤버 정보 수정 중 오류가 발생했습니다.')
+      alert('멤버 정보를 수정하는 중에 문제가 생겼어요.')
     }
   }
 
@@ -816,7 +816,7 @@ export default function DashboardPage() {
       window.location.reload()
     } catch (error) {
       console.error('Error updating avatar:', error)
-      alert('프로필 사진 변경 중 오류가 발생했습니다.')
+      alert('프로필 사진을 바꾸는 중에 문제가 생겼어요.')
     } finally {
       setUploadingAvatar(false)
     }
@@ -827,7 +827,7 @@ export default function DashboardPage() {
 
     // 관심 카테고리 검증
     if (myProfileForm.interestCategories.length === 0) {
-      alert('최소 1개 이상의 관심 카테고리를 선택해주세요.')
+      alert('관심 카테고리를 최소 1개 이상 선택해주세요.')
       return
     }
 
@@ -858,14 +858,14 @@ export default function DashboardPage() {
       )
       await Promise.all(memberUpdatePromises)
 
-      alert('프로필이 수정되었습니다.')
+      alert('프로필이 수정됐어요.')
       setEditingMyProfile(false)
 
       // AuthContext에서 프로필 새로고침
       window.location.reload()
     } catch (error) {
       console.error('Error updating my profile:', error)
-      alert('프로필 수정 중 오류가 발생했습니다.')
+      alert('프로필을 수정하는 중에 문제가 생겼어요.')
     }
   }
 
@@ -908,7 +908,7 @@ export default function DashboardPage() {
       const orgRef = doc(db, 'organizations', editingOrg.id)
       await updateDoc(orgRef, updateData)
 
-      alert('크루 정보가 수정되었습니다.')
+      alert('크루 정보가 수정됐어요.')
       setEditingOrg(null)
       setOrgAvatarFile(null)
 
@@ -916,7 +916,7 @@ export default function DashboardPage() {
       await fetchOrganizations()
     } catch (error) {
       console.error('Error updating organization:', error)
-      alert('크루 정보 수정 중 오류가 발생했습니다.')
+      alert('크루 정보를 수정하는 중에 문제가 생겼어요.')
     }
   }
 
@@ -942,7 +942,7 @@ export default function DashboardPage() {
         }
       })
     } catch (error: any) {
-      alert(error.message || '위치 설정에 실패했습니다.')
+      alert(error.message || '위치를 설정하는 중에 문제가 생겼어요.')
     } finally {
       setSettingLocation(false)
     }
@@ -997,7 +997,7 @@ export default function DashboardPage() {
       fetchAllOrganizations()
     } catch (error) {
       console.error('Error deleting crew:', error)
-      alert('크루 해체 중 오류가 발생했습니다.')
+      alert('크루를 해체하는 중에 문제가 생겼어요.')
     }
   }
 
@@ -1006,15 +1006,15 @@ export default function DashboardPage() {
 
     // 필수값 검증
     if (!orgForm.name.trim()) {
-      alert('크루 이름을 입력해주세요.')
+      alert('크루 이름을 알려주세요.')
       return
     }
     if (!orgForm.description.trim()) {
-      alert('크루 설명을 입력해주세요.')
+      alert('크루 설명을 알려주세요.')
       return
     }
     if (orgForm.categories.length === 0) {
-      alert('최소 1개 이상의 카테고리를 선택해주세요.')
+      alert('카테고리를 최소 1개 이상 선택해주세요.')
       return
     }
 
@@ -1053,7 +1053,7 @@ export default function DashboardPage() {
         organizations: arrayUnion(docRef.id)
       })
 
-      alert('크루가 생성되었습니다!')
+      alert('크루가 만들어졌어요!')
       setShowCreateCrew(false)
       setOrgForm({ name: '', subtitle: '', description: '', categories: [], location: null })
       setOrgAvatarFile(null)
@@ -1068,7 +1068,7 @@ export default function DashboardPage() {
       }
     } catch (error) {
       console.error('❌ 크루 생성 실패:', error)
-      alert('크루 생성 중 오류가 발생했습니다.')
+      alert('크루를 만드는 중에 문제가 생겼어요.')
     }
   }
 
@@ -1139,7 +1139,7 @@ export default function DashboardPage() {
 
       // 이미 신청한 경우
       if (existingPending.some((m: any) => m.uid === user.uid)) {
-        alert('이미 가입 신청하셨습니다.')
+        alert('이미 가입 신청을 보내셨어요.')
         return
       }
 
@@ -1154,12 +1154,12 @@ export default function DashboardPage() {
         })
       })
 
-      alert('가입 신청이 완료되었습니다! 크루장의 승인을 기다려주세요.')
+      alert('가입 신청을 보냈어요! 크루장의 승인을 기다려주세요.')
       fetchOrganizations()
 
     } catch (error) {
       console.error('가입 신청 실패:', error)
-      alert('가입 신청에 실패했습니다. 다시 시도해주세요.')
+      alert('가입 신청에 문제가 생겼어요. 다시 시도해주세요.')
     }
   }
 
@@ -1207,7 +1207,7 @@ export default function DashboardPage() {
 
     } catch (error) {
       console.error('❌ 승인 실패:', error)
-      alert('승인에 실패했습니다. 다시 시도해주세요.')
+      alert('승인하는 중에 문제가 생겼어요. 다시 시도해주세요.')
     }
   }
 
@@ -1223,12 +1223,12 @@ export default function DashboardPage() {
         pendingMembers: arrayRemove(member)
       })
 
-      alert(`${member.name}님의 가입 신청이 거절되었습니다.`)
+      alert(`${member.name}님의 가입 신청을 거절했어요.`)
       fetchOrganizations()
 
     } catch (error) {
       console.error('거절 실패:', error)
-      alert('거절에 실패했습니다. 다시 시도해주세요.')
+      alert('거절하는 중에 문제가 생겼어요. 다시 시도해주세요.')
     }
   }
 
@@ -1237,15 +1237,15 @@ export default function DashboardPage() {
 
     // 필수값 검증
     if (!createScheduleForm.title.trim()) {
-      alert('일정 제목을 입력해주세요.')
+      alert('일정 제목을 알려주세요.')
       return
     }
     if (!createScheduleForm.date) {
-      alert('날짜를 선택해주세요.')
+      alert('날짜를 알려주세요.')
       return
     }
     if (!createScheduleForm.time) {
-      alert('시간을 선택해주세요.')
+      alert('시간을 알려주세요.')
       return
     }
     if (!createScheduleForm.location.trim()) {
@@ -1289,7 +1289,7 @@ export default function DashboardPage() {
         lastChatMessagePreview: null
       })
 
-      alert('일정이 생성되었습니다.')
+      alert('일정이 등록됐어요.')
       setShowCreateSchedule(false)
       setCreateScheduleForm({
         title: '',
@@ -1301,7 +1301,7 @@ export default function DashboardPage() {
       })
     } catch (error) {
       console.error('Error creating schedule:', error)
-      alert('일정 생성 중 오류가 발생했습니다.')
+      alert('일정을 만드는 중에 문제가 생겼어요.')
     }
   }
 
@@ -1310,15 +1310,15 @@ export default function DashboardPage() {
 
     // 필수값 검증
     if (!editScheduleForm.title.trim()) {
-      alert('일정 제목을 입력해주세요.')
+      alert('일정 제목을 알려주세요.')
       return
     }
     if (!editScheduleForm.date) {
-      alert('날짜를 선택해주세요.')
+      alert('날짜를 알려주세요.')
       return
     }
     if (!editScheduleForm.time) {
-      alert('시간을 선택해주세요.')
+      alert('시간을 알려주세요.')
       return
     }
     if (!editScheduleForm.location.trim()) {
@@ -1353,28 +1353,28 @@ export default function DashboardPage() {
         maxParticipants: editScheduleForm.maxParticipants
       })
 
-      alert('일정이 수정되었습니다.')
+      alert('일정이 수정됐어요.')
       setEditingSchedule(null)
       setSelectedSchedule(null)
     } catch (error) {
       console.error('Error updating schedule:', error)
-      alert('일정 수정 중 오류가 발생했습니다.')
+      alert('일정을 수정하는 중에 문제가 생겼어요.')
     }
   }
 
   const handleDeleteSchedule = async (schedule: Schedule) => {
-    if (!window.confirm('정말 이 일정을 삭제하시겠습니까?')) return
+    if (!window.confirm('정말 삭제하시겠어요?')) return
 
     try {
       const { deleteDoc } = await import('firebase/firestore')
       const scheduleRef = doc(db, 'org_schedules', schedule.id)
       await deleteDoc(scheduleRef)
 
-      alert('일정이 삭제되었습니다.')
+      alert('일정이 삭제됐어요.')
       setSelectedSchedule(null)
     } catch (error) {
       console.error('Error deleting schedule:', error)
-      alert('일정 삭제 중 오류가 발생했습니다.')
+      alert('일정을 삭제하는 중에 문제가 생겼어요.')
     }
   }
 
@@ -1399,7 +1399,7 @@ export default function DashboardPage() {
       }
     } catch (error) {
       console.error('Error adding participant:', error)
-      alert('참석자 추가 중 오류가 발생했습니다.')
+      alert('참석자를 추가하는 중에 문제가 생겼어요.')
     }
   }
 
@@ -1418,7 +1418,7 @@ export default function DashboardPage() {
       }
     } catch (error) {
       console.error('Error removing participant:', error)
-      alert('참석자 제거 중 오류가 발생했습니다.')
+      alert('참석자를 내보내는 중에 문제가 생겼어요.')
     }
   }
 
@@ -1461,7 +1461,7 @@ ${BRAND.NAME}와 함께하는 모임 일정에 참여하세요!
     navigator.clipboard.writeText(text).then(() => {
       alert('일정 정보가 클립보드에 복사되었습니다!\n카카오톡에 붙여넣기 하세요.')
     }).catch(() => {
-      alert('클립보드 복사에 실패했습니다.')
+      alert('링크 복사에 문제가 생겼어요.')
     })
   }
 
@@ -1482,12 +1482,12 @@ ${BRAND.NAME}와 함께하는 모임 일정에 참여하세요!
       setCommentText('')
     } catch (error) {
       console.error('Error adding comment:', error)
-      alert('댓글 추가 중 오류가 발생했습니다.')
+      alert('댓글을 추가하는 중에 문제가 생겼어요.')
     }
   }
 
   const handleDeleteComment = async (schedule: Schedule, commentId: string) => {
-    if (!window.confirm('정말 이 댓글을 삭제하시겠습니까?')) return
+    if (!window.confirm('정말 삭제하시겠어요?')) return
 
     try {
       const scheduleRef = doc(db, 'org_schedules', schedule.id)
@@ -1696,7 +1696,7 @@ ${BRAND.NAME}와 함께하는 모임 일정에 참여하세요!
       // 실시간 리스너가 자동으로 업데이트하므로 로컬 상태 업데이트 불필요
     } catch (error) {
       console.error('Error toggling participation:', error)
-      alert('참여 상태 변경에 실패했습니다.')
+      alert('참여 상태를 바꾸는 중에 문제가 생겼어요.')
     }
   }
 
@@ -1896,12 +1896,12 @@ ${BRAND.NAME}와 함께하는 모임 일정에 참여하세요!
                   // 빈 상태 - 크루 없음
                   return (
                     <div className="mx-6 p-8 bg-gray-100 rounded-2xl text-center">
-                      <div className="text-4xl sm:text-5xl mb-2 sm:mb-3">🏕️</div>
+                      <div className="text-7xl mb-4">🏕️</div>
                       <p className="text-gray-900 font-extrabold text-sm sm:text-base mb-1">
-                        내 동네에 아직 크루가 없어요
+                        아직 크루가 없어요
                       </p>
                       <p className="text-gray-600 text-xs sm:text-sm">
-                        첫 번째 크루를 만들어보세요!
+                        가까운 크루를 찾아볼까요?
                       </p>
                     </div>
                   )
@@ -1944,9 +1944,9 @@ ${BRAND.NAME}와 함께하는 모임 일정에 참여하세요!
               </div>
               {mySchedules.length === 0 ? (
                 <div className="text-center py-12">
-                  <div className="flex justify-center mb-4"><Calendar className="w-16 h-16 text-[#FF9B50]" /></div>
-                  <p className="text-gray-900 font-extrabold text-xl md:text-xl mb-2">등록된 일정이 없어요</p>
-                  <p className="text-gray-800 text-base font-medium">첫 일정을 만들어보세요</p>
+                  <div className="flex justify-center mb-4 text-7xl">📅</div>
+                  <p className="text-gray-900 font-extrabold text-xl md:text-xl mb-2">아직 예정된 일정이 없어요</p>
+                  <p className="text-gray-800 text-base font-medium">새로운 일정을 만들어볼까요?</p>
                 </div>
               ) : (
                 <div className="space-y-4">
@@ -2155,7 +2155,7 @@ ${BRAND.NAME}와 함께하는 모임 일정에 참여하세요!
           <header className="sticky top-0 bg-white z-10 safe-top border-b border-gray-200">
             <div className="px-3 md:px-6 py-3 md:py-6 pb-3">
               <h1 className="text-xl md:text-xl md:text-2xl font-extrabold tracking-tight text-gray-900 flex items-center gap-2"><Tent className="w-5 h-5 md:w-6 md:h-6 text-[#FF9B50]" />내 크루</h1>
-              <p className="text-sm text-gray-600 mt-1">가입한 크루 목록</p>
+              <p className="text-sm text-gray-600 mt-1">함께하는 크루들</p>
             </div>
           </header>
 
@@ -2163,9 +2163,9 @@ ${BRAND.NAME}와 함께하는 모임 일정에 참여하세요!
           <div className="px-6 py-4 md:py-6">
             {organizations.length === 0 ? (
               <div className="text-center py-16">
-                <div className="flex justify-center mb-4"><Tent className="w-16 h-16 text-[#FF9B50]" /></div>
-                <p className="text-base font-extrabold text-gray-900 mb-2">가입한 크루가 없어요</p>
-                <p className="text-sm text-gray-600">크루를 찾아서 가입해보세요!</p>
+                <div className="flex justify-center mb-4 text-7xl">🏕️</div>
+                <p className="text-base font-extrabold text-gray-900 mb-2">아직 참여 중인 크루가 없어요</p>
+                <p className="text-sm text-gray-600">가까운 크루를 찾아볼까요?</p>
               </div>
             ) : (
               <div className="space-y-4">
@@ -3086,7 +3086,7 @@ ${BRAND.NAME}와 함께하는 모임 일정에 참여하세요!
                     }}
                     className="w-full bg-[#F5F5F4] text-[#F04452] py-4 rounded-2xl font-extrabold hover:bg-[#FFE5E8] transition-all active:scale-[0.98]"
                   >
-                    참여 취소
+                    참여 안 할래요
                   </button>
                 ) : (
                   <button
@@ -3459,7 +3459,7 @@ ${BRAND.NAME}와 함께하는 모임 일정에 참여하세요!
                 <textarea
                   value={orgForm.description}
                   onChange={(e) => setOrgForm({ ...orgForm, description: e.target.value })}
-                  placeholder="크루 소개를 입력하세요"
+                  placeholder="어떤 크루인지 소개해주세요"
                   required
                   rows={3}
                   className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-[#FF9B50] focus:ring-offset-2"
@@ -3621,7 +3621,7 @@ ${BRAND.NAME}와 함께하는 모임 일정에 참여하세요!
                 onClick={() => setShowDeleteCrewConfirm(true)}
                 className="w-full py-4 bg-red-500 text-white rounded-xl font-extrabold text-base hover:bg-red-600 transition-all duration-200"
               >
-                크루 해체
+                크루를 해체할까요?
               </button>
             </div>
           </div>
@@ -3633,7 +3633,7 @@ ${BRAND.NAME}와 함께하는 모임 일정에 참여하세요!
         <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
           <div className="bg-white rounded-3xl max-w-md w-full max-h-[80vh] overflow-hidden flex flex-col">
             <div className="bg-gradient-to-r from-[#FF9B50] to-[#2563EB] text-white p-3 md:p-6">
-              <h2 className="text-xl md:text-2xl font-extrabold">새 크루 만들기</h2>
+              <h2 className="text-xl md:text-2xl font-extrabold">어떤 크루를 만들까요?</h2>
               <p className="text-sm opacity-90 mt-1">나만의 캠핑 크루를 시작하세요</p>
             </div>
 
@@ -3666,7 +3666,7 @@ ${BRAND.NAME}와 함께하는 모임 일정에 참여하세요!
                 <textarea
                   value={orgForm.description}
                   onChange={(e) => setOrgForm({ ...orgForm, description: e.target.value })}
-                  placeholder="크루 소개를 입력하세요"
+                  placeholder="어떤 크루인지 소개해주세요"
                   required
                   rows={3}
                   className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-[#FF9B50] focus:ring-offset-2"
@@ -3811,7 +3811,7 @@ ${BRAND.NAME}와 함께하는 모임 일정에 참여하세요!
                 onClick={handleCreateCrew}
                 className="flex-1 py-3 bg-gradient-to-r from-[#FF9B50] to-[#2563EB] text-white rounded-lg font-extrabold hover:opacity-90 active:scale-[0.99] transition-all duration-200"
               >
-                크루 생성
+                크루 만들기
               </button>
               <button
                 onClick={() => {
@@ -3833,7 +3833,7 @@ ${BRAND.NAME}와 함께하는 모임 일정에 참여하세요!
         <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
           <div className="bg-white rounded-3xl max-w-md w-full max-h-[80vh] overflow-hidden flex flex-col">
             <div className="bg-[#FF9B50] text-white p-6">
-              <h2 className="text-xl md:text-2xl font-extrabold">내 프로필 수정</h2>
+              <h2 className="text-xl md:text-2xl font-extrabold">내 정보 바꾸기</h2>
             </div>
 
             <div className="p-3 md:p-6 space-y-4 overflow-y-auto flex-1">
@@ -4101,7 +4101,7 @@ ${BRAND.NAME}와 함께하는 모임 일정에 참여하세요!
           <div className="bg-white rounded-3xl max-w-md w-full max-h-[80vh] overflow-hidden flex flex-col">
             <div className="bg-[#FF9B50] text-white p-6">
               <div className="flex justify-between items-center mb-2">
-                <h2 className="text-xl md:text-xl md:text-2xl font-bold">일정 생성</h2>
+                <h2 className="text-xl md:text-xl md:text-2xl font-bold">언제 만날까요?</h2>
                 <button
                   onClick={() => setShowCreateSchedule(false)}
                   className="text-white text-xl md:text-xl md:text-2xl hover:opacity-80"
@@ -4119,7 +4119,7 @@ ${BRAND.NAME}와 함께하는 모임 일정에 참여하세요!
                   type="text"
                   value={createScheduleForm.title}
                   onChange={(e) => setCreateScheduleForm({ ...createScheduleForm, title: e.target.value })}
-                  placeholder="예: 한강 캠핑"
+                  placeholder="무엇을 할까요?"
                   className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-[#FF9B50] focus:ring-offset-2"
                 />
               </div>
@@ -4164,7 +4164,7 @@ ${BRAND.NAME}와 함께하는 모임 일정에 참여하세요!
                   type="text"
                   value={createScheduleForm.location}
                   onChange={(e) => setCreateScheduleForm({ ...createScheduleForm, location: e.target.value })}
-                  placeholder="예: 한강공원 뚝섬유원지"
+                  placeholder="어디서 만날까요?"
                   className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-[#FF9B50] focus:ring-offset-2"
                 />
               </div>
@@ -4315,7 +4315,7 @@ function NearbyCrewsCarousel({
                 />
               ) : (
                 <div className="w-full h-full flex items-center justify-center">
-                  <span className="text-3xl sm:text-4xl">🏕️</span>
+                  <span className="text-5xl">🏕️</span>
                 </div>
               )}
             </div>
