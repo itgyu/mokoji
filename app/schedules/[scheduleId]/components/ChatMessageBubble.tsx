@@ -1,8 +1,10 @@
 'use client';
 
+import { useState } from 'react';
 import { Avatar } from '@/components/ui';
 import { format } from 'date-fns';
 import { ko } from 'date-fns/locale';
+import { Trash2 } from 'lucide-react';
 import type { ScheduleChatMessage } from '@/types/firestore';
 import { clsx } from 'clsx';
 
@@ -12,6 +14,7 @@ interface ChatMessageBubbleProps {
   showAvatar?: boolean;
   showSenderName?: boolean;
   onRetry?: (message: ScheduleChatMessage) => void;
+  onDelete?: (messageId: string) => void;
 }
 
 /**
@@ -28,6 +31,7 @@ export function ChatMessageBubble({
   showAvatar = true,
   showSenderName = true,
   onRetry,
+  onDelete,
 }: ChatMessageBubbleProps) {
   // 시스템 메시지
   if (message.type === 'system') {
@@ -36,7 +40,7 @@ export function ChatMessageBubble({
 
   // 내 메시지
   if (isMyMessage) {
-    return <MyMessage message={message} onRetry={onRetry} />;
+    return <MyMessage message={message} onRetry={onRetry} onDelete={onDelete} />;
   }
 
   // 타인 메시지
@@ -122,25 +126,29 @@ function SystemMessage({ message }: { message: ScheduleChatMessage }) {
 function MyMessage({
   message,
   onRetry,
+  onDelete,
 }: {
   message: ScheduleChatMessage;
   onRetry?: (message: ScheduleChatMessage) => void;
+  onDelete?: (messageId: string) => void;
 }) {
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const formattedTime = format(message.createdAt.toDate(), 'HH:mm');
   const status = (message as any)._status; // 'sending' | 'sent' | 'failed'
 
   return (
-    <div className="flex justify-end items-end gap-1.5">
-      <div className="max-w-[75%] space-y-0.5">
-        {/* 메시지 버블 */}
-        <div
-          className={clsx(
-            'rounded-2xl rounded-tr-sm px-3 py-2',
-            status === 'failed'
-              ? 'bg-destructive/10 text-foreground border border-destructive'
-              : 'bg-primary text-primary-foreground'
-          )}
-        >
+    <>
+      <div className="flex justify-end items-end gap-1.5">
+        <div className="max-w-[75%] space-y-0.5">
+          {/* 메시지 버블 */}
+          <div
+            className={clsx(
+              'rounded-2xl rounded-tr-sm px-3 py-2 relative group',
+              status === 'failed'
+                ? 'bg-destructive/10 text-foreground border border-destructive'
+                : 'bg-primary text-primary-foreground'
+            )}
+          >
           {/* 첨부 파일 (이미지/동영상) */}
           {message.attachments && message.attachments.length > 0 && (
             <div className="space-y-1 mb-2">
@@ -179,6 +187,18 @@ function MyMessage({
           {/* 텍스트 내용 */}
           {message.content && (
             <p className="text-[13px] leading-snug whitespace-pre-wrap break-words">{message.content}</p>
+          )}
+
+          {/* 삭제 버튼 (작성자만 표시) */}
+          {onDelete && (
+            <button
+              onClick={() => setShowDeleteConfirm(true)}
+              className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity p-1 hover:bg-white/20 rounded-full"
+              aria-label="메시지 삭제"
+              title="메시지 삭제"
+            >
+              <Trash2 className="w-4 h-4 text-white" />
+            </button>
           )}
         </div>
 
@@ -229,6 +249,34 @@ function MyMessage({
         </button>
       )}
     </div>
+
+    {/* 삭제 확인 다이얼로그 */}
+    {showDeleteConfirm && (
+      <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+        <div className="bg-white dark:bg-card rounded-2xl p-6 max-w-sm w-full shadow-xl">
+          <h3 className="text-lg font-bold mb-2 text-foreground">메시지를 삭제할까요?</h3>
+          <p className="text-sm text-muted-foreground mb-6">삭제한 메시지는 복구할 수 없어요</p>
+          <div className="flex gap-3">
+            <button
+              onClick={() => setShowDeleteConfirm(false)}
+              className="flex-1 py-3 bg-muted hover:bg-muted-dark rounded-xl font-semibold text-foreground transition-colors"
+            >
+              취소
+            </button>
+            <button
+              onClick={() => {
+                onDelete?.(message.id);
+                setShowDeleteConfirm(false);
+              }}
+              className="flex-1 py-3 bg-red-500 hover:bg-red-600 text-white rounded-xl font-semibold transition-colors"
+            >
+              삭제
+            </button>
+          </div>
+        </div>
+      </div>
+    )}
+  </>
   );
 }
 

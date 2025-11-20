@@ -1,6 +1,8 @@
 'use client';
 
 import { useState, useRef, useEffect } from 'react';
+import { doc, deleteDoc } from 'firebase/firestore';
+import { db } from '@/lib/firebase';
 import { SkeletonChatMessage } from '@/components/ui';
 import { ChatMessageBubble, DateDivider } from './ChatMessageBubble';
 import { ChatInputBar } from './ChatInputBar';
@@ -105,6 +107,19 @@ export function InlineChatSection({
     await onSendMessage(action);
   };
 
+  // 메시지 삭제 핸들러
+  const handleDeleteMessage = async (messageId: string) => {
+    try {
+      // Firestore에서 메시지 삭제
+      await deleteDoc(doc(db, 'schedules', scheduleId, 'chats', messageId));
+
+      // UI 업데이트는 실시간 리스너가 자동으로 처리
+    } catch (error) {
+      console.error('메시지 삭제 실패:', error);
+      alert('메시지를 삭제하는 중에 문제가 생겼어요');
+    }
+  };
+
   return (
     <>
       <div className="flex flex-col h-[65vh] bg-card rounded-2xl overflow-hidden shadow-sm border border-border">
@@ -184,6 +199,7 @@ export function InlineChatSection({
                         showAvatar={showAvatar}
                         showSenderName={showSenderName}
                         onRetry={onRetryMessage}
+                        onDelete={isMyMessage ? handleDeleteMessage : undefined}
                       />
                     );
                   })}
