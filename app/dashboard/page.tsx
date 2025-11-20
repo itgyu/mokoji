@@ -148,6 +148,8 @@ export default function DashboardPage() {
   const [selectedDistrict, setSelectedDistrict] = useState('')
   const [selectedCityForMemberEdit, setSelectedCityForMemberEdit] = useState('')
   const [selectedDistrictForMemberEdit, setSelectedDistrictForMemberEdit] = useState('')
+  const [searchQuery, setSearchQuery] = useState('')
+  const [selectedCategory, setSelectedCategory] = useState('전체')
   const [editingOrg, setEditingOrg] = useState<Organization | null>(null)
   const [orgForm, setOrgForm] = useState({
     name: '',
@@ -1118,6 +1120,33 @@ export default function DashboardPage() {
     return nearby
   }
 
+  // 검색 및 카테고리 필터링
+  const filteredCrews = useMemo(() => {
+    let filtered = allOrganizations
+
+    // 검색어 필터링 (크루명 또는 카테고리)
+    if (searchQuery.trim()) {
+      const query = searchQuery.toLowerCase().trim()
+      filtered = filtered.filter((org) => {
+        const nameMatch = org.name?.toLowerCase().includes(query)
+        const categoryMatch = (org.categories || [org.category])
+          .filter(Boolean)
+          .some((cat) => cat?.toLowerCase().includes(query))
+        return nameMatch || categoryMatch
+      })
+    }
+
+    // 카테고리 필터링
+    if (selectedCategory !== '전체') {
+      filtered = filtered.filter((org) => {
+        const categories = org.categories || [org.category]
+        return categories.includes(selectedCategory)
+      })
+    }
+
+    return filtered
+  }, [allOrganizations, searchQuery, selectedCategory])
+
   // 크루 가입 신청
   const handleJoinCrew = async (orgId: string) => {
     if (!user || !userProfile) {
@@ -1994,150 +2023,133 @@ ${BRAND.NAME}와 함께하는 모임 일정에 참여하세요!
       {currentPage === 'category' && (
         <div className="bg-[#FFFBF7] min-h-screen">
           <header className="sticky top-0 bg-white z-10 safe-top border-b border-gray-100">
-            <div className="px-4 py-3 flex justify-between items-center">
-              <div>
-                <h1 className="text-xl leading-7 font-extrabold text-gray-900 flex items-center gap-2">
-                  <Users className="w-5 h-5 text-[#FF9B50]" />
-                  크루 찾기
-                </h1>
-              </div>
+            <div className="px-4 py-3 flex items-center justify-between">
+              <h1 className="text-xl leading-7 font-extrabold text-gray-900 flex items-center gap-2">
+                <Users className="w-5 h-5 text-[#FF9B50]" />
+                카테고리
+              </h1>
               <div className="flex items-center gap-2">
-                <button className="p-2 hover:bg-gray-100 rounded-xl active:scale-[0.99] transition-transform duration-200 ease-out">
-                  <MapPin className="w-5 h-5 text-gray-700" strokeWidth={2} />
+                <button onClick={() => setSettingLocation(true)}>
+                  <MapPin className="w-5 h-5 text-gray-600" />
                 </button>
-                <button className="p-2 hover:bg-gray-100 rounded-xl active:scale-[0.99] transition-transform duration-200 ease-out">
-                  <Bell className="w-5 h-5 text-gray-700" strokeWidth={2} />
+                <button onClick={() => router.push('/dashboard?page=home')}>
+                  <Bell className="w-5 h-5 text-gray-600" />
                 </button>
+              </div>
+            </div>
+
+            {/* 검색창 추가 */}
+            <div className="px-4 pb-3">
+              <div className="relative">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
+                <input
+                  type="text"
+                  placeholder="크루명 또는 카테고리 검색..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  className="w-full pl-10 pr-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-base leading-6 focus:outline-none focus:ring-2 focus:ring-[#FF9B50] focus:border-transparent transition-all"
+                />
+                {searchQuery && (
+                  <button
+                    onClick={() => setSearchQuery('')}
+                    className="absolute right-3 top-1/2 -translate-y-1/2"
+                  >
+                    <X className="w-4 h-4 text-gray-400" />
+                  </button>
+                )}
               </div>
             </div>
           </header>
 
-          <div className="px-6 py-4 md:py-6">
-            {/* 추천 크루 섹션 */}
-            {recommendedOrgs.length > 0 && (
-              <div className="mb-6">
-                <div className="flex items-center justify-between mb-3 px-1">
-                  <h3 className="text-xl leading-7 md:text-2xl font-extrabold tracking-tight text-gray-900">
-                    <span className="inline-flex items-center gap-2"><Sparkles className="w-4 h-4 text-[#FF9B50]" />나를 위한 추천 크루</span>
-                  </h3>
-                  <span className="text-sm leading-5 font-extrabold text-[#FF9B50] bg-orange-50 px-3 py-1 rounded-full">
-                    {recommendedOrgs.length}개
-                  </span>
-                </div>
-                <div className="space-y-4">
-                  {recommendedOrgs.map((org) => (
-                    <div
-                      key={org.id}
-                      onClick={() => {
-                        router.replace(`/dashboard?page=mycrew&orgId=${org.id}`, { scroll: false })
-                      }}
-                      className="bg-white rounded-2xl p-6 shadow-[0_2px_8px_rgba(0,0,0,0.04)] border-0 hover:border-[#FF9B50] hover:shadow-[0_8px_16px_rgba(0,0,0,0.1)] transition-all cursor-pointer active:scale-[0.98]"
-                    >
-                      <div className="flex items-center gap-2 md:gap-4">
-                        <div className="w-14 h-14 rounded-2xl overflow-hidden flex-shrink-0 bg-gray-100">
-                          {org.avatar ? (
-                            <img src={org.avatar} alt={org.name} className="w-full h-full object-cover" />
-                          ) : (
-                            <div className="w-full h-full flex items-center justify-center"><Tent className="w-5 h-5 md:w-6 md:h-6 text-[#FF9B50]" /></div>
-                          )}
-                        </div>
-                        <div className="flex-1 min-w-0">
-                          {org.subtitle && (
-                            <p className="text-sm leading-5 font-extrabold text-gray-600 mb-1 truncate">{org.subtitle}</p>
-                          )}
-                          <h4 className="text-xl leading-7 md:text-2xl font-extrabold tracking-tight text-gray-900 mb-1 truncate">
-                            {org.name}
-                          </h4>
-                          <div className="flex items-center gap-2 flex-wrap">
-                            {(org.categories || [org.category]).filter(Boolean).map((cat, idx) => (
-                              <span key={idx} className="inline-flex items-center px-2 py-1 bg-[#F5F5F4] text-gray-700 text-xs rounded-lg font-medium">
-                                {cat}
-                              </span>
-                            ))}
+          {/* 카테고리 필터 칩 */}
+          <div className="sticky top-[var(--header-height)] bg-white z-9 border-b border-gray-100">
+            <div className="px-4 py-3 overflow-x-auto scrollbar-hide">
+              <div className="flex gap-2">
+                <button
+                  onClick={() => setSelectedCategory('전체')}
+                  className={`flex-shrink-0 px-4 py-2 rounded-full text-sm leading-5 font-semibold transition-all ${
+                    selectedCategory === '전체'
+                      ? 'bg-[#FF9B50] text-white'
+                      : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                  }`}
+                >
+                  전체
+                </button>
+                {CREW_CATEGORIES.map((category) => (
+                  <button
+                    key={category}
+                    onClick={() => setSelectedCategory(category)}
+                    className={`flex-shrink-0 px-4 py-2 rounded-full text-sm leading-5 font-semibold transition-all ${
+                      selectedCategory === category
+                        ? 'bg-[#FF9B50] text-white'
+                        : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                    }`}
+                  >
+                    {category}
+                  </button>
+                ))}
+              </div>
+            </div>
+          </div>
+
+          {/* 크루 리스트 */}
+          <div className="px-4 py-4">
+            {filteredCrews.length === 0 ? (
+              <div className="text-center py-16">
+                <div className="text-7xl mb-6">🔍</div>
+                <p className="text-xl leading-7 font-bold text-gray-900 mb-2">
+                  검색 결과가 없어요
+                </p>
+                <p className="text-base leading-6 text-gray-600">
+                  다른 검색어나 카테고리를 시도해보세요
+                </p>
+              </div>
+            ) : (
+              <div className="space-y-3">
+                {filteredCrews.map((org) => (
+                  <div
+                    key={org.id}
+                    onClick={() => {
+                      router.replace(`/dashboard?page=mycrew&orgId=${org.id}`, { scroll: false })
+                    }}
+                    className="bg-white rounded-2xl p-6 shadow-[0_2px_8px_rgba(0,0,0,0.04)] border-0 hover:border-[#FF9B50] hover:shadow-[0_8px_16px_rgba(0,0,0,0.1)] transition-all cursor-pointer active:scale-[0.98]"
+                  >
+                    <div className="flex items-center gap-2 md:gap-4">
+                      <div className="w-14 h-14 rounded-2xl overflow-hidden flex-shrink-0 bg-gray-100">
+                        {org.avatar ? (
+                          <img src={org.avatar} alt={org.name} className="w-full h-full object-cover" />
+                        ) : (
+                          <div className="w-full h-full flex items-center justify-center">
+                            <Tent className="w-5 h-5 md:w-6 md:h-6 text-[#FF9B50]" />
                           </div>
-                        </div>
-                        <div className="text-[#FF9B50] text-xl leading-7 md:text-xl">→</div>
+                        )}
                       </div>
+                      <div className="flex-1 min-w-0">
+                        {org.subtitle && (
+                          <p className="text-sm leading-5 font-extrabold text-gray-600 mb-1 truncate">
+                            {org.subtitle}
+                          </p>
+                        )}
+                        <h4 className="text-xl leading-7 md:text-2xl font-extrabold tracking-tight text-gray-900 mb-1 truncate">
+                          {org.name}
+                        </h4>
+                        <div className="flex items-center gap-2 flex-wrap">
+                          {(org.categories || [org.category]).filter(Boolean).map((cat, idx) => (
+                            <span
+                              key={idx}
+                              className="inline-flex items-center px-2 py-1 bg-[#F5F5F4] text-gray-700 text-xs rounded-lg font-medium"
+                            >
+                              {cat}
+                            </span>
+                          ))}
+                        </div>
+                      </div>
+                      <div className="text-[#FF9B50] text-xl leading-7 md:text-xl">→</div>
                     </div>
-                  ))}
-                </div>
+                  </div>
+                ))}
               </div>
             )}
-
-            {/* 전체 크루 목록 - 10km 반경 내 */}
-            <div className="mb-6">
-              <div className="flex items-center justify-between mb-3 px-1">
-                <h3 className="text-xl leading-7 md:text-2xl font-extrabold tracking-tight text-gray-900">
-                  <span className="inline-flex items-center gap-2"><Star className="w-4 h-4 text-[#FF9B50]" />내 반경 내 전체 크루</span>
-                </h3>
-                <span className="text-sm leading-5 font-extrabold text-gray-800 bg-gray-100 px-3 py-1 rounded-full">
-                  {(() => {
-                    const nearby = getNearbyOrganizations()
-                    return nearby.length
-                  })()}개
-                </span>
-              </div>
-              {(() => {
-                const nearby = getNearbyOrganizations()
-                if (!userProfile?.locations || userProfile.locations.length === 0) {
-                  return (
-                    <div className="bg-white rounded-2xl p-4 md:p-8 text-center">
-                      <div className="flex justify-center mb-3"><MapPin className="w-14 h-14 text-[#FF9B50]" /></div>
-                      <p className="text-base leading-6 font-extrabold text-gray-900 mb-1">동네 인증이 필요해요</p>
-                      <p className="text-sm leading-5 text-gray-800">내 동네를 인증하고 주변 크루를 만나보세요</p>
-                    </div>
-                  )
-                }
-                if (nearby.length === 0) {
-                  return (
-                    <div className="bg-white rounded-2xl p-4 md:p-8 text-center">
-                      <div className="flex justify-center mb-3"><Search className="w-14 h-14 text-[#FF9B50]" /></div>
-                      <p className="text-base leading-6 font-extrabold text-gray-900 mb-1">10km 이내 크루가 없어요</p>
-                      <p className="text-sm leading-5 text-gray-800">새로운 크루를 만들어보세요!</p>
-                    </div>
-                  )
-                }
-                return (
-                  <div className="space-y-4">
-                    {nearby.map((org) => (
-                    <div
-                      key={org.id}
-                      onClick={() => {
-                        router.replace(`/dashboard?page=mycrew&orgId=${org.id}`, { scroll: false })
-                      }}
-                      className="bg-white rounded-2xl p-6 shadow-[0_2px_8px_rgba(0,0,0,0.04)] border-0 hover:border-[#FF9B50] hover:shadow-[0_8px_16px_rgba(0,0,0,0.1)] transition-all cursor-pointer active:scale-[0.98]"
-                    >
-                      <div className="flex items-center gap-2 md:gap-4">
-                        <div className="w-14 h-14 rounded-2xl overflow-hidden flex-shrink-0 bg-gray-100">
-                          {org.avatar ? (
-                            <img src={org.avatar} alt={org.name} className="w-full h-full object-cover" />
-                          ) : (
-                            <div className="w-full h-full flex items-center justify-center"><Tent className="w-5 h-5 md:w-6 md:h-6 text-[#FF9B50]" /></div>
-                          )}
-                        </div>
-                        <div className="flex-1 min-w-0">
-                          {org.subtitle && (
-                            <p className="text-sm leading-5 font-extrabold text-gray-600 mb-1 truncate">{org.subtitle}</p>
-                          )}
-                          <h4 className="text-xl leading-7 md:text-2xl font-extrabold tracking-tight text-gray-900 mb-1 truncate">
-                            {org.name}
-                          </h4>
-                          <div className="flex items-center gap-2 flex-wrap">
-                            {(org.categories || [org.category]).filter(Boolean).map((cat, idx) => (
-                              <span key={idx} className="inline-flex items-center px-2 py-1 bg-[#F5F5F4] text-gray-700 text-xs rounded-lg font-medium">
-                                {cat}
-                              </span>
-                            ))}
-                          </div>
-                        </div>
-                        <div className="text-[#FF9B50] text-xl leading-7 md:text-xl">→</div>
-                      </div>
-                    </div>
-                    ))}
-                  </div>
-                )
-              })()}
-            </div>
           </div>
         </div>
       )}
@@ -4224,7 +4236,7 @@ ${BRAND.NAME}와 함께하는 모임 일정에 참여하세요!
         <div className="max-w-md mx-auto flex h-14">
           {[
             { id: 'home' as Page, icon: Home, label: '홈' },
-            { id: 'category' as Page, icon: Users, label: '크루찾기' },
+            { id: 'category' as Page, icon: Users, label: '카테고리' },
             { id: 'mycrew' as Page, icon: Calendar, label: '내크루' },
             { id: 'myprofile' as Page, icon: User, label: '내정보' }
           ].map(({ id, icon: Icon, label }) => (
