@@ -8,7 +8,7 @@ import { useAuth } from '@/contexts/AuthContext'
 import { signOut } from 'firebase/auth'
 import { auth, db } from '@/lib/firebase'
 import { collection, query, where, getDocs, doc, getDoc, updateDoc, onSnapshot, addDoc, arrayUnion, arrayRemove, deleteDoc, writeBatch } from 'firebase/firestore'
-import { Home, Users, Calendar, User, MapPin, Bell, Settings, Target, MessageCircle, Sparkles, Star, Tent, Search, Plus, Check, Edit, LogOut } from 'lucide-react'
+import { Home, Users, Calendar, User, MapPin, Bell, Settings, Target, MessageCircle, Sparkles, Star, Tent, Search, Plus, Check, Edit, LogOut, X, ChevronLeft } from 'lucide-react'
 import { uploadToS3 } from '@/lib/s3-client'
 import ScheduleDeepLink from '@/components/ScheduleDeepLink'
 import { getCities, getDistricts } from '@/lib/locations'
@@ -1826,22 +1826,20 @@ ${BRAND.NAME}와 함께하는 모임 일정에 참여하세요!
       {currentPage === 'home' && (
         <div className="bg-[#FFFBF7]">
           {/* 토스 스타일 헤더 */}
-          <header className="sticky top-0 bg-white z-10 safe-top">
-            <div className="px-5 py-6 sm:px-5 sm:py-3 md:py-6 flex justify-between items-center border-b border-gray-200">
-              <div className="flex items-center gap-2 sm:gap-3">
-                <MapPin className="w-6 h-6 sm:w-7 sm:h-7 text-[#FF9B50]" strokeWidth={2.5} />
-                <span className="font-bold text-xl leading-7 sm:text-xl md:text-xl md:text-2xl tracking-tight text-gray-900">
-                  {userProfile?.locations && userProfile.locations.length > 0
-                    ? `${(userProfile.locations.find(loc => loc.id === userProfile.selectedLocationId) || userProfile.locations[0]).sigungu} ${(userProfile.locations.find(loc => loc.id === userProfile.selectedLocationId) || userProfile.locations[0]).dong}`
-                    : profile.location}
-                </span>
+          <header className="sticky top-0 bg-white z-10 safe-top border-b border-gray-100">
+            <div className="px-4 py-3 flex justify-between items-center">
+              <div>
+                <h1 className="text-xl leading-7 font-extrabold text-gray-900 flex items-center gap-2">
+                  <Home className="w-5 h-5 text-[#FF9B50]" />
+                  홈
+                </h1>
               </div>
-              <div className="flex gap-1">
-                <button className="p-3 hover:bg-gray-100 rounded-xl active:scale-[0.99] transition-transform duration-200 ease-out">
-                  <Bell className="w-6 h-6 text-gray-700" strokeWidth={2} />
+              <div className="flex items-center gap-2">
+                <button className="p-2 hover:bg-gray-100 rounded-xl active:scale-[0.99] transition-transform duration-200 ease-out">
+                  <Bell className="w-5 h-5 text-gray-700" strokeWidth={2} />
                 </button>
-                <button className="p-3 hover:bg-gray-100 rounded-xl active:scale-[0.99] transition-transform duration-200 ease-out">
-                  <Settings className="w-6 h-6 text-gray-700" strokeWidth={2} />
+                <button className="p-2 hover:bg-gray-100 rounded-xl active:scale-[0.99] transition-transform duration-200 ease-out">
+                  <Settings className="w-5 h-5 text-gray-700" strokeWidth={2} />
                 </button>
               </div>
             </div>
@@ -1995,30 +1993,26 @@ ${BRAND.NAME}와 함께하는 모임 일정에 참여하세요!
       {/* Category Page - 토스 스타일 */}
       {currentPage === 'category' && (
         <div className="bg-[#FFFBF7] min-h-screen">
-          <header className="sticky top-0 bg-white z-10 safe-top border-b border-gray-200">
-            <div className="px-5 py-6 sm:px-3 md:px-6 sm:py-3 md:py-6 flex justify-between items-center">
-              <div className="flex items-center gap-2 sm:gap-3">
-                <MapPin className="w-6 h-6 sm:w-7 sm:h-7 text-[#FF9B50]" strokeWidth={2.5} />
-                <span className="font-bold text-xl leading-7 sm:text-xl md:text-xl md:text-2xl tracking-tight text-gray-900">
-                  {userProfile?.locations && userProfile.locations.length > 0
-                    ? `${(userProfile.locations.find(loc => loc.id === userProfile.selectedLocationId) || userProfile.locations[0]).sigungu} ${(userProfile.locations.find(loc => loc.id === userProfile.selectedLocationId) || userProfile.locations[0]).dong}`
-                    : profile.location}
-                </span>
+          <header className="sticky top-0 bg-white z-10 safe-top border-b border-gray-100">
+            <div className="px-4 py-3 flex justify-between items-center">
+              <div>
+                <h1 className="text-xl leading-7 font-extrabold text-gray-900 flex items-center gap-2">
+                  <Users className="w-5 h-5 text-[#FF9B50]" />
+                  크루 찾기
+                </h1>
               </div>
-              <div className="flex gap-1">
-                <button className="p-3 hover:bg-gray-100 rounded-xl active:scale-[0.99] transition-transform duration-200 ease-out">
-                  <Bell className="w-6 h-6 text-gray-700" strokeWidth={2} />
+              <div className="flex items-center gap-2">
+                <button className="p-2 hover:bg-gray-100 rounded-xl active:scale-[0.99] transition-transform duration-200 ease-out">
+                  <MapPin className="w-5 h-5 text-gray-700" strokeWidth={2} />
                 </button>
-                <button className="p-3 hover:bg-gray-100 rounded-xl active:scale-[0.99] transition-transform duration-200 ease-out">
-                  <Settings className="w-6 h-6 text-gray-700" strokeWidth={2} />
+                <button className="p-2 hover:bg-gray-100 rounded-xl active:scale-[0.99] transition-transform duration-200 ease-out">
+                  <Bell className="w-5 h-5 text-gray-700" strokeWidth={2} />
                 </button>
               </div>
             </div>
           </header>
 
           <div className="px-6 py-4 md:py-6">
-            <h2 className="text-xl leading-7 md:text-xl md:text-2xl font-extrabold tracking-tight text-gray-900 mb-5">크루 찾기</h2>
-
             {/* 추천 크루 섹션 */}
             {recommendedOrgs.length > 0 && (
               <div className="mb-6">
@@ -2152,10 +2146,12 @@ ${BRAND.NAME}와 함께하는 모임 일정에 참여하세요!
       {currentPage === 'mycrew' && !urlOrgId && (
         <div className="bg-[#FFFBF7] min-h-screen">
           {/* 헤더 */}
-          <header className="sticky top-0 bg-white z-10 safe-top border-b border-gray-200">
-            <div className="px-3 md:px-6 py-3 md:py-6 pb-3">
-              <h1 className="text-xl leading-7 md:text-xl md:text-2xl font-extrabold tracking-tight text-gray-900 flex items-center gap-2"><Tent className="w-5 h-5 md:w-6 md:h-6 text-[#FF9B50]" />내 크루</h1>
-              <p className="text-sm leading-5 text-gray-600 mt-1">함께하는 크루들</p>
+          <header className="sticky top-0 bg-white z-10 safe-top border-b border-gray-100">
+            <div className="px-4 py-3">
+              <h1 className="text-xl leading-7 font-extrabold text-gray-900 flex items-center gap-2">
+                <Tent className="w-5 h-5 text-[#FF9B50]" />
+                내 크루
+              </h1>
             </div>
           </header>
 
@@ -2264,22 +2260,24 @@ ${BRAND.NAME}와 함께하는 모임 일정에 참여하세요!
       {currentPage === 'schedules' && (
         <div className="bg-[#FFFBF7] min-h-screen">
           {/* 헤더 */}
-          <header className="sticky top-0 bg-white z-10 safe-top border-b border-gray-200">
-            <div className="px-3 md:px-6 py-3 md:py-6 pb-3 flex items-center justify-between">
+          <header className="sticky top-0 bg-white z-10 safe-top border-b border-gray-100">
+            <div className="px-4 py-3 flex items-center justify-between">
               <div>
-                <h1 className="text-xl leading-7 md:text-xl md:text-2xl font-extrabold tracking-tight text-gray-900 flex items-center gap-2"><Calendar className="w-5 h-5 md:w-6 md:h-6 text-[#FF9B50]" />다가오는 일정</h1>
-                <p className="text-sm leading-5 text-gray-600 mt-1">모든 크루의 일정을 확인하세요</p>
+                <h1 className="text-xl leading-7 font-extrabold text-gray-900 flex items-center gap-2">
+                  <Calendar className="w-5 h-5 text-[#FF9B50]" />
+                  다가오는 일정
+                </h1>
               </div>
               <button
                 onClick={() => router.replace('/dashboard?page=home', { scroll: false })}
-                className="text-gray-900 text-xl leading-7 md:text-xl md:text-2xl p-2 hover:bg-gray-100 rounded-xl active:scale-[0.99] transition-transform duration-200 ease-out"
+                className="p-2 hover:bg-gray-100 rounded-xl active:scale-[0.99] transition-transform duration-200 ease-out"
               >
-                ✕
+                <X className="w-5 h-5 text-gray-700" strokeWidth={2} />
               </button>
             </div>
 
             {/* 필터 칩 */}
-            <div className="px-3 md:px-6 pb-4 overflow-x-auto scrollbar-hide">
+            <div className="px-4 pb-3 overflow-x-auto scrollbar-hide">
               <div className="flex gap-2">
                 <button
                   onClick={() => setScheduleFilter('all')}
@@ -2454,34 +2452,37 @@ ${BRAND.NAME}와 함께하는 모임 일정에 참여하세요!
           ) : (
             <>
               {/* 헤더 */}
-              <header className="sticky top-0 bg-white z-10 safe-top border-b border-gray-200">
-                <div className="px-3 md:px-6 py-3 md:py-6">
-                  <div className="flex items-center justify-between mb-3">
+              <header className="sticky top-0 bg-white z-10 safe-top border-b border-gray-100">
+                <div className="px-4 py-3">
+                  <div className="flex items-center justify-between mb-2">
                     <button
                       onClick={() => {
                         router.replace('/dashboard?page=mycrew', { scroll: false })
                       }}
-                      className="text-gray-900 text-xl leading-7 md:text-xl md:text-2xl p-2 hover:bg-gray-100 rounded-xl active:scale-[0.99] transition-transform duration-200 ease-out -ml-2"
+                      className="p-2 hover:bg-gray-100 rounded-xl active:scale-[0.99] transition-transform duration-200 ease-out -ml-2"
                     >
-                      ←
+                      <ChevronLeft className="w-5 h-5 text-gray-700" strokeWidth={2} />
                     </button>
                     {canManageOrg(selectedOrg.id) && (
                       <button
                         onClick={() => handleOpenOrgEdit(selectedOrg)}
-                        className="px-4 py-2 bg-[#F5F5F4] text-gray-900 text-sm leading-5 font-extrabold rounded-xl hover:bg-gray-200 active:scale-[0.99] transition-transform duration-200 ease-out"
+                        className="px-3 py-1.5 bg-[#F5F5F4] text-gray-900 text-sm font-extrabold rounded-xl hover:bg-gray-200 active:scale-[0.99] transition-transform duration-200 ease-out"
                       >
-                        <span className="inline-flex items-center gap-2"><Settings className="w-4 h-4" />크루 정보 수정</span>
+                        <span className="inline-flex items-center gap-1.5">
+                          <Settings className="w-4 h-4" />
+                          설정
+                        </span>
                       </button>
                     )}
                   </div>
+                  <h1 className="text-xl leading-7 font-extrabold text-gray-900">{selectedOrg.name}</h1>
                   {selectedOrg.subtitle && (
-                    <p className="text-sm leading-5 font-extrabold text-gray-600 mb-1">{selectedOrg.subtitle}</p>
+                    <p className="text-sm text-gray-600 mt-1">{selectedOrg.subtitle}</p>
                   )}
-                  <h1 className="text-xl leading-7 md:text-xl md:text-2xl font-extrabold tracking-tight text-gray-900">{selectedOrg.name}</h1>
                 </div>
 
             {/* 통계 카드 */}
-            <div className="px-3 md:px-6 pb-6 grid grid-cols-3 gap-3">
+            <div className="px-4 pb-4 grid grid-cols-3 gap-3">
               <button
                 onClick={() => setScheduleFilter('all')}
                 className={`rounded-2xl p-4 text-center transition-all ${
@@ -3110,9 +3111,12 @@ ${BRAND.NAME}와 함께하는 모임 일정에 참여하세요!
       {currentPage === 'myprofile' && (
         <div className="bg-[#FFFBF7] min-h-screen pb-20">
           {/* 헤더 */}
-          <header className="sticky top-0 bg-white z-10 safe-top border-b border-gray-200">
-            <div className="px-4 py-4 sm:px-3 md:px-6 sm:py-5">
-              <h1 className="text-xl leading-7 sm:text-xl md:text-xl md:text-2xl font-extrabold tracking-tight text-gray-900">내 정보</h1>
+          <header className="sticky top-0 bg-white z-10 safe-top border-b border-gray-100">
+            <div className="px-4 py-3">
+              <h1 className="text-xl leading-7 font-extrabold text-gray-900 flex items-center gap-2">
+                <User className="w-5 h-5 text-[#FF9B50]" />
+                내 정보
+              </h1>
             </div>
           </header>
 
@@ -4216,8 +4220,8 @@ ${BRAND.NAME}와 함께하는 모임 일정에 참여하세요!
       )}
 
       {/* Bottom Navigation - 토스 스타일 */}
-      <nav className="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 z-20 safe-bottom">
-        <div className="max-w-md mx-auto flex h-16">
+      <nav className="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-100 z-20 safe-bottom">
+        <div className="max-w-md mx-auto flex h-14">
           {[
             { id: 'home' as Page, icon: Home, label: '홈' },
             { id: 'category' as Page, icon: Users, label: '크루찾기' },
@@ -4240,12 +4244,12 @@ ${BRAND.NAME}와 함께하는 모임 일정에 참여하세요!
                   router.replace(`/dashboard?page=${id}`, { scroll: false })
                 }
               }}
-              className={`flex-1 flex flex-col items-center justify-center gap-0.5 transition-transform duration-200 ease-out active:scale-[0.97] ${
+              className={`flex-1 flex flex-col items-center justify-center gap-0.5 py-1.5 transition-transform duration-200 ease-out active:scale-[0.97] ${
                 currentPage === id ? 'text-[#FF9B50]' : 'text-gray-600'
               }`}
             >
-              <Icon className="w-7 h-7" strokeWidth={currentPage === id ? 2.5 : 2} />
-              <span className={`text-[11px] ${currentPage === id ? 'font-extrabold' : 'font-bold'}`}>{label}</span>
+              <Icon className="w-6 h-6" strokeWidth={currentPage === id ? 2.5 : 2} />
+              <span className={`text-[10px] font-semibold ${currentPage === id ? 'font-extrabold' : ''}`}>{label}</span>
             </button>
           ))}
         </div>
