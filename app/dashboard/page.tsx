@@ -20,7 +20,6 @@ import { getCurrentPosition, getAddressFromCoords, calculateDistance, formatDist
 import { getOrganizations, getOrganizationMembers } from '@/lib/firestore-helpers'
 import type { OrganizationMember } from '@/types'
 import { formatTimestamp } from '@/lib/date-utils'
-import useEmblaCarousel from 'embla-carousel-react'
 import LoadingScreen from '@/components/LoadingScreen'
 
 type Page = 'home' | 'category' | 'mycrew' | 'myprofile' | 'schedules'
@@ -4274,110 +4273,98 @@ function NearbyCrewsCarousel({
   orgMemberCounts: { [key: string]: number }
   formatDistance: (distance: number) => string
 }) {
-  const [emblaRef] = useEmblaCarousel({
-    align: 'start',
-    loop: false,
-    dragFree: true,
-    containScroll: 'trimSnaps'
-  })
-
   return (
-    <div className="overflow-hidden" ref={emblaRef}>
-      <div className="flex gap-3 px-4 sm:px-5 pb-2">
-        {nearbyCrews.map((crew) => {
-          // 크루 이미지 URL (우선순위: avatar > imageURL > images[0])
-          const imageUrl = crew.avatar || crew.imageURL || (crew.images && crew.images[0]) || null
+    <div className="px-4 sm:px-5 space-y-3">
+      {nearbyCrews.map((crew) => {
+        // 크루 이미지 URL (우선순위: avatar > imageURL > images[0])
+        const imageUrl = crew.avatar || crew.imageURL || (crew.images && crew.images[0]) || null
 
-          // 카테고리 배열 (최대 2개만 표시)
-          const categories = Array.isArray(crew.categories)
-            ? crew.categories.slice(0, 2)
-            : crew.category
-              ? [crew.category].slice(0, 2)
-              : []
+        // 카테고리 배열 (최대 2개만 표시)
+        const categories = Array.isArray(crew.categories)
+          ? crew.categories.slice(0, 2)
+          : crew.category
+            ? [crew.category].slice(0, 2)
+            : []
 
-          const totalCategories = Array.isArray(crew.categories)
-            ? crew.categories.length
-            : crew.category ? 1 : 0
+        const totalCategories = Array.isArray(crew.categories)
+          ? crew.categories.length
+          : crew.category ? 1 : 0
 
-          return (
-            <button
-              key={crew.id}
-              onClick={() => {
-                router.replace(`/dashboard?page=mycrew&orgId=${crew.id}`, { scroll: false })
-              }}
-              className="flex-shrink-0 w-[280px] sm:w-[300px] md:w-[320px] bg-white rounded-xl sm:rounded-2xl overflow-hidden border border-gray-200 hover:shadow-md transition-all hover:scale-[1.02] active:scale-95"
-            >
-              {/* 크루 이미지 */}
-              <div className="relative w-full h-[180px] sm:h-[160px] md:h-[180px] bg-gradient-to-br from-orange-400 to-pink-500">
-                {imageUrl ? (
-                  <img
-                    src={imageUrl}
-                    alt={crew.name}
-                    className="w-full h-full object-cover"
-                    onError={(e) => {
-                      e.currentTarget.style.display = 'none'
-                    }}
-                  />
-                ) : (
-                  <div className="w-full h-full flex items-center justify-center">
-                    <span className="text-5xl sm:text-6xl">🏕️</span>
-                  </div>
-                )}
+        return (
+          <button
+            key={crew.id}
+            onClick={() => {
+              router.replace(`/dashboard?page=mycrew&orgId=${crew.id}`, { scroll: false })
+            }}
+            className="w-full flex gap-3 sm:gap-4 bg-white rounded-xl sm:rounded-2xl p-3 sm:p-4 border border-gray-200 hover:shadow-md transition-all hover:scale-[1.01] active:scale-[0.99]"
+          >
+            {/* 크루 로고 (왼쪽) */}
+            <div className="flex-shrink-0 w-20 h-20 sm:w-24 sm:h-24 rounded-xl sm:rounded-2xl overflow-hidden bg-gradient-to-br from-orange-400 to-pink-500">
+              {imageUrl ? (
+                <img
+                  src={imageUrl}
+                  alt={crew.name}
+                  className="w-full h-full object-cover"
+                  onError={(e) => {
+                    e.currentTarget.style.display = 'none'
+                  }}
+                />
+              ) : (
+                <div className="w-full h-full flex items-center justify-center">
+                  <span className="text-3xl sm:text-4xl">🏕️</span>
+                </div>
+              )}
+            </div>
 
-                {/* 거리 배지 */}
+            {/* 크루 정보 (오른쪽) */}
+            <div className="flex-1 min-w-0 text-left flex flex-col justify-center">
+              {/* 크루 이름 */}
+              <h3 className="text-base sm:text-lg font-bold text-gray-900 mb-1 truncate">
+                {crew.name}
+              </h3>
+
+              {/* 위치 */}
+              <div className="flex items-center gap-1 text-stone-600 text-xs sm:text-sm mb-1.5">
+                <MapPin className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-[#FF9B50] flex-shrink-0" />
+                <span className="truncate">
+                  {crew.location?.dong || crew.description?.split(' ').slice(0, 2).join(' ') || '위치 미설정'}
+                </span>
                 {crew.distance > 0 && (
-                  <div className="absolute top-2 sm:top-3 right-2 sm:right-3 px-2 sm:px-3 py-1 sm:py-1.5 bg-white/95 backdrop-blur-sm rounded-full shadow-sm">
-                    <span className="text-xs sm:text-sm font-bold text-gray-900">
-                      {formatDistance(crew.distance)}
+                  <>
+                    <span className="text-gray-400">·</span>
+                    <span className="text-gray-600 font-medium">{formatDistance(crew.distance)}</span>
+                  </>
+                )}
+              </div>
+
+              {/* 카테고리 */}
+              {categories.length > 0 && (
+                <div className="flex flex-wrap gap-1 mb-1.5">
+                  {categories.map((cat: string, idx: number) => (
+                    <span
+                      key={idx}
+                      className="px-2 py-0.5 bg-stone-100 text-stone-700 text-xs font-medium rounded-md"
+                    >
+                      {cat}
                     </span>
-                  </div>
-                )}
-              </div>
-
-              {/* 크루 정보 */}
-              <div className="p-3 sm:p-4 text-left">
-                {/* 크루 이름 */}
-                <h3 className="text-base sm:text-base md:text-lg font-bold text-gray-900 mb-1.5 sm:mb-2 truncate">
-                  {crew.name}
-                </h3>
-
-                {/* 위치 */}
-                <div className="flex items-center gap-1 text-stone-600 text-xs sm:text-sm mb-2">
-                  <MapPin className="w-4 h-4 text-[#FF9B50] flex-shrink-0" />
-                  <span className="truncate">
-                    {crew.location?.dong || crew.description?.split(' ').slice(0, 2).join(' ') || '위치 미설정'}
-                  </span>
+                  ))}
+                  {totalCategories > 2 && (
+                    <span className="px-2 py-0.5 bg-stone-100 text-gray-500 text-xs font-medium rounded-md">
+                      +{totalCategories - 2}
+                    </span>
+                  )}
                 </div>
+              )}
 
-                {/* 카테고리 */}
-                {categories.length > 0 && (
-                  <div className="flex flex-wrap gap-1 sm:gap-1.5 mb-2 sm:mb-3">
-                    {categories.map((cat: string, idx: number) => (
-                      <span
-                        key={idx}
-                        className="px-2 py-0.5 sm:px-2.5 sm:py-1 bg-stone-100 text-stone-700 text-xs font-medium rounded-md"
-                      >
-                        {cat}
-                      </span>
-                    ))}
-                    {totalCategories > 2 && (
-                      <span className="px-2 py-0.5 sm:px-2.5 sm:py-1 bg-stone-100 text-gray-500 text-xs font-medium rounded-md">
-                        +{totalCategories - 2}
-                      </span>
-                    )}
-                  </div>
-                )}
-
-                {/* 멤버 수 */}
-                <div className="flex items-center gap-1 text-gray-500 text-xs sm:text-sm">
-                  <Users className="w-4 h-4 text-[#FF9B50] flex-shrink-0" />
-                  <span>멤버 {orgMemberCounts[crew.id] || 0}명</span>
-                </div>
+              {/* 멤버 수 */}
+              <div className="flex items-center gap-1 text-gray-500 text-xs sm:text-sm">
+                <Users className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-[#FF9B50] flex-shrink-0" />
+                <span>멤버 {orgMemberCounts[crew.id] || 0}명</span>
               </div>
-            </button>
-          )
-        })}
-      </div>
+            </div>
+          </button>
+        )
+      })}
     </div>
   )
 }
