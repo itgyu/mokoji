@@ -23,12 +23,19 @@
     "functions:serve": "cd functions && npm run serve",
     "functions:deploy": "cd functions && npm run deploy",
     "functions:logs": "cd functions && npm run logs",
-    "emulators": "firebase emulators:start"
+    "emulators": "firebase emulators:start",
+    "cap:sync": "npx cap sync",
+    "cap:open:android": "npx cap open android",
+    "android:build": "cd android && ./gradlew assembleDebug",
+    "android:build:release": "cd android && ./gradlew assembleRelease"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.934.0",
     "@aws-sdk/lib-storage": "^3.934.0",
     "@aws-sdk/s3-request-presigner": "^3.928.0",
+    "@capacitor/android": "^7.4.4",
+    "@capacitor/cli": "^7.4.4",
+    "@capacitor/core": "^7.4.4",
     "@hookform/resolvers": "^3.10.0",
     "@radix-ui/react-accordion": "1.2.2",
     "@radix-ui/react-alert-dialog": "1.1.4",
