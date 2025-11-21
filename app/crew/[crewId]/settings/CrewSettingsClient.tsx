@@ -102,6 +102,15 @@ export function CrewSettingsClient({
     });
   };
 
+  // 운영진 권한 토글
+  const handleToggleAdmin = () => {
+    if (!editingRole) return;
+    setEditingRole({
+      ...editingRole,
+      newRole: editingRole.newRole === 'admin' ? 'member' : 'admin',
+    });
+  };
+
   // 멤버 역할 변경 저장
   const handleSaveRole = async () => {
     if (!editingRole) return;
@@ -530,61 +539,51 @@ export function CrewSettingsClient({
               </div>
 
               <div className="space-y-3">
-                <p className="text-sm font-medium">권한 설정</p>
+                <p className="text-sm font-medium">권한 관리</p>
 
-                <label className="flex items-center justify-between p-4 border-2 rounded-lg cursor-pointer hover:bg-muted transition-colors"
-                  style={{
-                    borderColor: editingRole.newRole === 'admin' ? 'rgb(59 130 246)' : 'rgb(229 231 235)'
-                  }}>
-                  <div className="flex items-center gap-3">
-                    <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center ${
-                      editingRole.newRole === 'admin' ? 'border-blue-500 bg-blue-500' : 'border-gray-300'
-                    }`}>
-                      {editingRole.newRole === 'admin' && (
-                        <div className="w-2 h-2 bg-white rounded-full" />
-                      )}
+                <div className="p-4 border border-border rounded-lg space-y-4">
+                  {/* 운영진 권한 토글 */}
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                      <div className="w-10 h-10 rounded-full bg-blue-100 flex items-center justify-center">
+                        <Users className="w-5 h-5 text-blue-600" />
+                      </div>
+                      <div>
+                        <p className="font-medium">운영진 권한</p>
+                        <p className="text-xs text-muted-foreground">일정 생성/수정/삭제</p>
+                      </div>
                     </div>
-                    <div>
-                      <p className="font-medium">운영진</p>
-                      <p className="text-xs text-muted-foreground">일정 생성/수정/삭제 권한</p>
-                    </div>
+                    <button
+                      onClick={handleToggleAdmin}
+                      className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
+                        editingRole.newRole === 'admin' ? 'bg-blue-500' : 'bg-gray-300'
+                      }`}
+                    >
+                      <span
+                        className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                          editingRole.newRole === 'admin' ? 'translate-x-6' : 'translate-x-1'
+                        }`}
+                      />
+                    </button>
                   </div>
-                  <input
-                    type="radio"
-                    name="role"
-                    value="admin"
-                    checked={editingRole.newRole === 'admin'}
-                    onChange={(e) => setEditingRole({ ...editingRole, newRole: e.target.value })}
-                    className="hidden"
-                  />
-                </label>
 
-                <label className="flex items-center justify-between p-4 border-2 rounded-lg cursor-pointer hover:bg-muted transition-colors"
-                  style={{
-                    borderColor: editingRole.newRole === 'member' ? 'rgb(59 130 246)' : 'rgb(229 231 235)'
-                  }}>
-                  <div className="flex items-center gap-3">
-                    <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center ${
-                      editingRole.newRole === 'member' ? 'border-blue-500 bg-blue-500' : 'border-gray-300'
-                    }`}>
-                      {editingRole.newRole === 'member' && (
-                        <div className="w-2 h-2 bg-white rounded-full" />
+                  {/* 상태 표시 */}
+                  <div className={`p-3 rounded-lg ${
+                    editingRole.newRole === 'admin' ? 'bg-blue-50 border border-blue-200' : 'bg-gray-50 border border-gray-200'
+                  }`}>
+                    <p className="text-sm">
+                      {editingRole.newRole === 'admin' ? (
+                        <span className="text-blue-700">
+                          ✓ 운영진 권한이 <strong>부여</strong>됩니다
+                        </span>
+                      ) : (
+                        <span className="text-gray-600">
+                          일반 멤버 권한만 유지됩니다
+                        </span>
                       )}
-                    </div>
-                    <div>
-                      <p className="font-medium">일반 멤버</p>
-                      <p className="text-xs text-muted-foreground">일정 참여 권한</p>
-                    </div>
+                    </p>
                   </div>
-                  <input
-                    type="radio"
-                    name="role"
-                    value="member"
-                    checked={editingRole.newRole === 'member'}
-                    onChange={(e) => setEditingRole({ ...editingRole, newRole: e.target.value })}
-                    className="hidden"
-                  />
-                </label>
+                </div>
               </div>
             </div>
 
