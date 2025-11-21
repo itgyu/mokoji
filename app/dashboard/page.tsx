@@ -2814,7 +2814,7 @@ ${BRAND.NAME}와 함께하는 모임 일정에 참여하세요!
           {crewView === 'photos' && selectedOrg && (
             <div className="px-6 py-4 md:py-6">
               {/* 사진 업로드 버튼 - 크루 멤버만 */}
-              {members.some(m => m.userId === user?.uid) && (
+              {members.some(m => m.uid === user?.uid) && (
                 <div className="mb-6">
                   <label className="w-full py-4 px-6 bg-[#FF9B50] hover:bg-[#FF8A3D] text-white rounded-2xl font-extrabold text-base leading-6 cursor-pointer active:scale-[0.98] transition-all flex items-center justify-center gap-2">
                     {uploadingPhoto ? (
@@ -2860,7 +2860,7 @@ ${BRAND.NAME}와 함께하는 모임 일정에 참여하세요!
                       key={photo.id}
                       onClick={() => {
                         // 크루 멤버만 상세 보기 가능
-                        if (members.some(m => m.userId === user?.uid)) {
+                        if (members.some(m => m.uid === user?.uid)) {
                           setSelectedPhoto(photo)
                         } else {
                           alert('크루 멤버만 사진을 자세히 볼 수 있어요.')
@@ -2879,7 +2879,7 @@ ${BRAND.NAME}와 함께하는 모임 일정에 참여하세요!
               )}
 
               {/* 비회원용 안내 메시지 */}
-              {!members.some(m => m.userId === user?.uid) && photos.length > 0 && (
+              {!members.some(m => m.uid === user?.uid) && photos.length > 0 && (
                 <div className="mt-6 p-4 bg-[#FFF3E0] border border-[#FF9B50] rounded-xl">
                   <p className="text-sm leading-5 text-gray-700 text-center">
                     <Camera className="w-4 h-4 text-[#FF9B50] inline-block" /> 크루에 가입하면 사진을 자세히 보고 업로드할 수 있어요
