@@ -30,6 +30,7 @@ export function CrewSettingsClient({
   const [members, setMembers] = useState(initialMembers);
   const [imageFile, setImageFile] = useState<File | null>(null);
   const [imagePreview, setImagePreview] = useState<string | null>(null);
+  const [editingRole, setEditingRole] = useState<{ member: any; newRole: string } | null>(null);
 
   const [editForm, setEditForm] = useState({
     name: crewData.name || '',
@@ -93,50 +94,40 @@ export function CrewSettingsClient({
     }
   };
 
-  // 멤버 역할 변경
-  const handleChangeRole = async (memberId: string, memberName: string, currentRole: string) => {
-    const roleOptions = [
-      { value: 'admin', label: '운영진' },
-      { value: 'member', label: '일반 멤버' },
-    ];
+  // 멤버 역할 변경 모달 열기
+  const handleOpenRoleEdit = (member: any) => {
+    setEditingRole({
+      member,
+      newRole: member.role,
+    });
+  };
 
-    const roleChoice = prompt(
-      `${memberName}님의 역할을 변경하시겠습니까?\n\n현재 역할: ${
-        currentRole === 'admin' ? '운영진' : currentRole === 'owner' ? '크루장' : '일반 멤버'
-      }\n\n1: 운영진\n2: 일반 멤버\n\n변경할 역할 번호를 입력하세요:`
-    );
+  // 멤버 역할 변경 저장
+  const handleSaveRole = async () => {
+    if (!editingRole) return;
 
-    if (!roleChoice) return;
+    const { member, newRole } = editingRole;
 
-    let newRole = '';
-    if (roleChoice === '1') {
-      newRole = 'admin';
-    } else if (roleChoice === '2') {
-      newRole = 'member';
-    } else {
-      alert('올바른 번호를 입력해주세요.');
-      return;
-    }
-
-    if (newRole === currentRole) {
-      alert('현재와 동일한 역할입니다.');
+    if (newRole === member.role) {
+      setEditingRole(null);
       return;
     }
 
     try {
-      await updateDoc(doc(db, 'members', memberId), {
+      await updateDoc(doc(db, 'members', member.id), {
         role: newRole,
         updatedAt: new Date(),
       });
 
       // 로컬 상태 업데이트
       setMembers((prev) =>
-        prev.map((m) => (m.id === memberId ? { ...m, role: newRole } : m))
+        prev.map((m) => (m.id === member.id ? { ...m, role: newRole } : m))
       );
 
       alert(
-        `${memberName}님의 역할이 ${newRole === 'admin' ? '운영진' : '일반 멤버'}으로 변경되었습니다.`
+        `${member.name}님의 역할이 ${newRole === 'admin' ? '운영진' : '일반 멤버'}로 변경되었습니다.`
       );
+      setEditingRole(null);
     } catch (error) {
       console.error('Error changing role:', error);
       alert('역할 변경에 실패했습니다.');
@@ -435,7 +426,6 @@ export function CrewSettingsClient({
                         <Avatar
                           src={member.avatar}
                           alt={member.name}
-                          fallback={member.name}
                           size="md"
                         />
                         <div>
@@ -465,7 +455,7 @@ export function CrewSettingsClient({
                           <Button
                             variant="ghost"
                             size="sm"
-                            onClick={() => handleChangeRole(member.id, member.name, member.role)}
+                            onClick={() => handleOpenRoleEdit(member)}
                           >
                             역할
                           </Button>
@@ -509,6 +499,116 @@ export function CrewSettingsClient({
           </CardBody>
         </Card>
       </div>
+
+      {/* 역할 변경 모달 */}
+      {editingRole && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-card rounded-2xl max-w-md w-full p-6 space-y-6">
+            <div className="flex items-center justify-between">
+              <h2 className="text-xl font-bold">멤버 역할 변경</h2>
+              <button
+                onClick={() => setEditingRole(null)}
+                className="text-muted-foreground hover:text-foreground"
+              >
+                <X className="w-6 h-6" />
+              </button>
+            </div>
+
+            <div className="space-y-4">
+              <div className="flex items-center gap-3 p-3 bg-muted rounded-lg">
+                <Avatar
+                  src={editingRole.member.avatar}
+                  alt={editingRole.member.name}
+                  size="md"
+                />
+                <div>
+                  <p className="font-medium">{editingRole.member.name}</p>
+                  <p className="text-sm text-muted-foreground">
+                    현재: {editingRole.member.role === 'admin' ? '운영진' : '일반 멤버'}
+                  </p>
+                </div>
+              </div>
+
+              <div className="space-y-3">
+                <p className="text-sm font-medium">권한 설정</p>
+
+                <label className="flex items-center justify-between p-4 border-2 rounded-lg cursor-pointer hover:bg-muted transition-colors"
+                  style={{
+                    borderColor: editingRole.newRole === 'admin' ? 'rgb(59 130 246)' : 'rgb(229 231 235)'
+                  }}>
+                  <div className="flex items-center gap-3">
+                    <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center ${
+                      editingRole.newRole === 'admin' ? 'border-blue-500 bg-blue-500' : 'border-gray-300'
+                    }`}>
+                      {editingRole.newRole === 'admin' && (
+                        <div className="w-2 h-2 bg-white rounded-full" />
+                      )}
+                    </div>
+                    <div>
+                      <p className="font-medium">운영진</p>
+                      <p className="text-xs text-muted-foreground">일정 생성/수정/삭제 권한</p>
+                    </div>
+                  </div>
+                  <input
+                    type="radio"
+                    name="role"
+                    value="admin"
+                    checked={editingRole.newRole === 'admin'}
+                    onChange={(e) => setEditingRole({ ...editingRole, newRole: e.target.value })}
+                    className="hidden"
+                  />
+                </label>
+
+                <label className="flex items-center justify-between p-4 border-2 rounded-lg cursor-pointer hover:bg-muted transition-colors"
+                  style={{
+                    borderColor: editingRole.newRole === 'member' ? 'rgb(59 130 246)' : 'rgb(229 231 235)'
+                  }}>
+                  <div className="flex items-center gap-3">
+                    <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center ${
+                      editingRole.newRole === 'member' ? 'border-blue-500 bg-blue-500' : 'border-gray-300'
+                    }`}>
+                      {editingRole.newRole === 'member' && (
+                        <div className="w-2 h-2 bg-white rounded-full" />
+                      )}
+                    </div>
+                    <div>
+                      <p className="font-medium">일반 멤버</p>
+                      <p className="text-xs text-muted-foreground">일정 참여 권한</p>
+                    </div>
+                  </div>
+                  <input
+                    type="radio"
+                    name="role"
+                    value="member"
+                    checked={editingRole.newRole === 'member'}
+                    onChange={(e) => setEditingRole({ ...editingRole, newRole: e.target.value })}
+                    className="hidden"
+                  />
+                </label>
+              </div>
+            </div>
+
+            <div className="flex gap-2">
+              <Button
+                variant="primary"
+                size="md"
+                onClick={handleSaveRole}
+                className="flex-1"
+              >
+                저장
+              </Button>
+              <Button
+                variant="ghost"
+                size="md"
+                onClick={() => setEditingRole(null)}
+                className="flex-1"
+              >
+                취소
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
