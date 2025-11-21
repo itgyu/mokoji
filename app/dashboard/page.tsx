@@ -895,46 +895,6 @@ export default function DashboardPage() {
     setOrgAvatarFile(null)
   }
 
-  const handleUpdateOrg = async () => {
-    if (!editingOrg) return
-
-    try {
-      let avatarUrl = editingOrg.avatar || ''
-
-      // 새 이미지가 선택된 경우 S3에 업로드
-      if (orgAvatarFile) {
-        avatarUrl = await uploadToS3(orgAvatarFile, `organizations/${editingOrg.id}`)
-      }
-
-      // Update 객체 생성 - undefined 값 제외
-      const updateData: any = {
-        name: orgForm.name,
-        description: orgForm.description,
-        avatar: avatarUrl,
-        categories: orgForm.categories  // 다중 카테고리
-      }
-
-      // subtitle은 값이 있을 때만 추가
-      if (orgForm.subtitle && orgForm.subtitle.trim()) {
-        updateData.subtitle = orgForm.subtitle
-      }
-
-      // organizations 컬렉션 업데이트
-      const orgRef = doc(db, 'organizations', editingOrg.id)
-      await updateDoc(orgRef, updateData)
-
-      alert('크루 정보가 수정됐어요.')
-      setEditingOrg(null)
-      setOrgAvatarFile(null)
-
-      // 크루 목록 새로고침
-      await fetchOrganizations()
-    } catch (error) {
-      console.error('Error updating organization:', error)
-      alert('크루 정보를 수정하는 중에 문제가 생겼어요.')
-    }
-  }
-
   // 현재 위치로 크루 location 설정
   const handleSetCrewLocation = async () => {
     try {
