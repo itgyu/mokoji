@@ -1989,7 +1989,7 @@ ${BRAND.NAME}와 함께하는 모임 일정에 참여하세요!
             </div>
           </header>
 
-          <div className="px-4 py-4 space-y-5">
+          <div className="px-4 py-4 pb-24 space-y-5">
             {/* 내 동네 크루 섹션 - 당근마켓 스타일 */}
             <div className="mb-6">
               {/* 헤더 */}
