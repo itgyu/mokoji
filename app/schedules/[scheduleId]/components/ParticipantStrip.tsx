@@ -161,7 +161,7 @@ function ParticipantItem({
           fallback={participant.userName}
           size="md"
         />
-        {/* 제거 버튼 (호스트만 표시, 자기 자신은 제거 불가) */}
+        {/* 제거 버튼 (호스트만 표시, 자기 자신은 제거 불가) - 항상 표시 */}
         {isHost && participant.userId !== currentUserId && onRemoveParticipant && (
           <button
             onClick={() => {
@@ -169,7 +169,7 @@ function ParticipantItem({
                 onRemoveParticipant(participant.userId)
               }
             }}
-            className="absolute -top-1 -right-1 w-5 h-5 bg-red-500 rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity shadow-md"
+            className="absolute -top-1 -right-1 w-5 h-5 bg-red-500 hover:bg-red-600 rounded-full flex items-center justify-center shadow-md transition-colors active:scale-95"
           >
             <X className="w-3 h-3 text-white" />
           </button>

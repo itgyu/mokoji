@@ -189,15 +189,15 @@ function MyMessage({
             <p className="text-[13px] leading-snug whitespace-pre-wrap break-words">{message.content}</p>
           )}
 
-          {/* 삭제 버튼 (작성자만 표시) */}
+          {/* 삭제 버튼 (작성자만 표시) - 항상 표시, 모바일 친화적 */}
           {onDelete && (
             <button
               onClick={() => setShowDeleteConfirm(true)}
-              className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity p-1 hover:bg-white/20 rounded-full"
+              className="absolute top-1.5 right-1.5 p-1.5 bg-black/20 hover:bg-black/40 rounded-full transition-colors active:scale-95"
               aria-label="메시지 삭제"
               title="메시지 삭제"
             >
-              <Trash2 className="w-4 h-4 text-white" />
+              <Trash2 className="w-3.5 h-3.5 text-white" />
             </button>
           )}
         </div>

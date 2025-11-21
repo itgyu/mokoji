@@ -111,7 +111,7 @@ export function InlineChatSection({
   const handleDeleteMessage = async (messageId: string) => {
     try {
       // Firestore에서 메시지 삭제
-      await deleteDoc(doc(db, 'schedules', scheduleId, 'chats', messageId));
+      await deleteDoc(doc(db, 'org_schedules', scheduleId, 'messages', messageId));
 
       // UI 업데이트는 실시간 리스너가 자동으로 처리
     } catch (error) {
