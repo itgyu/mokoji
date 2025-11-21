@@ -2583,12 +2583,12 @@ ${BRAND.NAME}와 함께하는 모임 일정에 참여하세요!
                     </button>
                     {canManageOrg(selectedOrg.id) && (
                       <button
-                        onClick={() => handleOpenOrgEdit(selectedOrg)}
+                        onClick={() => router.push(`/crew/${selectedOrg.id}/settings`)}
                         className="px-3 py-1.5 bg-[#F5F5F4] text-gray-900 text-sm font-extrabold rounded-xl hover:bg-gray-200 active:scale-[0.99] transition-transform duration-200 ease-out"
                       >
                         <span className="inline-flex items-center gap-1.5">
                           <Settings className="w-4 h-4" />
-                          설정
+                          크루 관리
                         </span>
                       </button>
                     )}
