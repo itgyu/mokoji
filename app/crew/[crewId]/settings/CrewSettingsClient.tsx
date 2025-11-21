@@ -460,23 +460,23 @@ export function CrewSettingsClient({
                       </div>
 
                       {!isOwner && (
-                        <div className="flex gap-2">
+                        <div className="flex gap-1.5">
                           <Button
                             variant="ghost"
                             size="sm"
                             onClick={() => handleOpenRoleEdit(member)}
-                            className="flex items-center gap-1"
+                            className="flex items-center gap-1 text-xs px-2 py-1 whitespace-nowrap"
                           >
-                            <Shield className="w-4 h-4" />
+                            <Shield className="w-3.5 h-3.5" />
                             역할
                           </Button>
                           <Button
                             variant="danger"
                             size="sm"
                             onClick={() => handleRemoveMember(member.id, member.name, member.uid)}
-                            className="flex items-center gap-1"
+                            className="flex items-center gap-1 text-xs px-2 py-1 whitespace-nowrap"
                           >
-                            <X className="w-4 h-4" />
+                            <X className="w-3.5 h-3.5" />
                             내보내기
                           </Button>
                         </div>
