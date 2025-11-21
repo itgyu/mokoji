@@ -12,10 +12,12 @@ const firebaseConfig = {
   appId: process.env.NEXT_PUBLIC_FIREBASE_APP_ID?.trim()
 }
 
-// 디버깅: API 키 확인
-console.log('🔍 API Key 길이:', firebaseConfig.apiKey?.length)
-console.log('🔍 API Key 끝 문자 코드:', firebaseConfig.apiKey?.charCodeAt(firebaseConfig.apiKey.length - 1))
-console.log('🔍 원본 환경변수:', JSON.stringify(process.env.NEXT_PUBLIC_FIREBASE_API_KEY))
+// 디버깅: Firebase 설정 확인
+console.log('=== Firebase Configuration ===')
+console.log('프로젝트 ID:', firebaseConfig.projectId)
+console.log('Auth Domain:', firebaseConfig.authDomain)
+console.log('API Key:', firebaseConfig.apiKey ? `${firebaseConfig.apiKey.substring(0, 10)}...` : '없음')
+console.log('================================')
 
 // Firebase 설정 검증
 if (!firebaseConfig.apiKey || !firebaseConfig.projectId) {
