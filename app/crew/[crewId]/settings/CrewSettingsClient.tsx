@@ -437,16 +437,16 @@ export function CrewSettingsClient({
                           alt={member.name}
                           size="md"
                         />
-                        <div>
-                          <div className="flex items-center gap-2">
-                            <p className="font-medium">{member.name}</p>
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <p className="font-medium whitespace-nowrap">{member.name}</p>
                             {role === 'owner' && (
-                              <span className="text-xs bg-orange-500 text-white px-2 py-0.5 rounded-full">
+                              <span className="text-xs bg-orange-500 text-white px-2 py-0.5 rounded-full whitespace-nowrap flex-shrink-0">
                                 크루장
                               </span>
                             )}
                             {role === 'admin' && (
-                              <span className="text-xs bg-blue-500 text-white px-2 py-0.5 rounded-full">
+                              <span className="text-xs bg-blue-500 text-white px-2 py-0.5 rounded-full whitespace-nowrap flex-shrink-0">
                                 운영진
                               </span>
                             )}
