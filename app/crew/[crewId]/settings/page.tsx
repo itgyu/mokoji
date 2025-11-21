@@ -41,7 +41,19 @@ export default function CrewSettingsPage({
         return;
       }
 
-      const crew = { id: crewDoc.id, ...crewDoc.data() };
+      const crewRawData = crewDoc.data();
+
+      // Timestamp 필드를 안전하게 처리
+      const crew = {
+        id: crewDoc.id,
+        name: crewRawData.name || '',
+        description: crewRawData.description || '',
+        imageUrl: crewRawData.imageUrl || '',
+        ownerUid: crewRawData.ownerUid || '',
+        ownerName: crewRawData.ownerName || '',
+        categories: crewRawData.categories || [],
+        memberCount: crewRawData.memberCount || 0,
+      };
 
       // 크루장 권한 확인
       if (crew.ownerUid !== user!.uid) {
@@ -57,10 +69,17 @@ export default function CrewSettingsPage({
         query(collection(db, 'members'), where('orgId', '==', params.crewId))
       );
 
-      const membersList = membersSnapshot.docs.map((doc) => ({
-        id: doc.id,
-        ...doc.data(),
-      }));
+      const membersList = membersSnapshot.docs.map((doc) => {
+        const data = doc.data();
+        return {
+          id: doc.id,
+          uid: data.uid || '',
+          name: data.name || '',
+          email: data.email || '',
+          avatar: data.avatar || '',
+          orgId: data.orgId || '',
+        };
+      });
 
       setMembers(membersList);
       setLoading(false);
