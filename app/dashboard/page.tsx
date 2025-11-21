@@ -3116,30 +3116,6 @@ ${BRAND.NAME}와 함께하는 모임 일정에 참여하세요!
                             )}
                           </p>
                         </div>
-
-                        {/* 크루장 전용 관리 버튼 */}
-                        {isCaptain && !isCurrentUser && (
-                          <div className="flex gap-1">
-                            <button
-                              onClick={() => handleOpenMemberInfoEdit(member)}
-                              className="px-3 py-1.5 text-sm leading-5 bg-[#FF9B50] text-white rounded-lg hover:bg-[#FF8A3D]"
-                            >
-                              수정
-                            </button>
-                            <button
-                              onClick={() => setEditingMember(member)}
-                              className="px-3 py-1.5 text-sm leading-5 bg-orange-500 text-white rounded-lg hover:bg-blue-600"
-                            >
-                              역할
-                            </button>
-                            <button
-                              onClick={() => handleRemoveMember(member)}
-                              className="px-3 py-1.5 text-sm leading-5 bg-red-500 text-white rounded-lg hover:bg-red-600"
-                            >
-                              추방
-                            </button>
-                          </div>
-                        )}
                       </div>
                     )
                   })

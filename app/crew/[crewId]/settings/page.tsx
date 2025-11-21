@@ -84,6 +84,8 @@ export default function CrewSettingsPage({
           email: data.email || '',
           avatar: data.avatar || '',
           orgId: data.orgId || '',
+          role: data.role || 'member',
+          joinedAt: data.joinedAt || '',
         };
       });
 

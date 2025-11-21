@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { doc, updateDoc, deleteDoc, collection, query, where, getDocs } from 'firebase/firestore';
+import { doc, updateDoc, deleteDoc, collection, query, where, getDocs, getDoc } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { Button, Card, CardBody, Avatar } from '@/components/ui';
 import { ChevronLeft, Users, Trash2, Settings, Camera, X } from 'lucide-react';
@@ -93,8 +93,58 @@ export function CrewSettingsClient({
     }
   };
 
+  // 멤버 역할 변경
+  const handleChangeRole = async (memberId: string, memberName: string, currentRole: string) => {
+    const roleOptions = [
+      { value: 'admin', label: '운영진' },
+      { value: 'member', label: '일반 멤버' },
+    ];
+
+    const roleChoice = prompt(
+      `${memberName}님의 역할을 변경하시겠습니까?\n\n현재 역할: ${
+        currentRole === 'admin' ? '운영진' : currentRole === 'owner' ? '크루장' : '일반 멤버'
+      }\n\n1: 운영진\n2: 일반 멤버\n\n변경할 역할 번호를 입력하세요:`
+    );
+
+    if (!roleChoice) return;
+
+    let newRole = '';
+    if (roleChoice === '1') {
+      newRole = 'admin';
+    } else if (roleChoice === '2') {
+      newRole = 'member';
+    } else {
+      alert('올바른 번호를 입력해주세요.');
+      return;
+    }
+
+    if (newRole === currentRole) {
+      alert('현재와 동일한 역할입니다.');
+      return;
+    }
+
+    try {
+      await updateDoc(doc(db, 'members', memberId), {
+        role: newRole,
+        updatedAt: new Date(),
+      });
+
+      // 로컬 상태 업데이트
+      setMembers((prev) =>
+        prev.map((m) => (m.id === memberId ? { ...m, role: newRole } : m))
+      );
+
+      alert(
+        `${memberName}님의 역할이 ${newRole === 'admin' ? '운영진' : '일반 멤버'}으로 변경되었습니다.`
+      );
+    } catch (error) {
+      console.error('Error changing role:', error);
+      alert('역할 변경에 실패했습니다.');
+    }
+  };
+
   // 멤버 제거
-  const handleRemoveMember = async (memberId: string, memberName: string) => {
+  const handleRemoveMember = async (memberId: string, memberName: string, memberUid: string) => {
     if (!confirm(`${memberName}님을 크루에서 내보낼까요?\n\n이 작업은 되돌릴 수 없습니다.`)) {
       return;
     }
@@ -102,6 +152,18 @@ export function CrewSettingsClient({
     try {
       // members 컬렉션에서 삭제
       await deleteDoc(doc(db, 'members', memberId));
+
+      // userProfiles의 organizations 배열에서 제거
+      const userProfileRef = doc(db, 'userProfiles', memberUid);
+      const userProfileDoc = await getDoc(userProfileRef);
+
+      if (userProfileDoc.exists()) {
+        const currentOrgs = userProfileDoc.data().organizations || [];
+        const updatedOrgs = currentOrgs.filter((orgId: string) => orgId !== crewId);
+        await updateDoc(userProfileRef, {
+          organizations: updatedOrgs,
+        });
+      }
 
       // 로컬 상태 업데이트
       setMembers((prev) => prev.filter((m) => m.id !== memberId));
@@ -349,37 +411,76 @@ export function CrewSettingsClient({
             </h2>
 
             <div className="space-y-2">
-              {members.map((member) => (
-                <div
-                  key={member.id}
-                  className="flex items-center justify-between p-3 bg-muted rounded-lg"
-                >
-                  <div className="flex items-center gap-3">
-                    <Avatar
-                      src={member.avatar}
-                      alt={member.name}
-                      fallback={member.name}
-                      size="md"
-                    />
-                    <div>
-                      <p className="font-medium">{member.name}</p>
-                      {member.uid === currentUserId && (
-                        <span className="text-xs text-muted-foreground">크루장</span>
+              {members
+                .sort((a, b) => {
+                  // 크루장이 맨 위
+                  if (a.uid === currentUserId) return -1;
+                  if (b.uid === currentUserId) return 1;
+                  // 운영진이 그 다음
+                  if (a.role === 'admin' && b.role !== 'admin') return -1;
+                  if (a.role !== 'admin' && b.role === 'admin') return 1;
+                  // 나머지는 이름순
+                  return a.name.localeCompare(b.name);
+                })
+                .map((member) => {
+                  const isOwner = member.uid === currentUserId;
+                  const role = isOwner ? 'owner' : member.role;
+
+                  return (
+                    <div
+                      key={member.id}
+                      className="flex items-center justify-between p-3 bg-muted rounded-lg"
+                    >
+                      <div className="flex items-center gap-3">
+                        <Avatar
+                          src={member.avatar}
+                          alt={member.name}
+                          fallback={member.name}
+                          size="md"
+                        />
+                        <div>
+                          <div className="flex items-center gap-2">
+                            <p className="font-medium">{member.name}</p>
+                            {role === 'owner' && (
+                              <span className="text-xs bg-orange-500 text-white px-2 py-0.5 rounded-full">
+                                크루장
+                              </span>
+                            )}
+                            {role === 'admin' && (
+                              <span className="text-xs bg-blue-500 text-white px-2 py-0.5 rounded-full">
+                                운영진
+                              </span>
+                            )}
+                          </div>
+                          {member.joinedAt && (
+                            <p className="text-xs text-muted-foreground mt-1">
+                              가입: {new Date(member.joinedAt).toLocaleDateString('ko-KR')}
+                            </p>
+                          )}
+                        </div>
+                      </div>
+
+                      {!isOwner && (
+                        <div className="flex gap-2">
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => handleChangeRole(member.id, member.name, member.role)}
+                          >
+                            역할
+                          </Button>
+                          <Button
+                            variant="danger"
+                            size="sm"
+                            onClick={() => handleRemoveMember(member.id, member.name, member.uid)}
+                          >
+                            내보내기
+                          </Button>
+                        </div>
                       )}
                     </div>
-                  </div>
-
-                  {member.uid !== currentUserId && (
-                    <Button
-                      variant="danger"
-                      size="sm"
-                      onClick={() => handleRemoveMember(member.id, member.name)}
-                    >
-                      내보내기
-                    </Button>
-                  )}
-                </div>
-              ))}
+                  );
+                })}
             </div>
           </CardBody>
         </Card>
