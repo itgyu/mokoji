@@ -1686,14 +1686,14 @@ ${BRAND.NAME}와 함께하는 모임 일정에 참여하세요!
       return '/default-avatar.svg'
     }
 
-    // 이모티콘인지 확인 (유니코드 이모티콘 범위)
-    const emojiRegex = /[\u{1F600}-\u{1F64F}\u{1F300}-\u{1F5FF}\u{1F680}-\u{1F6FF}\u{1F1E0}-\u{1F1FF}\u{2600}-\u{26FF}\u{2700}-\u{27BF}\u{1F900}-\u{1F9FF}\u{1FA00}-\u{1FA6F}]/u
-    if (emojiRegex.test(avatar)) {
-      return '/default-avatar.svg'
-    }
+    // 이모티콘이나 특수문자만 있는지 확인 (한글, 영문, 숫자가 없으면 유효하지 않음)
+    const hasValidChars = /[\p{L}\p{N}]/u.test(avatar)
 
     // URL 형식인지 확인 (http, https, data:, / 로 시작)
-    if (!avatar.startsWith('http') && !avatar.startsWith('/') && !avatar.startsWith('data:')) {
+    const isUrlFormat = avatar.startsWith('http') || avatar.startsWith('/') || avatar.startsWith('data:')
+
+    // URL 형식이 아니거나, 유효한 문자가 없으면 기본 아바타 사용
+    if (!isUrlFormat || !hasValidChars) {
       return '/default-avatar.svg'
     }
 
