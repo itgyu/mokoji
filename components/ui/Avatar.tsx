@@ -83,6 +83,26 @@ export const Avatar = React.forwardRef<
     },
     ref
   ) => {
+    // 유효한 이미지 URL인지 확인 (이모지 필터링)
+    const getValidSrc = (url: string | undefined): string | undefined => {
+      if (!url || url.trim() === '') return undefined;
+
+      // 이모지나 특수문자만 있는지 확인 (한글, 영문, 숫자가 없으면 유효하지 않음)
+      const hasValidChars = /[\p{L}\p{N}]/u.test(url);
+
+      // URL 형식인지 확인 (http, https, data:, / 로 시작)
+      const isUrlFormat = url.startsWith('http') || url.startsWith('/') || url.startsWith('data:');
+
+      // URL 형식이 아니거나, 유효한 문자가 없으면 undefined 반환
+      if (!isUrlFormat || !hasValidChars) {
+        return undefined;
+      }
+
+      return url;
+    };
+
+    const validSrc = getValidSrc(src);
+
     return (
       <div className="relative inline-block">
         <AvatarPrimitive.Root
@@ -90,16 +110,16 @@ export const Avatar = React.forwardRef<
           className={clsx(avatarVariants({ size }), className)}
           {...props}
         >
-          {src && (
+          {validSrc && (
             <AvatarPrimitive.Image
-              src={src}
+              src={validSrc}
               alt={alt || '사용자 프로필'}
               className={avatarImageVariants()}
             />
           )}
           <AvatarPrimitive.Fallback
             className={avatarFallbackVariants()}
-            delayMs={src ? 600 : 0}
+            delayMs={validSrc ? 600 : 0}
           >
             {fallback || getInitials(alt || '')}
           </AvatarPrimitive.Fallback>
