@@ -41,9 +41,10 @@ export default function CrewSettingsPage({
         return;
       }
 
-      const crewRawData = crewDoc.data();
+      // JSON 직렬화로 Timestamp 객체 완전히 제거
+      const crewRawData = JSON.parse(JSON.stringify(crewDoc.data()));
 
-      // Timestamp 필드를 안전하게 처리
+      // 필요한 필드만 추출
       const crew = {
         id: crewDoc.id,
         name: crewRawData.name || '',
@@ -69,8 +70,9 @@ export default function CrewSettingsPage({
         query(collection(db, 'members'), where('orgId', '==', params.crewId))
       );
 
+      // JSON 직렬화로 Timestamp 제거
       const membersList = membersSnapshot.docs.map((doc) => {
-        const data = doc.data();
+        const data = JSON.parse(JSON.stringify(doc.data()));
         return {
           id: doc.id,
           uid: data.uid || '',
