@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useRef } from 'react';
 import { Avatar } from '@/components/ui';
 import { format } from 'date-fns';
 import { ko } from 'date-fns/locale';
@@ -133,8 +133,38 @@ function MyMessage({
   onDelete?: (messageId: string) => void;
 }) {
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [showActionMenu, setShowActionMenu] = useState(false);
+  const longPressTimerRef = useRef<NodeJS.Timeout | null>(null);
   const formattedTime = format(message.createdAt.toDate(), 'HH:mm');
   const status = (message as any)._status; // 'sending' | 'sent' | 'failed'
+
+  // 롱프레스 시작
+  const handleTouchStart = () => {
+    if (!onDelete) return;
+    longPressTimerRef.current = setTimeout(() => {
+      setShowActionMenu(true);
+      // 햅틱 피드백 (iOS/Android)
+      if (navigator.vibrate) {
+        navigator.vibrate(50);
+      }
+    }, 500); // 500ms 길게 누르기
+  };
+
+  // 롱프레스 취소
+  const handleTouchEnd = () => {
+    if (longPressTimerRef.current) {
+      clearTimeout(longPressTimerRef.current);
+      longPressTimerRef.current = null;
+    }
+  };
+
+  // 롱프레스 취소 (손가락 이동 시)
+  const handleTouchMove = () => {
+    if (longPressTimerRef.current) {
+      clearTimeout(longPressTimerRef.current);
+      longPressTimerRef.current = null;
+    }
+  };
 
   return (
     <>
@@ -148,6 +178,16 @@ function MyMessage({
                 ? 'bg-destructive/10 text-foreground border border-destructive'
                 : 'bg-primary text-primary-foreground'
             )}
+            onTouchStart={handleTouchStart}
+            onTouchEnd={handleTouchEnd}
+            onTouchMove={handleTouchMove}
+            onContextMenu={(e) => {
+              // 데스크탑에서 우클릭 방지 및 액션 메뉴 표시
+              if (onDelete) {
+                e.preventDefault();
+                setShowActionMenu(true);
+              }
+            }}
           >
           {/* 첨부 파일 (이미지/동영상) */}
           {message.attachments && message.attachments.length > 0 && (
@@ -187,18 +227,6 @@ function MyMessage({
           {/* 텍스트 내용 */}
           {message.content && (
             <p className="text-[13px] leading-snug whitespace-pre-wrap break-words">{message.content}</p>
-          )}
-
-          {/* 삭제 버튼 (작성자만 표시) - 항상 표시, 모바일 친화적 */}
-          {onDelete && (
-            <button
-              onClick={() => setShowDeleteConfirm(true)}
-              className="absolute top-1.5 right-1.5 p-1.5 bg-black/20 hover:bg-black/40 rounded-full transition-colors active:scale-95"
-              aria-label="메시지 삭제"
-              title="메시지 삭제"
-            >
-              <Trash2 className="w-3.5 h-3.5 text-white" />
-            </button>
           )}
         </div>
 
@@ -249,6 +277,50 @@ function MyMessage({
         </button>
       )}
     </div>
+
+    {/* 액션 메뉴 (카카오톡 스타일) */}
+    {showActionMenu && (
+      <div
+        className="fixed inset-0 bg-black/50 z-50 flex items-end justify-center sm:items-center sm:p-4"
+        onClick={() => setShowActionMenu(false)}
+      >
+        <div
+          className="bg-white dark:bg-card rounded-t-2xl sm:rounded-2xl w-full sm:max-w-sm shadow-xl overflow-hidden"
+          onClick={(e) => e.stopPropagation()}
+        >
+          {/* 메시지 미리보기 */}
+          <div className="p-4 border-b border-border bg-muted/30">
+            <p className="text-sm text-foreground line-clamp-2">
+              {message.content || '이미지 메시지'}
+            </p>
+          </div>
+
+          {/* 액션 버튼들 */}
+          <div className="divide-y divide-border">
+            <button
+              onClick={() => {
+                setShowActionMenu(false);
+                setShowDeleteConfirm(true);
+              }}
+              className="w-full px-6 py-4 flex items-center gap-3 hover:bg-muted transition-colors text-left"
+            >
+              <Trash2 className="w-5 h-5 text-red-500" />
+              <span className="text-base font-medium text-red-500">메시지 삭제</span>
+            </button>
+          </div>
+
+          {/* 취소 버튼 */}
+          <div className="p-3 bg-muted/30">
+            <button
+              onClick={() => setShowActionMenu(false)}
+              className="w-full py-3 bg-white dark:bg-card hover:bg-muted rounded-xl font-semibold text-foreground transition-colors"
+            >
+              취소
+            </button>
+          </div>
+        </div>
+      </div>
+    )}
 
     {/* 삭제 확인 다이얼로그 */}
     {showDeleteConfirm && (
