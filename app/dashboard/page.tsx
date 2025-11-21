@@ -3023,8 +3023,8 @@ ${BRAND.NAME}와 함께하는 모임 일정에 참여하세요!
                       if (!a.isCaptain && b.isCaptain) return 1
 
                       // 2. 운영진이 그 다음
-                      if (a.isStaff && !b.isStaff) return -1
-                      if (!a.isStaff && b.isStaff) return 1
+                      if (a.role === 'admin' && b.role !== 'admin') return -1
+                      if (a.role !== 'admin' && b.role === 'admin') return 1
 
                       // 3. 나머지는 가입일 순서 (오래된 순)
                       // Korean locale 날짜 형식 파싱 (예: "2025. 1. 15.")
@@ -3094,8 +3094,8 @@ ${BRAND.NAME}와 함께하는 모임 일정에 참여하세요!
                                 크루장
                               </span>
                             )}
-                            {member.isStaff && !member.isCaptain && (
-                              <span className="text-xs bg-orange-500 text-white px-2 py-0.5 rounded-full">
+                            {member.role === 'admin' && !member.isCaptain && (
+                              <span className="text-xs bg-blue-500 text-white px-2 py-0.5 rounded-full">
                                 운영진
                               </span>
                             )}
