@@ -1,68 +1,91 @@
-import { cookies } from 'next/headers';
-import { redirect } from 'next/navigation';
-import { adminAuth, adminDb } from '@/lib/firebase-admin';
-import { CrewSettingsClient } from './CrewSettingsClient';
+'use client';
 
-export default async function CrewSettingsPage({
+import { useEffect, useState } from 'react';
+import { useRouter } from 'next/navigation';
+import { doc, getDoc, collection, query, where, getDocs } from 'firebase/firestore';
+import { db } from '@/lib/firebase';
+import { useAuth } from '@/contexts/AuthContext';
+import { CrewSettingsClient } from './CrewSettingsClient';
+import LoadingScreen from '@/components/LoadingScreen';
+
+export default function CrewSettingsPage({
   params,
 }: {
   params: { crewId: string };
 }) {
-  const cookieStore = await cookies();
-  const session = cookieStore.get('session')?.value;
+  const router = useRouter();
+  const { user, userProfile, loading: authLoading } = useAuth();
+  const [crewData, setCrewData] = useState<any>(null);
+  const [members, setMembers] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
 
-  if (!session) {
-    redirect('/auth');
-  }
+  useEffect(() => {
+    if (authLoading) return;
 
-  try {
-    // 세션 검증
-    const decodedClaims = await adminAuth.verifySessionCookie(session, true);
-    const uid = decodedClaims.uid;
-
-    // 크루 정보 가져오기
-    const crewDoc = await adminDb.collection('organizations').doc(params.crewId).get();
-
-    if (!crewDoc.exists) {
-      redirect('/dashboard');
+    if (!user) {
+      router.push('/auth');
+      return;
     }
 
-    const crewData = crewDoc.data();
+    loadCrewData();
+  }, [user, authLoading, params.crewId]);
 
-    // 크루장 권한 확인
-    if (crewData?.ownerUid !== uid) {
-      redirect('/dashboard');
+  const loadCrewData = async () => {
+    try {
+      // 크루 정보 가져오기
+      const crewDoc = await getDoc(doc(db, 'organizations', params.crewId));
+
+      if (!crewDoc.exists()) {
+        alert('크루를 찾을 수 없습니다.');
+        router.push('/dashboard');
+        return;
+      }
+
+      const crew = { id: crewDoc.id, ...crewDoc.data() };
+
+      // 크루장 권한 확인
+      if (crew.ownerUid !== user!.uid) {
+        alert('크루장만 접근할 수 있습니다.');
+        router.push('/dashboard');
+        return;
+      }
+
+      setCrewData(crew);
+
+      // 크루 멤버 목록 가져오기
+      const membersSnapshot = await getDocs(
+        query(collection(db, 'members'), where('orgId', '==', params.crewId))
+      );
+
+      const membersList = membersSnapshot.docs.map((doc) => ({
+        id: doc.id,
+        ...doc.data(),
+      }));
+
+      setMembers(membersList);
+      setLoading(false);
+    } catch (error) {
+      console.error('Error loading crew data:', error);
+      alert('크루 정보를 불러오는데 실패했습니다.');
+      router.push('/dashboard');
     }
+  };
 
-    // 크루 멤버 목록 가져오기
-    const membersSnapshot = await adminDb
-      .collection('members')
-      .where('orgId', '==', params.crewId)
-      .get();
-
-    const members = membersSnapshot.docs.map((doc) => ({
-      id: doc.id,
-      ...doc.data(),
-    }));
-
-    // 사용자 정보 가져오기
-    const userDoc = await adminDb.collection('userProfiles').doc(uid).get();
-    const userData = userDoc.data();
-
-    return (
-      <CrewSettingsClient
-        crewId={params.crewId}
-        crewData={{
-          id: crewDoc.id,
-          ...crewData,
-        }}
-        members={members}
-        currentUserId={uid}
-        currentUserName={userData?.name || '사용자'}
-      />
-    );
-  } catch (error) {
-    console.error('Error loading crew settings:', error);
-    redirect('/dashboard');
+  if (loading || authLoading) {
+    return <LoadingScreen />;
   }
+
+  if (!crewData || !user || !userProfile) {
+    return null;
+  }
+
+  return (
+    <CrewSettingsClient
+      crewId={params.crewId}
+      crewData={crewData}
+      members={members}
+      currentUserId={user.uid}
+      currentUserName={userProfile.name || '사용자'}
+    />
+  );
 }
