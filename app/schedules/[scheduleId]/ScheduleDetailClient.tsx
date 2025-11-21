@@ -51,7 +51,7 @@ export function ScheduleDetailClient({
     description: schedule.description || '',
     maxParticipants: schedule.maxParticipants || 0,
   });
-  const [showAddParticipant, setShowAddParticipant] = useState(false);
+  const [showManageParticipants, setShowManageParticipants] = useState(false);
   const [orgMembers, setOrgMembers] = useState<any[]>([]);
   const [isLoadingMembers, setIsLoadingMembers] = useState(false);
   const [orgData, setOrgData] = useState<any>(null);
@@ -349,7 +349,7 @@ export function ScheduleDetailClient({
         <>
           <ScheduleSummaryCard schedule={localSchedule} />
 
-          {/* 수정/참석자 추가 버튼 (작성자만) */}
+          {/* 수정/참석자 관리 버튼 (작성자만) */}
           {canDelete && (
             <div className="flex gap-2">
               <Button
@@ -364,8 +364,8 @@ export function ScheduleDetailClient({
                 variant="ghost"
                 size="md"
                 onClick={() => {
-                  setShowAddParticipant(!showAddParticipant);
-                  if (!showAddParticipant && orgMembers.length === 0) {
+                  setShowManageParticipants(!showManageParticipants);
+                  if (!showManageParticipants && orgMembers.length === 0) {
                     fetchOrgMembers();
                   }
                 }}
@@ -373,50 +373,102 @@ export function ScheduleDetailClient({
               >
                 <span className="inline-flex items-center gap-1.5">
                   <Users className="w-4 h-4" />
-                  참석자 추가
+                  참석자 관리
                 </span>
               </Button>
             </div>
           )}
 
-          {/* 참석자 추가 패널 */}
-          {showAddParticipant && canDelete && (
+          {/* 참석자 관리 패널 */}
+          {showManageParticipants && canDelete && (
             <Card variant="elevated" padding="lg">
               <CardBody className="space-y-4">
-                <h3 className="text-heading-3 font-bold">참석자 추가</h3>
+                <h3 className="text-heading-3 font-bold">참석자 관리</h3>
 
                 {isLoadingMembers ? (
                   <p className="text-center text-muted-foreground">로딩 중...</p>
-                ) : orgMembers.length === 0 ? (
-                  <p className="text-center text-muted-foreground">크루 멤버가 없습니다.</p>
                 ) : (
-                  <div className="space-y-2 max-h-96 overflow-y-auto">
-                    {orgMembers
-                      .filter((member) => !localSchedule.participants.some((p) => p.userId === member.uid))
-                      .map((member) => (
-                        <div
-                          key={member.uid}
-                          className="flex items-center justify-between p-3 bg-muted rounded-lg hover:bg-muted-dark transition-colors"
-                        >
-                          <div className="flex items-center gap-3">
-                            {member.avatar && (
-                              <img
-                                src={member.avatar}
-                                alt={member.name}
-                                className="w-10 h-10 rounded-full object-cover"
-                              />
-                            )}
-                            <span className="font-medium">{member.name}</span>
-                          </div>
-                          <Button
-                            variant="primary"
-                            size="sm"
-                            onClick={() => handleAddParticipant(member)}
-                          >
-                            추가
-                          </Button>
+                  <div className="space-y-4">
+                    {/* 현재 참석자 목록 */}
+                    {localSchedule.participants.length > 0 && (
+                      <div className="space-y-2">
+                        <h4 className="text-sm font-semibold text-muted-foreground">현재 참석자 ({localSchedule.participants.length}명)</h4>
+                        <div className="space-y-2 max-h-60 overflow-y-auto">
+                          {localSchedule.participants.map((participant) => (
+                            <div
+                              key={participant.userId}
+                              className="flex items-center justify-between p-3 bg-muted rounded-lg"
+                            >
+                              <div className="flex items-center gap-3">
+                                {participant.userAvatar && (
+                                  <img
+                                    src={participant.userAvatar}
+                                    alt={participant.userName}
+                                    className="w-10 h-10 rounded-full object-cover"
+                                  />
+                                )}
+                                <div>
+                                  <span className="font-medium">{participant.userName}</span>
+                                  {participant.userId === currentUserId && (
+                                    <span className="ml-2 text-xs text-muted-foreground">(나)</span>
+                                  )}
+                                </div>
+                              </div>
+                              {participant.userId !== currentUserId && (
+                                <Button
+                                  variant="danger"
+                                  size="sm"
+                                  onClick={() => handleRemoveParticipant(participant.userId)}
+                                >
+                                  제외
+                                </Button>
+                              )}
+                            </div>
+                          ))}
                         </div>
-                      ))}
+                      </div>
+                    )}
+
+                    {/* 추가 가능한 멤버 목록 */}
+                    {orgMembers.filter((member) => !localSchedule.participants.some((p) => p.userId === member.uid)).length > 0 && (
+                      <div className="space-y-2">
+                        <h4 className="text-sm font-semibold text-muted-foreground">
+                          추가 가능한 멤버 ({orgMembers.filter((member) => !localSchedule.participants.some((p) => p.userId === member.uid)).length}명)
+                        </h4>
+                        <div className="space-y-2 max-h-60 overflow-y-auto">
+                          {orgMembers
+                            .filter((member) => !localSchedule.participants.some((p) => p.userId === member.uid))
+                            .map((member) => (
+                              <div
+                                key={member.uid}
+                                className="flex items-center justify-between p-3 bg-muted rounded-lg hover:bg-muted-dark transition-colors"
+                              >
+                                <div className="flex items-center gap-3">
+                                  {member.avatar && (
+                                    <img
+                                      src={member.avatar}
+                                      alt={member.name}
+                                      className="w-10 h-10 rounded-full object-cover"
+                                    />
+                                  )}
+                                  <span className="font-medium">{member.name}</span>
+                                </div>
+                                <Button
+                                  variant="primary"
+                                  size="sm"
+                                  onClick={() => handleAddParticipant(member)}
+                                >
+                                  추가
+                                </Button>
+                              </div>
+                            ))}
+                        </div>
+                      </div>
+                    )}
+
+                    {orgMembers.length === 0 && (
+                      <p className="text-center text-muted-foreground py-4">크루 멤버가 없습니다.</p>
+                    )}
                   </div>
                 )}
               </CardBody>
@@ -532,7 +584,6 @@ export function ScheduleDetailClient({
         currentUserId={currentUserId}
         scheduleOwnerId={localSchedule.createdByUid}
         crewOwnerId={orgData?.ownerUid}
-        onRemoveParticipant={handleRemoveParticipant}
       />
 
       {/* 채팅 섹션 - 모든 일정에 활성화 */}

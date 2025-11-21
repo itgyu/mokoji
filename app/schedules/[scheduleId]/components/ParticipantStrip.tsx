@@ -2,7 +2,6 @@
 
 import { Avatar, AvatarGroup, Badge, RSVPBadge } from '@/components/ui';
 import type { ScheduleParticipant } from '@/types/firestore';
-import { X } from 'lucide-react';
 
 interface ParticipantStripProps {
   participants: ScheduleParticipant[];
@@ -161,19 +160,6 @@ function ParticipantItem({
           fallback={participant.userName}
           size="md"
         />
-        {/* 제거 버튼 (호스트만 표시, 자기 자신은 제거 불가) - 항상 표시 */}
-        {isHost && participant.userId !== currentUserId && onRemoveParticipant && (
-          <button
-            onClick={() => {
-              if (confirm(`${participant.userName}님을 참석자에서 제외할까요?`)) {
-                onRemoveParticipant(participant.userId)
-              }
-            }}
-            className="absolute -top-1 -right-1 w-5 h-5 bg-red-500 hover:bg-red-600 rounded-full flex items-center justify-center shadow-md transition-colors active:scale-95"
-          >
-            <X className="w-3 h-3 text-white" />
-          </button>
-        )}
       </div>
       <span className="text-xs text-center text-foreground truncate w-full px-1">
         {participant.userName}
