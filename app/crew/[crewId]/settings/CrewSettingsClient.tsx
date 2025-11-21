@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation';
 import { doc, updateDoc, deleteDoc, collection, query, where, getDocs, getDoc } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { Button, Card, CardBody, Avatar } from '@/components/ui';
-import { ChevronLeft, Users, Trash2, Settings, Camera, X } from 'lucide-react';
+import { ChevronLeft, Users, Trash2, Settings, Camera, X, Shield } from 'lucide-react';
 import { uploadToS3 } from '@/lib/s3-client';
 
 interface CrewSettingsClientProps {
@@ -465,14 +465,18 @@ export function CrewSettingsClient({
                             variant="ghost"
                             size="sm"
                             onClick={() => handleOpenRoleEdit(member)}
+                            className="flex items-center gap-1"
                           >
+                            <Shield className="w-4 h-4" />
                             역할
                           </Button>
                           <Button
                             variant="danger"
                             size="sm"
                             onClick={() => handleRemoveMember(member.id, member.name, member.uid)}
+                            className="flex items-center gap-1"
                           >
+                            <X className="w-4 h-4" />
                             내보내기
                           </Button>
                         </div>
