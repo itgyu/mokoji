@@ -321,6 +321,15 @@ export default function DashboardPage() {
   }
 
   const canManageOrg = (orgId: string): boolean => {
+    if (!user) return false
+
+    // 크루의 ownerUid를 직접 체크
+    const org = organizations.find(o => o.id === orgId)
+    if (org && org.ownerUid === user.uid) {
+      return true
+    }
+
+    // 멤버십 role도 체크 (admin도 관리 가능)
     const role = getMyRole(orgId)
     return role === 'owner' || role === 'admin'
   }
