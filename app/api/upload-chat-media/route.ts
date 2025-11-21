@@ -63,7 +63,7 @@ export async function POST(request: NextRequest) {
     const timestamp = Date.now();
     const randomStr = Math.random().toString(36).substring(2, 8);
     const extension = file.name.split('.').pop() || 'bin';
-    const key = `schedule_chats/${scheduleId}/media/${timestamp}_${randomStr}.${extension}`;
+    const key = `org_schedules/${scheduleId}/messages/media/${timestamp}_${randomStr}.${extension}`;
 
     // 파일을 Buffer로 변환
     const arrayBuffer = await file.arrayBuffer();

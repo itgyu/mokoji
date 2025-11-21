@@ -5,14 +5,14 @@ import { onDocumentCreated } from 'firebase-functions/v2/firestore';
  * 새로운 채팅 메시지가 생성될 때 트리거
  *
  * Cloud Function Trigger:
- * - Collection: schedule_chats
+ * - Collection: org_schedules/{scheduleId}/messages
  * - Event: onCreate
  * - Purpose: 채팅 메시지 생성 시 자동 처리
  *   1. 일정 문서의 lastChatMessage 필드 업데이트
  *   2. (향후) 푸시 알림 발송
  */
 export const onChatMessage = onDocumentCreated(
-  'schedule_chats/{messageId}',
+  'org_schedules/{scheduleId}/messages/{messageId}',
   async (event) => {
     const snapshot = event.data;
     if (!snapshot) {
@@ -20,10 +20,11 @@ export const onChatMessage = onDocumentCreated(
       return;
     }
 
+    const scheduleId = event.params.scheduleId;
     const messageId = event.params.messageId;
     const message = snapshot.data();
 
-    console.log('[onChatMessage] 새 메시지 생성:', messageId);
+    console.log('[onChatMessage] 새 메시지 생성:', scheduleId, messageId);
 
     // 시스템 메시지는 알림 제외
     if (message.type === 'system') {
@@ -34,13 +35,6 @@ export const onChatMessage = onDocumentCreated(
     // 삭제된 메시지는 무시
     if (message.isDeleted) {
       console.log('[onChatMessage] 삭제된 메시지, 무시');
-      return;
-    }
-
-    const scheduleId = message.scheduleId;
-
-    if (!scheduleId) {
-      console.error('[onChatMessage] scheduleId가 없음');
       return;
     }
 

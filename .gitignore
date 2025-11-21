@@ -31,3 +31,6 @@ next-env.d.ts
 
 # Firebase service account keys (보안 키 파일)
 scripts/*-service-account.json
+*-firebase-key.json
+old-firebase-key.json
+new-firebase-key.json

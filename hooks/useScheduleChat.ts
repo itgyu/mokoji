@@ -46,13 +46,12 @@ export function useScheduleChat(
   useEffect(() => {
     console.log('[useScheduleChat] 실시간 리스너 시작:', scheduleId);
 
-    const messagesRef = collection(db, 'schedule_chats');
+    const messagesRef = collection(db, 'org_schedules', scheduleId, 'messages');
 
     // 임시: 인덱스 생성 전까지 가장 단순한 쿼리 사용
     // TODO: 인덱스 생성 후 orderBy와 isDeleted 필터 추가
     const q = query(
       messagesRef,
-      where('scheduleId', '==', scheduleId),
       limit(50)
     );
 
@@ -141,7 +140,7 @@ export function useScheduleChat(
         console.log('[useScheduleChat] 메시지 전송 시작:', content.substring(0, 20));
 
         // Firestore에 실제 저장
-        const messagesRef = collection(db, 'schedule_chats');
+        const messagesRef = collection(db, 'org_schedules', scheduleId, 'messages');
         const docRef = await addDoc(messagesRef, {
           scheduleId,
           senderId: currentUserId,
@@ -237,7 +236,7 @@ export function useScheduleChat(
         const attachment = await uploadChatMedia(file, scheduleId, tempId);
 
         // Firestore에 메시지 저장
-        const messagesRef = collection(db, 'schedule_chats');
+        const messagesRef = collection(db, 'org_schedules', scheduleId, 'messages');
         const docRef = await addDoc(messagesRef, {
           scheduleId,
           senderId: currentUserId,

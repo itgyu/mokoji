@@ -115,7 +115,7 @@ export interface OrgSchedule extends BaseDocument {
 }
 
 // ============================================
-// 채팅 관련 타입 (schedule_chats) - 신규!
+// 채팅 관련 타입 (org_schedules/{scheduleId}/messages) - 신규!
 // ============================================
 
 /**
@@ -160,7 +160,7 @@ export interface SystemMessagePayload {
 }
 
 /**
- * 채팅 메시지 (schedule_chats/{scheduleId}/messages/{messageId})
+ * 채팅 메시지 (org_schedules/{scheduleId}/messages/{messageId})
  */
 export interface ScheduleChatMessage extends BaseDocument {
   scheduleId: string;
@@ -310,10 +310,9 @@ export const COLLECTIONS = {
   COMMENTS: 'comments',
   NOTIFICATIONS: 'notifications',
 
-  // 채팅 관련 신규 컬렉션
-  SCHEDULE_CHATS: 'schedule_chats',
-  SCHEDULE_CHAT_MESSAGES: (scheduleId: string) => `schedule_chats/${scheduleId}/messages`,
-  SCHEDULE_CHAT_METADATA: (scheduleId: string) => `schedule_chats/${scheduleId}/metadata`,
+  // 채팅 관련 신규 컬렉션 (서브컬렉션)
+  SCHEDULE_CHAT_MESSAGES: (scheduleId: string) => `org_schedules/${scheduleId}/messages`,
+  SCHEDULE_CHAT_METADATA: (scheduleId: string) => `org_schedules/${scheduleId}/metadata`,
   USER_CHAT_STATES: (userId: string) => `users/${userId}/schedule_chat_states`,
 } as const;
 
