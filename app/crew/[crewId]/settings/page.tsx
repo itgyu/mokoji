@@ -50,8 +50,10 @@ export default function CrewSettingsPage({
       const crew = {
         id: crewDoc.id,
         name: crewRawData.name || '',
+        subtitle: crewRawData.subtitle || '',
         description: crewRawData.description || '',
         imageUrl: crewRawData.imageUrl || '',
+        avatar: crewRawData.avatar || '',
         ownerUid: crewRawData.ownerUid || '',
         ownerName: crewRawData.ownerName || '',
         categories: crewRawData.categories || [],

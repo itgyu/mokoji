@@ -132,12 +132,18 @@ Avatar.displayName = 'Avatar';
 
 /**
  * 이름에서 이니셜 추출 (한글/영문 모두 지원)
+ * Emoji는 제거하고 텍스트만 사용
  */
 function getInitials(name: string): string {
   if (!name) return '?';
 
+  // Emoji와 특수 문자 제거 (한글, 영문, 숫자만 남김)
+  const cleanName = name.replace(/[^\p{L}\p{N}\s]/gu, '').trim();
+
+  if (!cleanName) return '?';
+
   // 공백으로 구분된 이름 처리 (예: "홍 길동" → "홍길")
-  const parts = name.trim().split(/\s+/);
+  const parts = cleanName.split(/\s+/);
 
   if (parts.length >= 2) {
     // 이름이 여러 부분으로 구성된 경우 (예: "홍 길동" → "홍길")
@@ -145,7 +151,7 @@ function getInitials(name: string): string {
   }
 
   // 단일 이름의 경우 첫 글자만 (예: "홍길동" → "홍")
-  return name[0].toUpperCase();
+  return cleanName[0].toUpperCase();
 }
 
 /**

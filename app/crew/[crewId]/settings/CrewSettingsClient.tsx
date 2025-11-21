@@ -5,7 +5,8 @@ import { useRouter } from 'next/navigation';
 import { doc, updateDoc, deleteDoc, collection, query, where, getDocs } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { Button, Card, CardBody, Avatar } from '@/components/ui';
-import { ChevronLeft, Users, Trash2, Settings } from 'lucide-react';
+import { ChevronLeft, Users, Trash2, Settings, Camera, X } from 'lucide-react';
+import { uploadToS3 } from '@/lib/s3-client';
 
 interface CrewSettingsClientProps {
   crewId: string;
@@ -27,12 +28,25 @@ export function CrewSettingsClient({
   const [isSaving, setIsSaving] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
   const [members, setMembers] = useState(initialMembers);
+  const [imageFile, setImageFile] = useState<File | null>(null);
+  const [imagePreview, setImagePreview] = useState<string | null>(null);
 
   const [editForm, setEditForm] = useState({
     name: crewData.name || '',
+    subtitle: crewData.subtitle || '',
     description: crewData.description || '',
-    imageUrl: crewData.imageUrl || '',
   });
+
+  // 이미지 파일 선택 핸들러
+  const handleImageSelect = (file: File) => {
+    setImageFile(file);
+    // 미리보기 생성
+    const reader = new FileReader();
+    reader.onloadend = () => {
+      setImagePreview(reader.result as string);
+    };
+    reader.readAsDataURL(file);
+  };
 
   // 크루 정보 수정
   const handleSaveCrew = async () => {
@@ -44,15 +58,32 @@ export function CrewSettingsClient({
     setIsSaving(true);
     try {
       const crewRef = doc(db, 'organizations', crewId);
-      await updateDoc(crewRef, {
+      const updateData: any = {
         name: editForm.name.trim(),
         description: editForm.description.trim(),
-        imageUrl: editForm.imageUrl.trim(),
         updatedAt: new Date(),
-      });
+      };
+
+      // 서브타이틀 업데이트
+      if (editForm.subtitle && editForm.subtitle.trim()) {
+        updateData.subtitle = editForm.subtitle.trim();
+      } else {
+        updateData.subtitle = '';
+      }
+
+      // 이미지 업로드
+      if (imageFile) {
+        const avatarUrl = await uploadToS3(imageFile, `organizations/${crewId}`);
+        updateData.avatar = avatarUrl;
+        updateData.imageUrl = avatarUrl; // 기존 필드 호환성
+      }
+
+      await updateDoc(crewRef, updateData);
 
       alert('크루 정보가 수정되었습니다.');
       setIsEditing(false);
+      setImageFile(null);
+      setImagePreview(null);
       router.refresh();
     } catch (error) {
       console.error('Error updating crew:', error);
@@ -173,6 +204,17 @@ export function CrewSettingsClient({
                 </div>
 
                 <div>
+                  <label className="block text-sm font-medium mb-2">크루 서브타이틀</label>
+                  <input
+                    type="text"
+                    value={editForm.subtitle}
+                    onChange={(e) => setEditForm({ ...editForm, subtitle: e.target.value })}
+                    className="w-full px-3 py-2 border border-border rounded-lg bg-background"
+                    placeholder="예: OUTDOOR LIFE"
+                  />
+                </div>
+
+                <div>
                   <label className="block text-sm font-medium mb-2">크루 설명</label>
                   <textarea
                     value={editForm.description}
@@ -184,14 +226,58 @@ export function CrewSettingsClient({
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium mb-2">크루 이미지 URL</label>
-                  <input
-                    type="url"
-                    value={editForm.imageUrl}
-                    onChange={(e) => setEditForm({ ...editForm, imageUrl: e.target.value })}
-                    className="w-full px-3 py-2 border border-border rounded-lg bg-background"
-                    placeholder="https://example.com/image.jpg"
-                  />
+                  <label className="block text-sm font-medium mb-2">크루 메인 사진</label>
+                  <div className="space-y-2">
+                    {(imagePreview || crewData.imageUrl || crewData.avatar) && (
+                      <div className="relative w-full h-48 rounded-lg overflow-hidden bg-muted">
+                        <img
+                          src={imagePreview || crewData.imageUrl || crewData.avatar}
+                          alt="크루 이미지"
+                          className="w-full h-full object-cover"
+                        />
+                        {imageFile && (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setImageFile(null);
+                              setImagePreview(null);
+                            }}
+                            className="absolute top-2 right-2 bg-red-500 text-white p-2 rounded-full hover:bg-red-600"
+                          >
+                            <X className="w-4 h-4" />
+                          </button>
+                        )}
+                      </div>
+                    )}
+                    <div className="flex gap-2">
+                      <label className="flex-1 py-2.5 px-4 bg-white border border-border text-foreground rounded-lg font-medium text-center cursor-pointer hover:bg-muted active:scale-[0.99] transition-transform duration-200">
+                        📸 사진 촬영
+                        <input
+                          type="file"
+                          accept="image/*"
+                          capture="environment"
+                          onChange={(e) => {
+                            const file = e.target.files?.[0];
+                            if (file) handleImageSelect(file);
+                          }}
+                          className="hidden"
+                        />
+                      </label>
+                      <label className="flex-1 py-2.5 px-4 bg-white border border-border text-foreground rounded-lg font-medium text-center cursor-pointer hover:bg-muted active:scale-[0.99] transition-transform duration-200">
+                        🖼️ 갤러리
+                        <input
+                          type="file"
+                          accept="image/*"
+                          onChange={(e) => {
+                            const file = e.target.files?.[0];
+                            if (file) handleImageSelect(file);
+                          }}
+                          className="hidden"
+                        />
+                      </label>
+                    </div>
+                    <p className="text-xs text-muted-foreground">※ 5MB 이하 권장</p>
+                  </div>
                 </div>
 
                 <div className="flex gap-2 pt-2">
@@ -211,9 +297,11 @@ export function CrewSettingsClient({
                       setIsEditing(false);
                       setEditForm({
                         name: crewData.name || '',
+                        subtitle: crewData.subtitle || '',
                         description: crewData.description || '',
-                        imageUrl: crewData.imageUrl || '',
                       });
+                      setImageFile(null);
+                      setImagePreview(null);
                     }}
                     disabled={isSaving}
                     className="flex-1"
@@ -224,9 +312,9 @@ export function CrewSettingsClient({
               </div>
             ) : (
               <div className="space-y-3">
-                {crewData.imageUrl && (
+                {(crewData.imageUrl || crewData.avatar) && (
                   <img
-                    src={crewData.imageUrl}
+                    src={crewData.imageUrl || crewData.avatar}
                     alt={crewData.name}
                     className="w-full h-48 object-cover rounded-lg"
                   />
@@ -235,6 +323,12 @@ export function CrewSettingsClient({
                   <p className="text-sm text-muted-foreground mb-1">크루 이름</p>
                   <p className="font-semibold">{crewData.name}</p>
                 </div>
+                {crewData.subtitle && (
+                  <div>
+                    <p className="text-sm text-muted-foreground mb-1">크루 서브타이틀</p>
+                    <p className="font-medium">{crewData.subtitle}</p>
+                  </div>
+                )}
                 {crewData.description && (
                   <div>
                     <p className="text-sm text-muted-foreground mb-1">크루 설명</p>
