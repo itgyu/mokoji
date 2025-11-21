@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, use } from 'react';
 import { useRouter } from 'next/navigation';
 import { doc, getDoc, collection, query, where, getDocs } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
@@ -11,8 +11,10 @@ import LoadingScreen from '@/components/LoadingScreen';
 export default function CrewSettingsPage({
   params,
 }: {
-  params: { crewId: string };
+  params: Promise<{ crewId: string }>;
 }) {
+  // Next.js 15+ params는 Promise이므로 use()로 unwrap
+  const unwrappedParams = use(params);
   const router = useRouter();
   const { user, userProfile, loading: authLoading } = useAuth();
   const [crewData, setCrewData] = useState<any>(null);
@@ -28,12 +30,12 @@ export default function CrewSettingsPage({
     }
 
     loadCrewData();
-  }, [user, authLoading, params.crewId]);
+  }, [user, authLoading, unwrappedParams.crewId]);
 
   const loadCrewData = async () => {
     try {
       // 크루 정보 가져오기
-      const crewDoc = await getDoc(doc(db, 'organizations', params.crewId));
+      const crewDoc = await getDoc(doc(db, 'organizations', unwrappedParams.crewId));
 
       if (!crewDoc.exists()) {
         alert('크루를 찾을 수 없습니다.');
@@ -67,7 +69,7 @@ export default function CrewSettingsPage({
 
       // 크루 멤버 목록 가져오기
       const membersSnapshot = await getDocs(
-        query(collection(db, 'members'), where('orgId', '==', params.crewId))
+        query(collection(db, 'members'), where('orgId', '==', unwrappedParams.crewId))
       );
 
       // JSON 직렬화로 Timestamp 제거
@@ -102,7 +104,7 @@ export default function CrewSettingsPage({
 
   return (
     <CrewSettingsClient
-      crewId={params.crewId}
+      crewId={unwrappedParams.crewId}
       crewData={crewData}
       members={members}
       currentUserId={user.uid}
