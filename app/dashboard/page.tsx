@@ -7,8 +7,8 @@ import { useRouter, useSearchParams } from 'next/navigation'
 import { useAuth } from '@/contexts/AuthContext'
 import { signOut } from 'firebase/auth'
 import { auth, db } from '@/lib/firebase'
-import { collection, query, where, getDocs, doc, getDoc, updateDoc, onSnapshot, addDoc, arrayUnion, arrayRemove, deleteDoc, writeBatch } from 'firebase/firestore'
-import { Home, Users, Calendar, User, MapPin, Bell, Settings, Target, MessageCircle, Sparkles, Star, Tent, Search, Plus, Check, Edit, LogOut, X, ChevronLeft } from 'lucide-react'
+import { collection, query, where, getDocs, doc, getDoc, updateDoc, onSnapshot, addDoc, arrayUnion, arrayRemove, deleteDoc, writeBatch, orderBy, serverTimestamp } from 'firebase/firestore'
+import { Home, Users, Calendar, User, MapPin, Bell, Settings, Target, MessageCircle, Sparkles, Star, Tent, Search, Plus, Check, Edit, LogOut, X, ChevronLeft, Camera } from 'lucide-react'
 import { uploadToS3 } from '@/lib/s3-client'
 import ScheduleDeepLink from '@/components/ScheduleDeepLink'
 import { getCities, getDistricts } from '@/lib/locations'
@@ -151,6 +151,10 @@ export default function DashboardPage() {
   const [searchQuery, setSearchQuery] = useState('')
   const [selectedCategory, setSelectedCategory] = useState('전체')
   const [editingOrg, setEditingOrg] = useState<Organization | null>(null)
+  const [crewView, setCrewView] = useState<'schedules' | 'photos'>('schedules')
+  const [photos, setPhotos] = useState<any[]>([])
+  const [selectedPhoto, setSelectedPhoto] = useState<any | null>(null)
+  const [uploadingPhoto, setUploadingPhoto] = useState(false)
   const [orgForm, setOrgForm] = useState({
     name: '',
     subtitle: '',
@@ -167,7 +171,9 @@ export default function DashboardPage() {
   })
   const [settingLocation, setSettingLocation] = useState(false)  // 위치 설정 로딩 상태
   const [showCreateCrew, setShowCreateCrew] = useState(false)  // 크루 생성 모달
+  const [createCrewStep, setCreateCrewStep] = useState<1 | 2 | 3>(1)  // 크루 생성 단계
   const [orgAvatarFile, setOrgAvatarFile] = useState<File | null>(null)
+  const [orgAvatarPreview, setOrgAvatarPreview] = useState<string | null>(null)  // 크루 로고 미리보기
   const [myProfileAvatarFile, setMyProfileAvatarFile] = useState<File | null>(null)
   const [showDeleteCrewConfirm, setShowDeleteCrewConfirm] = useState(false)  // 크루 해체 확인 다이얼로그
 
@@ -254,6 +260,13 @@ export default function DashboardPage() {
       }
     }
   }, [user, selectedOrg])
+
+  // 사진첩 뷰로 전환시 사진 목록 불러오기
+  useEffect(() => {
+    if (selectedOrg && crewView === 'photos') {
+      fetchPhotos(selectedOrg.id)
+    }
+  }, [selectedOrg, crewView])
 
   // 모달 열릴 때 백그라운드 스크롤 방지
   useEffect(() => {
@@ -1074,6 +1087,136 @@ export default function DashboardPage() {
     }
   }
 
+  const handleUpdateOrg = async () => {
+    if (!user || !editingOrg) return
+
+    // 필수값 검증
+    if (!orgForm.name.trim()) {
+      alert('크루 이름을 알려주세요.')
+      return
+    }
+    if (!orgForm.description.trim()) {
+      alert('크루 설명을 알려주세요.')
+      return
+    }
+    if (orgForm.categories.length === 0) {
+      alert('카테고리를 최소 1개 이상 선택해주세요.')
+      return
+    }
+
+    try {
+      // 1. 크루 정보 업데이트
+      const updateData: any = {
+        name: orgForm.name,
+        description: orgForm.description,
+        categories: orgForm.categories,
+        updatedAt: new Date().toISOString()
+      }
+
+      if (orgForm.subtitle && orgForm.subtitle.trim()) {
+        updateData.subtitle = orgForm.subtitle
+      } else {
+        updateData.subtitle = ''
+      }
+
+      if (orgForm.location) {
+        updateData.location = orgForm.location
+      } else {
+        updateData.location = null
+      }
+
+      const orgRef = doc(db, 'organizations', editingOrg.id)
+      await updateDoc(orgRef, updateData)
+
+      // 2. 새 이미지가 있으면 S3에 업로드하고 URL 업데이트
+      if (orgAvatarFile) {
+        const avatarUrl = await uploadToS3(orgAvatarFile, `organizations/${editingOrg.id}`)
+        await updateDoc(orgRef, { avatar: avatarUrl })
+      }
+
+      alert('크루 정보가 수정되었어요!')
+      setEditingOrg(null)
+      setOrgAvatarFile(null)
+      setOrgAvatarPreview(null)
+
+      // 크루 목록 새로고침
+      await fetchOrganizations()
+      await fetchAllOrganizations()
+    } catch (error) {
+      console.error('❌ 크루 정보 수정 실패:', error)
+      alert('크루 정보를 수정하는 중에 문제가 생겼어요.')
+    }
+  }
+
+  // 사진첩: 사진 목록 불러오기
+  const fetchPhotos = async (orgId: string) => {
+    try {
+      const photosRef = collection(db, 'organizations', orgId, 'photos')
+      const q = query(photosRef, orderBy('createdAt', 'desc'))
+      const snapshot = await getDocs(q)
+      const photoList = snapshot.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data()
+      }))
+      setPhotos(photoList)
+    } catch (error) {
+      console.error('사진 목록 불러오기 실패:', error)
+    }
+  }
+
+  // 사진첩: 사진 업로드
+  const handlePhotoUpload = async (file: File, orgId: string) => {
+    if (!user || !userProfile) return
+
+    // 파일 크기 체크 (10MB)
+    if (file.size > 10 * 1024 * 1024) {
+      alert('사진 크기는 10MB 이하여야 합니다.')
+      return
+    }
+
+    setUploadingPhoto(true)
+
+    try {
+      // S3에 업로드
+      const photoUrl = await uploadToS3(file, `organizations/${orgId}/photos/${Date.now()}_${file.name}`)
+
+      // Firestore에 메타데이터 저장
+      const photosRef = collection(db, 'organizations', orgId, 'photos')
+      await addDoc(photosRef, {
+        url: photoUrl,
+        uploaderUid: user.uid,
+        uploaderName: userProfile.name,
+        createdAt: serverTimestamp(),
+        fileName: file.name
+      })
+
+      alert('사진이 업로드되었어요!')
+      await fetchPhotos(orgId)
+    } catch (error) {
+      console.error('사진 업로드 실패:', error)
+      alert('사진을 업로드하는 중에 문제가 생겼어요.')
+    } finally {
+      setUploadingPhoto(false)
+    }
+  }
+
+  // 사진첩: 사진 삭제
+  const handlePhotoDelete = async (photoId: string, orgId: string) => {
+    if (!user) return
+
+    if (!confirm('이 사진을 삭제할까요?')) return
+
+    try {
+      await deleteDoc(doc(db, 'organizations', orgId, 'photos', photoId))
+      alert('사진이 삭제되었어요!')
+      await fetchPhotos(orgId)
+      setSelectedPhoto(null)
+    } catch (error) {
+      console.error('사진 삭제 실패:', error)
+      alert('사진을 삭제하는 중에 문제가 생겼어요.')
+    }
+  }
+
   // 이미지 파일 선택 시 크롭 모달 열기
   const handleImageSelect = (file: File, type: 'org' | 'profile') => {
     const reader = new FileReader()
@@ -1091,6 +1234,9 @@ export default function DashboardPage() {
 
     if (cropType === 'org') {
       setOrgAvatarFile(file)
+      // 미리보기 URL 생성
+      const previewUrl = URL.createObjectURL(file)
+      setOrgAvatarPreview(previewUrl)
     } else if (cropType === 'profile') {
       setMyProfileAvatarFile(file)
     }
@@ -2493,7 +2639,32 @@ ${BRAND.NAME}와 함께하는 모임 일정에 참여하세요!
                   )}
                 </div>
 
-            {/* 통계 카드 */}
+            {/* 탭 전환 버튼 */}
+            <div className="px-4 pb-3 flex gap-2">
+              <button
+                onClick={() => setCrewView('schedules')}
+                className={`flex-1 py-3 rounded-xl font-extrabold text-base leading-6 transition-all ${
+                  crewView === 'schedules'
+                    ? 'bg-[#FF9B50] text-white shadow-md'
+                    : 'bg-[#F5F5F4] text-gray-900 hover:bg-gray-200'
+                }`}
+              >
+                📅 일정
+              </button>
+              <button
+                onClick={() => setCrewView('photos')}
+                className={`flex-1 py-3 rounded-xl font-extrabold text-base leading-6 transition-all ${
+                  crewView === 'photos'
+                    ? 'bg-[#FF9B50] text-white shadow-md'
+                    : 'bg-[#F5F5F4] text-gray-900 hover:bg-gray-200'
+                }`}
+              >
+                📸 사진첩
+              </button>
+            </div>
+
+            {/* 통계 카드 - 일정 탭에서만 표시 */}
+            {crewView === 'schedules' && (
             <div className="px-4 pb-4 grid grid-cols-3 gap-3">
               <button
                 onClick={() => setScheduleFilter('all')}
@@ -2529,8 +2700,11 @@ ${BRAND.NAME}와 함께하는 모임 일정에 참여하세요!
                 <div className="text-sm leading-5 font-extrabold mt-1 opacity-80">미참여</div>
               </button>
             </div>
+            )}
           </header>
 
+          {/* 일정 뷰 */}
+          {crewView === 'schedules' && (
           <div className="px-6 py-4 md:py-6 space-y-6 md:space-y-6">
             {/* 다가오는 일정 */}
             <div>
@@ -2665,7 +2839,89 @@ ${BRAND.NAME}와 함께하는 모임 일정에 참여하세요!
               </div>
             )}
           </div>
+          )}
 
+          {/* 사진첩 뷰 */}
+          {crewView === 'photos' && selectedOrg && (
+            <div className="px-6 py-4 md:py-6">
+              {/* 사진 업로드 버튼 - 크루 멤버만 */}
+              {members.some(m => m.userId === user?.uid) && (
+                <div className="mb-6">
+                  <label className="w-full py-4 px-6 bg-[#FF9B50] hover:bg-[#FF8A3D] text-white rounded-2xl font-extrabold text-base leading-6 cursor-pointer active:scale-[0.98] transition-all flex items-center justify-center gap-2">
+                    {uploadingPhoto ? (
+                      <>
+                        <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                        업로드 중...
+                      </>
+                    ) : (
+                      <>
+                        <Camera className="w-5 h-5" />
+                        사진 올리기
+                      </>
+                    )}
+                    <input
+                      type="file"
+                      accept="image/*"
+                      onChange={(e) => {
+                        const file = e.target.files?.[0]
+                        if (file && selectedOrg) {
+                          handlePhotoUpload(file, selectedOrg.id)
+                        }
+                      }}
+                      disabled={uploadingPhoto}
+                      className="hidden"
+                    />
+                  </label>
+                </div>
+              )}
+
+              {/* 사진 그리드 */}
+              {photos.length === 0 ? (
+                <div className="text-center py-16">
+                  <div className="flex justify-center mb-4">
+                    <Camera className="w-16 h-16 text-[#FF9B50]" />
+                  </div>
+                  <p className="text-base leading-6 font-extrabold text-gray-600 mb-2">아직 사진이 없어요</p>
+                  <p className="text-sm leading-5 text-gray-500">첫 번째 사진을 올려보세요!</p>
+                </div>
+              ) : (
+                <div className="grid grid-cols-3 gap-2">
+                  {photos.map((photo) => (
+                    <button
+                      key={photo.id}
+                      onClick={() => {
+                        // 크루 멤버만 상세 보기 가능
+                        if (members.some(m => m.userId === user?.uid)) {
+                          setSelectedPhoto(photo)
+                        } else {
+                          alert('크루 멤버만 사진을 자세히 볼 수 있어요.')
+                        }
+                      }}
+                      className="aspect-square rounded-xl overflow-hidden bg-gray-200 hover:opacity-80 transition-opacity active:scale-[0.98]"
+                    >
+                      <img
+                        src={photo.url}
+                        alt={photo.fileName}
+                        className="w-full h-full object-cover"
+                      />
+                    </button>
+                  ))}
+                </div>
+              )}
+
+              {/* 비회원용 안내 메시지 */}
+              {!members.some(m => m.userId === user?.uid) && photos.length > 0 && (
+                <div className="mt-6 p-4 bg-[#FFF3E0] border border-[#FF9B50] rounded-xl">
+                  <p className="text-sm leading-5 text-gray-700 text-center">
+                    <Camera className="w-4 h-4 text-[#FF9B50] inline-block" /> 크루에 가입하면 사진을 자세히 보고 업로드할 수 있어요
+                  </p>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* 플로팅 액션 버튼 - 일정 탭에서만 표시 */}
+          {crewView === 'schedules' && (
           <div className="fixed bottom-32 right-5 flex flex-col gap-2 md:gap-4 z-30">
             <button
               onClick={() => setShowMemberList(true)}
@@ -2680,8 +2936,51 @@ ${BRAND.NAME}와 함께하는 모임 일정에 참여하세요!
               +
             </button>
           </div>
+          )}
             </>
           )}
+        </div>
+      )}
+
+      {/* 사진 상세 모달 - 크루 멤버만 */}
+      {selectedPhoto && (
+        <div className="fixed inset-0 bg-black/90 z-50 flex items-center justify-center p-4">
+          <div className="relative w-full max-w-2xl">
+            {/* 닫기 버튼 */}
+            <button
+              onClick={() => setSelectedPhoto(null)}
+              className="absolute -top-12 right-0 text-white text-3xl hover:opacity-80"
+            >
+              <X className="w-8 h-8" />
+            </button>
+
+            {/* 사진 */}
+            <img
+              src={selectedPhoto.url}
+              alt={selectedPhoto.fileName}
+              className="w-full h-auto rounded-2xl"
+            />
+
+            {/* 사진 정보 */}
+            <div className="mt-4 bg-white/10 backdrop-blur-sm rounded-xl p-4 text-white">
+              <p className="text-sm leading-5 font-medium">
+                올린 사람: {selectedPhoto.uploaderName}
+              </p>
+              <p className="text-xs text-gray-300 mt-1">
+                {selectedPhoto.createdAt?.toDate?.()?.toLocaleDateString('ko-KR') || '날짜 정보 없음'}
+              </p>
+
+              {/* 삭제 버튼 - 본인만 */}
+              {user && selectedPhoto.uploaderUid === user.uid && selectedOrg && (
+                <button
+                  onClick={() => handlePhotoDelete(selectedPhoto.id, selectedOrg.id)}
+                  className="mt-3 w-full py-2 bg-red-500 hover:bg-red-600 text-white rounded-lg font-medium text-sm leading-5"
+                >
+                  삭제
+                </button>
+              )}
+            </div>
+          </div>
         </div>
       )}
 
@@ -3440,7 +3739,19 @@ ${BRAND.NAME}와 함께하는 모임 일정에 참여하세요!
       {/* 크루 정보 수정 모달 */}
       {editingOrg && (
         <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-3xl max-w-md w-full max-h-[80vh] overflow-hidden flex flex-col">
+          <div className="bg-white rounded-3xl max-w-md w-full max-h-[80vh] overflow-hidden flex flex-col relative">
+            {/* Close Button - Top Right */}
+            <button
+              onClick={() => {
+                setEditingOrg(null)
+                setOrgAvatarFile(null)
+                setOrgAvatarPreview(null)
+              }}
+              className="absolute top-6 right-6 p-2 hover:bg-red-50 rounded-full transition-colors z-10"
+            >
+              <X className="w-6 h-6 text-white" />
+            </button>
+
             <div className="bg-[#FF9B50] text-white p-6">
               <h2 className="text-xl leading-7 md:text-2xl font-extrabold">크루 정보 수정</h2>
               <p className="text-sm leading-5 opacity-90 mt-1">{editingOrg.name}</p>
@@ -3647,55 +3958,125 @@ ${BRAND.NAME}와 함께하는 모임 일정에 참여하세요!
       {/* 크루 생성 모달 */}
       {showCreateCrew && (
         <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-3xl max-w-md w-full max-h-[80vh] overflow-hidden flex flex-col">
-            <div className="bg-gradient-to-r from-[#FF9B50] to-[#2563EB] text-white p-3 md:p-6">
-              <h2 className="text-xl leading-7 md:text-2xl font-extrabold">어떤 크루를 만들까요?</h2>
-              <p className="text-sm leading-5 opacity-90 mt-1">나만의 캠핑 크루를 시작하세요</p>
+          <div className="bg-white rounded-3xl p-8 max-w-2xl w-full max-h-[85vh] overflow-y-auto relative">
+            {/* 닫기 버튼 - 우측 상단 */}
+            <button
+              onClick={() => {
+                setShowCreateCrew(false)
+                setCreateCrewStep(1)
+                setOrgForm({ name: '', subtitle: '', description: '', categories: [], location: null })
+                setOrgAvatarFile(null)
+                setOrgAvatarPreview(null)
+              }}
+              className="absolute top-6 right-6 p-2 hover:bg-gray-100 rounded-full transition-colors"
+            >
+              <X className="w-6 h-6 text-gray-600" />
+            </button>
+
+            {/* 프로그레스 바 */}
+            <div className="flex gap-2 mb-8">
+              {[1, 2, 3].map((step) => (
+                <div
+                  key={step}
+                  className={`flex-1 h-1 rounded-full transition-all ${
+                    createCrewStep >= step ? 'bg-[#FF9B50]' : 'bg-gray-200'
+                  }`}
+                />
+              ))}
             </div>
 
-            <div className="p-3 md:p-6 space-y-4 overflow-y-auto flex-1">
-              <div>
-                <label className="block text-base leading-6 font-extrabold text-gray-700 mb-1">크루명 *</label>
-                <input
-                  type="text"
-                  value={orgForm.name}
-                  onChange={(e) => setOrgForm({ ...orgForm, name: e.target.value })}
-                  placeholder="예: 서울 캠핑 크루"
-                  required
-                  className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-[#FF9B50] focus:ring-offset-2"
-                />
-              </div>
+            {/* Step 1: 기본 정보 */}
+            {createCrewStep === 1 && (
+              <div className="space-y-6">
+                <div className="text-center mb-8">
+                  <h2 className="text-2xl font-bold text-gray-900 mb-2">기본 정보를 입력해주세요</h2>
+                  <p className="text-gray-600">크루의 이름과 로고를 설정하세요</p>
+                </div>
 
-              <div>
-                <label className="block text-base leading-6 font-extrabold text-gray-700 mb-1">크루 소제목</label>
-                <input
-                  type="text"
-                  value={orgForm.subtitle}
-                  onChange={(e) => setOrgForm({ ...orgForm, subtitle: e.target.value })}
-                  placeholder="예: 함께하는 아웃도어 라이프"
-                  className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-[#FF9B50] focus:ring-offset-2"
-                />
-              </div>
+                {/* 크루 로고 */}
+                <div className="flex flex-col items-center mb-6">
+                  <div className="relative mb-4">
+                    <div className="w-32 h-32 rounded-full bg-gray-100 border-2 border-dashed border-gray-300 flex items-center justify-center overflow-hidden">
+                      {orgAvatarPreview ? (
+                        <img src={orgAvatarPreview} alt="크루 로고" className="w-full h-full object-cover" />
+                      ) : (
+                        <Camera className="w-12 h-12 text-gray-400" />
+                      )}
+                    </div>
+                    <label className="absolute bottom-0 right-0 w-10 h-10 bg-[#FF9B50] rounded-full flex items-center justify-center cursor-pointer hover:bg-[#FF8A3D] transition-colors shadow-lg">
+                      <Camera className="w-5 h-5 text-white" />
+                      <input
+                        type="file"
+                        accept="image/*"
+                        onChange={(e) => {
+                          const file = e.target.files?.[0]
+                          if (file) handleImageSelect(file, 'org')
+                        }}
+                        className="hidden"
+                      />
+                    </label>
+                  </div>
+                  <p className="text-sm text-gray-500">크루 로고를 등록해주세요</p>
+                </div>
 
-              <div>
-                <label className="block text-base leading-6 font-extrabold text-gray-700 mb-1">크루 설명 *</label>
-                <textarea
-                  value={orgForm.description}
-                  onChange={(e) => setOrgForm({ ...orgForm, description: e.target.value })}
-                  placeholder="어떤 크루인지 소개해주세요"
-                  required
-                  rows={3}
-                  className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-[#FF9B50] focus:ring-offset-2"
-                />
-              </div>
+                {/* 크루명 */}
+                <div>
+                  <label className="block text-base font-bold text-gray-700 mb-2">크루명 *</label>
+                  <input
+                    type="text"
+                    value={orgForm.name}
+                    onChange={(e) => setOrgForm({ ...orgForm, name: e.target.value })}
+                    placeholder="예: 서울 캠핑 크루"
+                    className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-[#FF9B50] focus:border-transparent"
+                  />
+                </div>
 
-              <div>
-                <label className="block text-base leading-6 font-extrabold text-gray-700 mb-2">카테고리 * (중복 선택 가능)</label>
-                <div className="grid grid-cols-2 gap-2 max-h-48 overflow-y-auto p-2 border border-gray-300 rounded-lg">
+                {/* 한줄 소개 */}
+                <div>
+                  <label className="block text-base font-bold text-gray-700 mb-2">한줄 소개</label>
+                  <input
+                    type="text"
+                    value={orgForm.subtitle}
+                    onChange={(e) => setOrgForm({ ...orgForm, subtitle: e.target.value })}
+                    placeholder="예: 함께하는 아웃도어 라이프"
+                    className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-[#FF9B50] focus:border-transparent"
+                  />
+                </div>
+
+                {/* 다음 버튼 */}
+                <button
+                  onClick={() => {
+                    if (!orgForm.name.trim()) {
+                      alert('크루명을 입력해주세요')
+                      return
+                    }
+                    setCreateCrewStep(2)
+                  }}
+                  className="w-full py-3 bg-gradient-to-r from-[#FF9B50] to-[#2563EB] text-white rounded-xl font-bold hover:opacity-90 transition-all"
+                >
+                  다음
+                </button>
+              </div>
+            )}
+
+            {/* Step 2: 카테고리 선택 */}
+            {createCrewStep === 2 && (
+              <div className="space-y-6">
+                <div className="text-center mb-8">
+                  <h2 className="text-2xl font-bold text-gray-900 mb-2">어떤 활동을 하나요?</h2>
+                  <p className="text-gray-600">크루의 카테고리를 선택해주세요 (중복 가능)</p>
+                </div>
+
+                {/* 카테고리 선택 */}
+                <div className="grid grid-cols-2 gap-3 max-h-96 overflow-y-auto p-2">
                   {CREW_CATEGORIES.map((category) => (
                     <label
                       key={category}
-                      className="flex items-center gap-2 p-2 rounded hover:bg-gray-100 cursor-pointer"
+                      className={`flex items-center gap-3 p-4 rounded-xl border-2 cursor-pointer transition-all ${
+                        orgForm.categories.includes(category)
+                          ? 'border-[#FF9B50] bg-orange-50'
+                          : 'border-gray-200 hover:border-gray-300'
+                      }`}
                     >
                       <input
                         type="checkbox"
@@ -3707,139 +4088,138 @@ ${BRAND.NAME}와 함께하는 모임 일정에 참여하세요!
                             setOrgForm({ ...orgForm, categories: orgForm.categories.filter(c => c !== category) })
                           }
                         }}
-                        className="w-4 h-4 text-[#FF9B50] border-gray-300 rounded focus:ring-[#FF9B50]"
+                        className="w-5 h-5 text-[#FF9B50] border-gray-300 rounded focus:ring-[#FF9B50]"
                       />
-                      <span className="text-sm leading-5 text-gray-700">{category}</span>
+                      <span className="text-sm font-medium text-gray-700">{category}</span>
                     </label>
                   ))}
                 </div>
+
+                {/* 선택된 카테고리 */}
                 {orgForm.categories.length > 0 && (
-                  <div className="mt-2 flex flex-wrap gap-1">
+                  <div className="flex flex-wrap gap-2 p-4 bg-orange-50 rounded-xl">
                     {orgForm.categories.map((cat) => (
-                      <span key={cat} className="inline-flex items-center gap-1 px-2 py-1 bg-[#FF9B50] text-white text-xs rounded-full">
+                      <span key={cat} className="inline-flex items-center gap-2 px-3 py-1.5 bg-[#FF9B50] text-white text-sm rounded-full">
                         {cat}
                         <button
                           type="button"
                           onClick={() => setOrgForm({ ...orgForm, categories: orgForm.categories.filter(c => c !== cat) })}
                           className="hover:text-red-200"
                         >
-                          ✕
+                          <X className="w-4 h-4" />
                         </button>
                       </span>
                     ))}
                   </div>
                 )}
-              </div>
 
-              {/* 크루 활동 지역 */}
-              <div>
-                <label className="block text-base leading-6 font-extrabold text-gray-700 mb-2">크루 활동 지역 (선택)</label>
-                <div className="space-y-2">
-                  {orgForm.location ? (
-                    <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-lg">
-                      <div className="flex items-start justify-between">
-                        <div>
-                          <p className="text-base leading-6 font-extrabold text-emerald-900">{orgForm.location.dong}</p>
-                          <p className="text-xs text-emerald-700 mt-1">{orgForm.location.address}</p>
-                        </div>
-                        <button
-                          type="button"
-                          onClick={() => setOrgForm({ ...orgForm, location: null })}
-                          className="text-red-600 text-xs font-medium hover:text-red-700"
-                        >
-                          삭제
-                        </button>
-                      </div>
-                    </div>
-                  ) : (
-                    <button
-                      type="button"
-                      onClick={handleSetCrewLocation}
-                      disabled={settingLocation}
-                      className="w-full py-2.5 px-4 bg-white border border-gray-300 text-gray-700 rounded-lg font-medium hover:bg-gray-100 active:scale-[0.99] transition-transform duration-200 ease-out disabled:opacity-50"
-                    >
-                      {settingLocation ? (
-                        <span className="flex items-center justify-center gap-2">
-                          <div className="w-4 h-4 border-2 border-gray-400 border-t-transparent rounded-full animate-spin" />
-                          위치 가져오는 중...
-                        </span>
-                      ) : (
-                        '현재 위치로 설정'
-                      )}
-                    </button>
-                  )}
-                  <p className="text-xs text-gray-600">※ 내 동네 크루 필터링에 사용됩니다</p>
+                {/* 버튼 */}
+                <div className="flex gap-3">
+                  <button
+                    onClick={() => setCreateCrewStep(1)}
+                    className="flex-1 py-3 bg-gray-100 text-gray-700 rounded-xl font-bold hover:bg-gray-200 transition-all"
+                  >
+                    <ChevronLeft className="w-5 h-5 inline mr-1" />
+                    이전
+                  </button>
+                  <button
+                    onClick={() => {
+                      if (orgForm.categories.length === 0) {
+                        alert('카테고리를 하나 이상 선택해주세요')
+                        return
+                      }
+                      setCreateCrewStep(3)
+                    }}
+                    className="flex-1 py-3 bg-gradient-to-r from-[#FF9B50] to-[#2563EB] text-white rounded-xl font-bold hover:opacity-90 transition-all"
+                  >
+                    다음
+                  </button>
                 </div>
               </div>
+            )}
 
-              <div>
-                <label className="block text-base leading-6 font-extrabold text-gray-700 mb-2">크루 메인사진</label>
-                <div className="space-y-2">
-                  {orgAvatarFile && (
-                    <div className="p-3 bg-gray-100 rounded-lg border border-gray-200 flex items-center justify-between">
-                      <div className="flex items-center gap-2">
-                        <span className="text-xl leading-7 md:text-xl md:text-2xl">📷</span>
-                        <span className="text-sm leading-5 text-gray-700">{orgAvatarFile.name}</span>
+            {/* Step 3: 상세 설명 */}
+            {createCrewStep === 3 && (
+              <div className="space-y-6">
+                <div className="text-center mb-8">
+                  <h2 className="text-2xl font-bold text-gray-900 mb-2">크루를 소개해주세요</h2>
+                  <p className="text-gray-600">상세한 설명과 활동 지역을 설정하세요</p>
+                </div>
+
+                {/* 크루 설명 */}
+                <div>
+                  <label className="block text-base font-bold text-gray-700 mb-2">크루 설명 *</label>
+                  <textarea
+                    value={orgForm.description}
+                    onChange={(e) => setOrgForm({ ...orgForm, description: e.target.value })}
+                    placeholder="어떤 크루인지 소개해주세요"
+                    rows={5}
+                    className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-[#FF9B50] focus:border-transparent resize-none"
+                  />
+                </div>
+
+                {/* 크루 활동 지역 */}
+                <div>
+                  <label className="block text-base font-bold text-gray-700 mb-2">크루 활동 지역 (선택)</label>
+                  <div className="space-y-2">
+                    {orgForm.location ? (
+                      <div className="p-4 bg-emerald-50 border border-emerald-200 rounded-xl">
+                        <div className="flex items-start justify-between">
+                          <div>
+                            <p className="text-base font-bold text-emerald-900">{orgForm.location.dong}</p>
+                            <p className="text-xs text-emerald-700 mt-1">{orgForm.location.address}</p>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => setOrgForm({ ...orgForm, location: null })}
+                            className="text-red-600 text-sm font-medium hover:text-red-700"
+                          >
+                            삭제
+                          </button>
+                        </div>
                       </div>
+                    ) : (
                       <button
                         type="button"
-                        onClick={() => setOrgAvatarFile(null)}
-                        className="text-red-500 text-base leading-6 font-bold"
+                        onClick={handleSetCrewLocation}
+                        disabled={settingLocation}
+                        className="w-full py-3 px-4 bg-white border-2 border-gray-300 text-gray-700 rounded-xl font-medium hover:bg-gray-50 hover:border-[#FF9B50] transition-all disabled:opacity-50"
                       >
-                        삭제
+                        {settingLocation ? (
+                          <span className="flex items-center justify-center gap-2">
+                            <div className="w-4 h-4 border-2 border-gray-400 border-t-transparent rounded-full animate-spin" />
+                            위치 가져오는 중...
+                          </span>
+                        ) : (
+                          <span className="flex items-center justify-center gap-2">
+                            <MapPin className="w-5 h-5" />
+                            현재 위치로 설정
+                          </span>
+                        )}
                       </button>
-                    </div>
-                  )}
-                  <div className="flex gap-2">
-                    <label className="flex-1 py-2.5 px-4 bg-white border border-gray-300 text-gray-700 rounded-lg font-medium text-center cursor-pointer hover:bg-gray-100 active:scale-[0.99] transition-transform duration-200 ease-out">
-                      📸 사진 촬영
-                      <input
-                        type="file"
-                        accept="image/*"
-                        capture="environment"
-                        onChange={(e) => {
-                          const file = e.target.files?.[0]
-                          if (file) handleImageSelect(file, 'org')
-                        }}
-                        className="hidden"
-                      />
-                    </label>
-                    <label className="flex-1 py-2.5 px-4 bg-white border border-gray-300 text-gray-700 rounded-lg font-medium text-center cursor-pointer hover:bg-gray-100 active:scale-[0.99] transition-transform duration-200 ease-out">
-                      🖼️ 갤러리
-                      <input
-                        type="file"
-                        accept="image/*"
-                        onChange={(e) => {
-                          const file = e.target.files?.[0]
-                          if (file) handleImageSelect(file, 'org')
-                        }}
-                        className="hidden"
-                      />
-                    </label>
+                    )}
+                    <p className="text-xs text-gray-500 text-center">내 동네 크루 필터링에 사용됩니다</p>
                   </div>
-                  <p className="text-xs text-gray-600">※ 5MB 이하 권장</p>
+                </div>
+
+                {/* 버튼 */}
+                <div className="flex gap-3">
+                  <button
+                    onClick={() => setCreateCrewStep(2)}
+                    className="flex-1 py-3 bg-gray-100 text-gray-700 rounded-xl font-bold hover:bg-gray-200 transition-all"
+                  >
+                    <ChevronLeft className="w-5 h-5 inline mr-1" />
+                    이전
+                  </button>
+                  <button
+                    onClick={handleCreateCrew}
+                    className="flex-1 py-3 bg-gradient-to-r from-[#FF9B50] to-[#2563EB] text-white rounded-xl font-bold hover:opacity-90 transition-all"
+                  >
+                    크루 만들기
+                  </button>
                 </div>
               </div>
-            </div>
-
-            <div className="p-3 md:p-6 border-t flex gap-3">
-              <button
-                onClick={handleCreateCrew}
-                className="flex-1 py-3 bg-gradient-to-r from-[#FF9B50] to-[#2563EB] text-white rounded-lg font-extrabold hover:opacity-90 active:scale-[0.99] transition-all duration-200"
-              >
-                크루 만들기
-              </button>
-              <button
-                onClick={() => {
-                  setShowCreateCrew(false)
-                  setOrgForm({ name: '', subtitle: '', description: '', categories: [], location: null })
-                  setOrgAvatarFile(null)
-                }}
-                className="flex-1 py-4 bg-gray-100 text-gray-700 rounded-xl font-extrabold text-base leading-6 hover:bg-gray-300 transition-all duration-200"
-              >
-                취소
-              </button>
-            </div>
+            )}
           </div>
         </div>
       )}

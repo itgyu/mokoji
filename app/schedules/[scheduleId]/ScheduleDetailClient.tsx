@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { doc, deleteDoc, updateDoc, collection, query, where, getDocs, runTransaction, serverTimestamp, getDoc } from 'firebase/firestore';
+import { doc, deleteDoc, updateDoc, collection, query, where, getDocs, runTransaction, serverTimestamp, getDoc, arrayRemove, addDoc } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { ScheduleSummaryCard } from './components/ScheduleSummaryCard';
 import { RSVPButtons } from './components/RSVPButtons';
@@ -291,6 +291,45 @@ export function ScheduleDetailClient({
     }
   };
 
+  // 참석자 제거 핸들러 (벙주 또는 크루장만)
+  const handleRemoveParticipant = async (userId: string) => {
+    try {
+      const scheduleRef = doc(db, 'org_schedules', scheduleId);
+
+      // 제거할 참석자 정보 찾기
+      const removedUser = localSchedule.participants.find(p => p.userId === userId);
+      if (!removedUser) {
+        throw new Error('참석자를 찾을 수 없습니다.');
+      }
+
+      // Firestore에서 참석자 제거
+      await updateDoc(scheduleRef, {
+        participants: arrayRemove(removedUser),
+        updatedAt: serverTimestamp()
+      });
+
+      // 로컬 상태 업데이트
+      setLocalSchedule(prev => ({
+        ...prev,
+        participants: prev.participants.filter(p => p.userId !== userId)
+      }));
+
+      // 시스템 메시지 추가
+      await addDoc(collection(db, 'org_schedules', scheduleId, 'messages'), {
+        message: `${removedUser.userName}님이 참석자에서 제외되었습니다`,
+        userId: 'system',
+        userName: 'System',
+        createdAt: serverTimestamp(),
+        type: 'system'
+      });
+
+      alert(`${removedUser.userName}님을 참석자에서 제외했습니다.`);
+    } catch (error) {
+      console.error('참석자 제거 실패:', error);
+      alert('참석자를 제거하는 중에 문제가 생겼어요');
+    }
+  };
+
 
   return (
     <>
@@ -488,7 +527,13 @@ export function ScheduleDetailClient({
       />
 
       {/* 참여자 리스트 */}
-      <ParticipantStrip participants={localSchedule.participants} />
+      <ParticipantStrip
+        participants={localSchedule.participants}
+        currentUserId={currentUserId}
+        scheduleOwnerId={localSchedule.createdByUid}
+        crewOwnerId={orgData?.ownerUid}
+        onRemoveParticipant={handleRemoveParticipant}
+      />
 
       {/* 채팅 섹션 - 모든 일정에 활성화 */}
       {canAccessChat && (

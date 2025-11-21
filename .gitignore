@@ -24,5 +24,10 @@ yarn-error.log*
 
 # typescript
 *.tsbuildinfo
-next-env.d.ts# Local env files
+next-env.d.ts
+
+# Local env files
 .env.local
+
+# Firebase service account keys (보안 키 파일)
+scripts/*-service-account.json

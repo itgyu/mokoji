@@ -18,6 +18,7 @@
     "migrate:schedule-dates": "tsx scripts/migrate-schedule-dates.ts",
     "fix:all-schedules": "tsx scripts/fix-all-schedules.ts",
     "check:crew-leader": "tsx scripts/check-crew-leader.ts",
+    "migrate:old-to-new": "tsx scripts/migrate-from-old-firebase.ts",
     "functions:build": "cd functions && npm run build",
     "functions:serve": "cd functions && npm run serve",
     "functions:deploy": "cd functions && npm run deploy",

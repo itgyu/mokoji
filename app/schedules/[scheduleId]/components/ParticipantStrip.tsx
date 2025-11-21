@@ -2,10 +2,15 @@
 
 import { Avatar, AvatarGroup, Badge, RSVPBadge } from '@/components/ui';
 import type { ScheduleParticipant } from '@/types/firestore';
+import { X } from 'lucide-react';
 
 interface ParticipantStripProps {
   participants: ScheduleParticipant[];
   maxDisplay?: number;
+  currentUserId?: string;
+  scheduleOwnerId?: string;
+  crewOwnerId?: string;
+  onRemoveParticipant?: (userId: string) => void;
 }
 
 /**
@@ -13,7 +18,17 @@ interface ParticipantStripProps {
  *
  * 참석/미정/불참 상태별로 그룹화하여 표시합니다.
  */
-export function ParticipantStrip({ participants, maxDisplay = 10 }: ParticipantStripProps) {
+export function ParticipantStrip({
+  participants,
+  maxDisplay = 10,
+  currentUserId,
+  scheduleOwnerId,
+  crewOwnerId,
+  onRemoveParticipant
+}: ParticipantStripProps) {
+  // 호스트 권한 체크 (벙주 또는 크루장)
+  const isHost = currentUserId && (currentUserId === scheduleOwnerId || currentUserId === crewOwnerId);
+
   // 상태별로 그룹화
   const going = participants.filter((p) => p.status === 'going');
   const waiting = participants.filter((p) => p.status === 'waiting');
@@ -40,7 +55,13 @@ export function ParticipantStrip({ participants, maxDisplay = 10 }: ParticipantS
           </div>
           <div className="flex gap-2 overflow-x-auto pb-2 hide-scrollbar">
             {going.slice(0, maxDisplay).map((participant, index) => (
-              <ParticipantItem key={`${participant.userId}-${index}`} participant={participant} />
+              <ParticipantItem
+                key={`${participant.userId}-${index}`}
+                participant={participant}
+                isHost={isHost}
+                currentUserId={currentUserId}
+                onRemoveParticipant={onRemoveParticipant}
+              />
             ))}
             {going.length > maxDisplay && (
               <div className="flex items-center justify-center px-3 py-2 text-sm text-muted-foreground bg-muted rounded-lg whitespace-nowrap">
@@ -62,7 +83,13 @@ export function ParticipantStrip({ participants, maxDisplay = 10 }: ParticipantS
           </div>
           <div className="flex gap-2 overflow-x-auto pb-2 hide-scrollbar">
             {waiting.slice(0, maxDisplay).map((participant, index) => (
-              <ParticipantItem key={`${participant.userId}-${index}`} participant={participant} />
+              <ParticipantItem
+                key={`${participant.userId}-${index}`}
+                participant={participant}
+                isHost={isHost}
+                currentUserId={currentUserId}
+                onRemoveParticipant={onRemoveParticipant}
+              />
             ))}
             {waiting.length > maxDisplay && (
               <div className="flex items-center justify-center px-3 py-2 text-sm text-muted-foreground bg-muted rounded-lg whitespace-nowrap">
@@ -88,6 +115,9 @@ export function ParticipantStrip({ participants, maxDisplay = 10 }: ParticipantS
                 key={`${participant.userId}-${index}`}
                 participant={participant}
                 dimmed
+                isHost={isHost}
+                currentUserId={currentUserId}
+                onRemoveParticipant={onRemoveParticipant}
               />
             ))}
             {declined.length > maxDisplay && (
@@ -108,22 +138,43 @@ export function ParticipantStrip({ participants, maxDisplay = 10 }: ParticipantS
 function ParticipantItem({
   participant,
   dimmed = false,
+  isHost = false,
+  currentUserId,
+  onRemoveParticipant,
 }: {
   participant: ScheduleParticipant;
   dimmed?: boolean;
+  isHost?: boolean;
+  currentUserId?: string;
+  onRemoveParticipant?: (userId: string) => void;
 }) {
   return (
     <div
-      className={`flex flex-col items-center gap-1 min-w-[60px] ${
+      className={`relative group flex flex-col items-center gap-1 min-w-[60px] ${
         dimmed ? 'opacity-50' : ''
       }`}
     >
-      <Avatar
-        src={participant.userAvatar}
-        alt={participant.userName}
-        fallback={participant.userName}
-        size="md"
-      />
+      <div className="relative">
+        <Avatar
+          src={participant.userAvatar}
+          alt={participant.userName}
+          fallback={participant.userName}
+          size="md"
+        />
+        {/* 제거 버튼 (호스트만 표시, 자기 자신은 제거 불가) */}
+        {isHost && participant.userId !== currentUserId && onRemoveParticipant && (
+          <button
+            onClick={() => {
+              if (confirm(`${participant.userName}님을 참석자에서 제외할까요?`)) {
+                onRemoveParticipant(participant.userId)
+              }
+            }}
+            className="absolute -top-1 -right-1 w-5 h-5 bg-red-500 rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity shadow-md"
+          >
+            <X className="w-3 h-3 text-white" />
+          </button>
+        )}
+      </div>
       <span className="text-xs text-center text-foreground truncate w-full px-1">
         {participant.userName}
       </span>
