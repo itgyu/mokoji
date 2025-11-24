@@ -7,7 +7,7 @@ import { useRouter, useSearchParams } from 'next/navigation'
 import { useAuth } from '@/contexts/AuthContext'
 import { signOut } from 'firebase/auth'
 import { auth, db } from '@/lib/firebase'
-import { collection, query, where, getDocs, doc, getDoc, updateDoc, onSnapshot, addDoc, arrayUnion, arrayRemove, deleteDoc, writeBatch, orderBy, serverTimestamp } from 'firebase/firestore'
+import { collection, query, where, getDocs, doc, getDoc, updateDoc, onSnapshot, addDoc, arrayUnion, arrayRemove, deleteDoc, writeBatch, orderBy, serverTimestamp, Timestamp } from 'firebase/firestore'
 import { Home, Users, Calendar, User, MapPin, Bell, Settings, Target, MessageCircle, Sparkles, Star, Tent, Search, Plus, Check, Edit, LogOut, X, ChevronLeft, Camera } from 'lucide-react'
 import { uploadToS3 } from '@/lib/s3-client'
 import ScheduleDeepLink from '@/components/ScheduleDeepLink'
@@ -696,7 +696,7 @@ export default function DashboardPage() {
         latitude: location.latitude,
         longitude: location.longitude,
         radius: location.radius,
-        verifiedAt: serverTimestamp(),
+        verifiedAt: Timestamp.fromDate(new Date()),
         isPrimary: !userProfile?.locations || userProfile.locations.length === 0,
       }
 
