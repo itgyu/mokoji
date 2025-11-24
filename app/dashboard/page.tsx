@@ -3432,7 +3432,7 @@ ${BRAND.NAME}와 함께하는 모임 일정에 참여하세요!
               <h3 className="text-base leading-6 sm:text-xl md:text-2xl font-extrabold tracking-tight text-gray-900 mb-3 sm:mb-4">
                 내 동네 설정
               </h3>
-              <LocationVerification />
+              <LocationVerification onOpenMap={() => setShowLocationSettings(true)} />
             </div>
 
             {/* 프로필 카드 */}

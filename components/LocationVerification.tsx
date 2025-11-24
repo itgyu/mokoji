@@ -6,7 +6,13 @@ import { doc, updateDoc, arrayUnion, Timestamp } from 'firebase/firestore'
 import { db } from '@/lib/firebase'
 import { useAuth, type UserLocation } from '@/contexts/AuthContext'
 
-export default function LocationVerification({ onSuccess }: { onSuccess?: () => void }) {
+export default function LocationVerification({
+  onSuccess,
+  onOpenMap
+}: {
+  onSuccess?: () => void
+  onOpenMap?: () => void
+}) {
   const { user, userProfile, refreshUserProfile } = useAuth()
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
@@ -363,7 +369,7 @@ export default function LocationVerification({ onSuccess }: { onSuccess?: () => 
       {/* 새 지역 인증 버튼 */}
       {(!userProfile?.locations || userProfile.locations.length < 2) && (
         <button
-          onClick={handleVerifyLocation}
+          onClick={onOpenMap || handleVerifyLocation}
           disabled={loading}
           className="w-full bg-gradient-to-r from-blue-500 to-indigo-500 text-white font-semibold py-3.5 sm:py-4 px-5 sm:px-6 rounded-xl hover:from-blue-600 hover:to-indigo-600 transition-all disabled:opacity-50 disabled:cursor-not-allowed shadow-lg shadow-blue-500/30 text-sm sm:text-base"
         >
@@ -374,8 +380,8 @@ export default function LocationVerification({ onSuccess }: { onSuccess?: () => 
             </div>
           ) : (
             <div className="flex items-center justify-center gap-2">
-              <span className="text-lg sm:text-xl">📍</span>
-              <span>현재 위치로 {userProfile?.locations?.length === 0 ? '첫 ' : ''}동네 인증하기</span>
+              <span className="text-lg sm:text-xl">🗺️</span>
+              <span>{onOpenMap ? '지도에서 위치 선택하기' : `현재 위치로 ${userProfile?.locations?.length === 0 ? '첫 ' : ''}동네 인증하기`}</span>
             </div>
           )}
         </button>
