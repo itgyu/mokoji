@@ -16,6 +16,7 @@ import ImageCropModal from '@/components/ImageCropModal'
 import { BRAND } from '@/lib/brand'
 import { CREW_CATEGORIES } from '@/lib/constants'
 import LocationVerification from '@/components/LocationVerification'
+import LocationSettings from '@/components/LocationSettings'
 import { getCurrentPosition, getAddressFromCoords, calculateDistance, formatDistance } from '@/lib/location-utils'
 import { getOrganizations, getOrganizationMembers } from '@/lib/firestore-helpers'
 import type { OrganizationMember } from '@/types'
@@ -170,6 +171,7 @@ export default function DashboardPage() {
     } | null
   })
   const [settingLocation, setSettingLocation] = useState(false)  // 위치 설정 로딩 상태
+  const [showLocationSettings, setShowLocationSettings] = useState(false)  // 위치 설정 모달
   const [showCreateCrew, setShowCreateCrew] = useState(false)  // 크루 생성 모달
   const [createCrewStep, setCreateCrewStep] = useState<1 | 2 | 3>(1)  // 크루 생성 단계
   const [orgAvatarFile, setOrgAvatarFile] = useState<File | null>(null)
@@ -663,6 +665,54 @@ export default function DashboardPage() {
       router.push('/auth')
     } catch (error) {
       console.error('Error signing out:', error)
+    }
+  }
+
+  const handleSaveLocation = async (location: {
+    address: string
+    dong: string
+    latitude: number
+    longitude: number
+    radius: number
+  }) => {
+    if (!user) return
+
+    try {
+      const userRef = doc(db, 'userProfiles', user.uid)
+
+      // 지역 이름 결정
+      const locationName = !userProfile?.locations || userProfile.locations.length === 0
+        ? '집'
+        : '직장'
+
+      // 새로운 위치 데이터
+      const locationData = {
+        id: `loc_${Date.now()}`,
+        name: locationName,
+        address: location.address,
+        sido: '',  // LocationSettings에서는 sido/sigungu가 없으므로 빈 문자열
+        sigungu: '',
+        dong: location.dong,
+        latitude: location.latitude,
+        longitude: location.longitude,
+        radius: location.radius,
+        verifiedAt: serverTimestamp(),
+        isPrimary: !userProfile?.locations || userProfile.locations.length === 0,
+      }
+
+      await updateDoc(userRef, {
+        locations: arrayUnion(locationData),
+        // 첫 번째 지역이면 자동으로 선택
+        ...((!userProfile?.locations || userProfile.locations.length === 0) && {
+          selectedLocationId: locationData.id
+        })
+      })
+
+      alert('동네가 설정되었어요!')
+      window.location.reload()
+    } catch (error) {
+      console.error('Error saving location:', error)
+      alert('동네 설정 중 문제가 발생했어요.')
     }
   }
 
@@ -2007,7 +2057,7 @@ ${BRAND.NAME}와 함께하는 모임 일정에 참여하세요!
                 {/* 동네 인증 버튼 (미인증 시) */}
                 {(!userProfile?.locations || userProfile.locations.length === 0) && (
                   <button
-                    onClick={() => router.replace('/dashboard?page=myprofile', { scroll: false })}
+                    onClick={() => setShowLocationSettings(true)}
                     className="px-3 sm:px-4 py-1.5 sm:py-2 bg-orange-500 text-white text-xs sm:text-sm font-extrabold rounded-lg hover:bg-orange-600 active:scale-[0.99] transition-transform duration-200 ease-out"
                   >
                     동네 인증
@@ -4602,6 +4652,22 @@ ${BRAND.NAME}와 함께하는 모임 일정에 참여하세요!
           title={cropType === 'org' ? '크루 메인사진 자르기' : '프로필 사진 자르기'}
         />
       )}
+
+      {/* 위치 설정 모달 */}
+      <LocationSettings
+        isOpen={showLocationSettings}
+        onClose={() => setShowLocationSettings(false)}
+        onSave={handleSaveLocation}
+        initialLocation={
+          userProfile?.locations && userProfile.locations.length > 0
+            ? {
+                latitude: userProfile.locations[0].latitude,
+                longitude: userProfile.locations[0].longitude,
+                radius: userProfile.locations[0].radius || 1000,
+              }
+            : undefined
+        }
+      />
     </div>
   )
 }

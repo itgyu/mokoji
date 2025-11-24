@@ -23,6 +23,7 @@ export interface UserLocation {
   longitude: number         // 경도
   verifiedAt: Date          // 인증 시각
   isPrimary: boolean        // 주 지역 여부
+  radius?: number           // 동네 생활 반경 (미터 단위)
 }
 
 export interface UserProfile {
