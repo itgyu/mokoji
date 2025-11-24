@@ -137,22 +137,59 @@ export default function LocationSettings({
       });
     };
 
-    // Kakao Maps SDK 로드 확인
+    // Kakao Maps SDK 로드
+    const loadKakaoScript = () => {
+      return new Promise<void>((resolve, reject) => {
+        // 이미 로드되어 있으면 바로 resolve
+        if (window.kakao?.maps) {
+          resolve();
+          return;
+        }
+
+        // 스크립트가 이미 추가되어 있는지 확인
+        const existingScript = document.querySelector('script[src*="dapi.kakao.com"]');
+        if (existingScript) {
+          // 스크립트는 있지만 window.kakao가 없는 경우, 로드 대기
+          const checkKakao = setInterval(() => {
+            if (window.kakao?.maps) {
+              clearInterval(checkKakao);
+              resolve();
+            }
+          }, 100);
+
+          setTimeout(() => {
+            clearInterval(checkKakao);
+            reject(new Error('Kakao Maps SDK 로드 시간 초과'));
+          }, 10000);
+          return;
+        }
+
+        // 스크립트 추가
+        const script = document.createElement('script');
+        script.src = `https://dapi.kakao.com/v2/maps/sdk.js?appkey=${process.env.NEXT_PUBLIC_KAKAO_MAP_API_KEY}&libraries=services&autoload=false`;
+        script.async = true;
+        script.onload = () => {
+          if (window.kakao?.maps) {
+            window.kakao.maps.load(() => resolve());
+          } else {
+            reject(new Error('Kakao Maps SDK가 로드되지 않았습니다'));
+          }
+        };
+        script.onerror = () => {
+          reject(new Error('Kakao Maps 스크립트 로드 실패'));
+        };
+        document.head.appendChild(script);
+      });
+    };
+
     const loadMap = async () => {
-      // window.kakao.maps가 로드될 때까지 대기
-      let attempts = 0;
-      while (!window.kakao?.maps && attempts < 30) {
-        await new Promise(resolve => setTimeout(resolve, 200));
-        attempts++;
-      }
-
-      if (!window.kakao?.maps) {
-        console.error('Kakao Maps SDK 로드 실패');
+      try {
+        await loadKakaoScript();
+        initMap();
+      } catch (error) {
+        console.error('Kakao Maps 로드 오류:', error);
         setLoading(false);
-        return;
       }
-
-      initMap();
     };
 
     loadMap();
