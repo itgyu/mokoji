@@ -14,7 +14,7 @@ import ScheduleDeepLink from '@/components/ScheduleDeepLink'
 import { getCities, getDistricts } from '@/lib/locations'
 import ImageCropModal from '@/components/ImageCropModal'
 import { BRAND } from '@/lib/brand'
-import { CREW_CATEGORIES } from '@/lib/constants'
+import { CREW_CATEGORIES, CATEGORY_GROUPS } from '@/lib/constants'
 import LocationVerification from '@/components/LocationVerification'
 import LocationSettings from '@/components/LocationSettings'
 import { getCurrentPosition, getAddressFromCoords, calculateDistance, formatDistance } from '@/lib/location-utils'
@@ -151,6 +151,7 @@ export default function DashboardPage() {
   const [selectedDistrictForMemberEdit, setSelectedDistrictForMemberEdit] = useState('')
   const [searchQuery, setSearchQuery] = useState('')
   const [selectedCategory, setSelectedCategory] = useState('전체')
+  const [selectedCategoryGroup, setSelectedCategoryGroup] = useState<string | null>(null)
   const [editingOrg, setEditingOrg] = useState<Organization | null>(null)
   const [crewView, setCrewView] = useState<'schedules' | 'photos'>('schedules')
   const [photos, setPhotos] = useState<any[]>([])
@@ -2226,28 +2227,67 @@ ${BRAND.NAME}와 함께하는 모임 일정에 참여하세요!
             </div>
           </header>
 
-          {/* 카테고리 필터 칩 */}
+          {/* 카테고리 필터 칩 - 2단 계층 구조 */}
           <div className="sticky top-[var(--header-height)] bg-white z-9 border-b border-gray-100">
-            <div className="px-4 py-3 overflow-x-auto scrollbar-hide">
+            {/* 대카테고리 */}
+            <div className="px-4 pt-3 pb-2 overflow-x-auto scrollbar-hide border-b border-gray-50">
+              <div className="flex gap-2">
+                <button
+                  onClick={() => {
+                    setSelectedCategoryGroup(null)
+                    setSelectedCategory('전체')
+                  }}
+                  className={`flex-shrink-0 px-4 py-2 rounded-full text-sm leading-5 font-bold transition-all ${
+                    selectedCategoryGroup === null
+                      ? 'bg-[#FF9B50] text-white shadow-lg shadow-orange-200'
+                      : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                  }`}
+                >
+                  🔥 전체
+                </button>
+                {Object.keys(CATEGORY_GROUPS).map((groupName) => (
+                  <button
+                    key={groupName}
+                    onClick={() => {
+                      setSelectedCategoryGroup(groupName)
+                      setSelectedCategory('전체')
+                    }}
+                    className={`flex-shrink-0 px-4 py-2 rounded-full text-sm leading-5 font-bold transition-all ${
+                      selectedCategoryGroup === groupName
+                        ? 'bg-[#FF9B50] text-white shadow-lg shadow-orange-200'
+                        : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                    }`}
+                  >
+                    {groupName}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* 세부 카테고리 */}
+            <div className="px-4 py-2 overflow-x-auto scrollbar-hide">
               <div className="flex gap-2">
                 <button
                   onClick={() => setSelectedCategory('전체')}
-                  className={`flex-shrink-0 px-4 py-2 rounded-full text-sm leading-5 font-semibold transition-all ${
+                  className={`flex-shrink-0 px-3 py-1.5 rounded-full text-xs font-semibold transition-all ${
                     selectedCategory === '전체'
-                      ? 'bg-[#FF9B50] text-white'
-                      : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                      ? 'bg-orange-100 text-[#FF9B50] border-2 border-[#FF9B50]'
+                      : 'bg-white text-gray-600 border border-gray-200 hover:border-gray-300'
                   }`}
                 >
                   전체
                 </button>
-                {CREW_CATEGORIES.map((category) => (
+                {(selectedCategoryGroup
+                  ? CATEGORY_GROUPS[selectedCategoryGroup as keyof typeof CATEGORY_GROUPS]
+                  : CREW_CATEGORIES.slice(0, 10) // 전체 선택 시 Tier 1만 표시
+                ).map((category) => (
                   <button
                     key={category}
                     onClick={() => setSelectedCategory(category)}
-                    className={`flex-shrink-0 px-4 py-2 rounded-full text-sm leading-5 font-semibold transition-all ${
+                    className={`flex-shrink-0 px-3 py-1.5 rounded-full text-xs font-semibold transition-all ${
                       selectedCategory === category
-                        ? 'bg-[#FF9B50] text-white'
-                        : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                        ? 'bg-orange-100 text-[#FF9B50] border-2 border-[#FF9B50]'
+                        : 'bg-white text-gray-600 border border-gray-200 hover:border-gray-300'
                     }`}
                   >
                     {category}
