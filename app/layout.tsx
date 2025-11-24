@@ -1,5 +1,6 @@
 import type { Metadata, Viewport } from "next"
 import { Geist, Geist_Mono } from "next/font/google"
+import Script from "next/script"
 import "./globals.css"
 import { Analytics } from "@vercel/analytics/next"
 import { AuthProvider } from "@/contexts/AuthContext"
@@ -57,15 +58,12 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="ko" style={{ scrollBehavior: 'smooth' }}>
-      <head>
-        {/* Kakao Maps SDK */}
-        <script
-          type="text/javascript"
-          src={`https://dapi.kakao.com/v2/maps/sdk.js?appkey=${process.env.NEXT_PUBLIC_KAKAO_MAP_API_KEY}&libraries=services&autoload=false`}
-          async
-        ></script>
-      </head>
       <body className={`${geistSans.variable} ${geistMono.variable} font-sans antialiased`}>
+        {/* Kakao Maps SDK */}
+        <Script
+          src={`//dapi.kakao.com/v2/maps/sdk.js?appkey=${process.env.NEXT_PUBLIC_KAKAO_MAP_API_KEY}&libraries=services&autoload=false`}
+          strategy="beforeInteractive"
+        />
         <VersionChecker />
         <AuthProvider>
           {children}
