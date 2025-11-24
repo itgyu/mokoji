@@ -1,10 +1,10 @@
 import type { Metadata, Viewport } from "next"
 import { Geist, Geist_Mono } from "next/font/google"
+import Script from "next/script"
 import "./globals.css"
 import { Analytics } from "@vercel/analytics/next"
 import { AuthProvider } from "@/contexts/AuthContext"
 import VersionChecker from "@/components/VersionChecker"
-import KakaoMapsScript from "@/components/KakaoMapsScript"
 import { BRAND } from "@/lib/brand"
 
 const geistSans = Geist({
@@ -59,7 +59,10 @@ export default function RootLayout({
   return (
     <html lang="ko" style={{ scrollBehavior: 'smooth' }}>
       <body className={`${geistSans.variable} ${geistMono.variable} font-sans antialiased`}>
-        <KakaoMapsScript />
+        <Script
+          src="//dapi.kakao.com/v2/maps/sdk.js?appkey=ff364c3f44129afc87e31935ac353ba2&libraries=services&autoload=false"
+          strategy="beforeInteractive"
+        />
         <VersionChecker />
         <AuthProvider>
           {children}
