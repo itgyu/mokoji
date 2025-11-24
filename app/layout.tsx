@@ -4,6 +4,7 @@ import "./globals.css"
 import { Analytics } from "@vercel/analytics/next"
 import { AuthProvider } from "@/contexts/AuthContext"
 import VersionChecker from "@/components/VersionChecker"
+import KakaoMapsScript from "@/components/KakaoMapsScript"
 import { BRAND } from "@/lib/brand"
 
 const geistSans = Geist({
@@ -57,13 +58,8 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="ko" style={{ scrollBehavior: 'smooth' }}>
-      <head>
-        <script
-          type="text/javascript"
-          src="https://dapi.kakao.com/v2/maps/sdk.js?appkey=ff364c3f44129afc87e31935ac353ba2&libraries=services"
-        ></script>
-      </head>
       <body className={`${geistSans.variable} ${geistMono.variable} font-sans antialiased`}>
+        <KakaoMapsScript />
         <VersionChecker />
         <AuthProvider>
           {children}
