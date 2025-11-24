@@ -129,13 +129,7 @@ export default function LocationSettings({
         setLoading(false);
       }
 
-      // 지도 클릭 이벤트
-      window.kakao.maps.event.addListener(newMap, 'click', (mouseEvent: any) => {
-        const latlng = mouseEvent.latLng;
-        newMarker.setPosition(latlng);
-        newCircle.setPosition(latlng);
-        getAddress(latlng.getLat(), latlng.getLng());
-      });
+      // 지도 클릭 이벤트는 제거 - GPS 위치 고정
     };
 
     // Kakao Maps SDK 로드 및 지도 초기화
@@ -152,12 +146,28 @@ export default function LocationSettings({
     loadMap();
   }, [isOpen, initialLocation]);
 
-  // 반경 변경 시 원 업데이트
+  // 반경 변경 시 원 업데이트 및 지도 자동 줌 조정
   useEffect(() => {
-    if (circle) {
+    if (circle && map) {
       circle.setRadius(radius);
+
+      // 반경에 맞게 지도 줌 자동 조정
+      const center = circle.getPosition();
+      const bounds = new window.kakao.maps.LatLngBounds();
+
+      // 원의 경계 계산 (4방향)
+      const radInKm = radius / 1000;
+      const latOffset = radInKm / 111; // 위도 1도 = 약 111km
+      const lngOffset = radInKm / (111 * Math.cos(center.getLat() * Math.PI / 180));
+
+      bounds.extend(new window.kakao.maps.LatLng(center.getLat() + latOffset, center.getLng()));
+      bounds.extend(new window.kakao.maps.LatLng(center.getLat() - latOffset, center.getLng()));
+      bounds.extend(new window.kakao.maps.LatLng(center.getLat(), center.getLng() + lngOffset));
+      bounds.extend(new window.kakao.maps.LatLng(center.getLat(), center.getLng() - lngOffset));
+
+      map.setBounds(bounds);
     }
-  }, [radius, circle]);
+  }, [radius, circle, map]);
 
   // 주소 가져오기
   const getAddress = (lat: number, lng: number) => {
