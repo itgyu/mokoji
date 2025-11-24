@@ -59,6 +59,8 @@ export async function getCurrentPosition(): Promise<{
   })
 }
 
+import { loadKakaoMaps } from './kakao-maps-loader'
+
 /**
  * 카카오 지도 API로 좌표를 주소로 변환 (역지오코딩)
  * @param {number} latitude - 위도
@@ -77,21 +79,14 @@ export async function getAddressFromCoords(
 }> {
   console.log('🗺️ 주소 변환 시작:', { latitude, longitude })
 
-  // window.kakao 로드 대기 (최대 5초)
-  let attempts = 0
-  while (!window.kakao?.maps && attempts < 10) {
-    console.log(`⏳ Kakao Maps 로드 대기... (${attempts + 1}/10)`)
-    await new Promise(resolve => setTimeout(resolve, 500))
-    attempts++
-  }
-
-  if (!window.kakao?.maps) {
-    console.error('❌ Kakao Maps API 로드 실패')
-    console.error('window.kakao:', window.kakao)
+  // Kakao Maps SDK 로드
+  try {
+    await loadKakaoMaps()
+    console.log('✅ Kakao Maps API 확인 완료')
+  } catch (error) {
+    console.error('❌ Kakao Maps API 로드 실패:', error)
     throw new Error('Kakao Maps API가 로드되지 않았습니다. 페이지를 새로고침 후 다시 시도해주세요.')
   }
-
-  console.log('✅ Kakao Maps API 확인 완료')
 
   return new Promise((resolve, reject) => {
     const geocoder = new window.kakao.maps.services.Geocoder()
