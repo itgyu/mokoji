@@ -40,30 +40,36 @@ export async function loadKakaoMaps(): Promise<void> {
 
     // 새로운 스크립트 추가
     const script = document.createElement('script');
-    // API 키 직접 사용 (환경 변수가 빌드 시 제대로 주입되지 않는 경우 대비)
     const apiKey = 'ff364c3f44129afc87e31935ac353ba2';
-    const scriptUrl = `https://dapi.kakao.com/v2/maps/sdk.js?appkey=${apiKey}&libraries=services&autoload=false`;
+    // autoload=false 제거 - 기본 autoload 사용
+    const scriptUrl = `https://dapi.kakao.com/v2/maps/sdk.js?appkey=${apiKey}&libraries=services`;
 
     console.log('🔧 Kakao Maps 스크립트 로드 시작:', scriptUrl);
 
+    script.type = 'text/javascript';
     script.src = scriptUrl;
-    script.async = true;
 
     script.onload = () => {
       console.log('✅ Kakao Maps 스크립트 로드 완료');
-      if (window.kakao?.maps) {
-        console.log('✅ window.kakao.maps 확인됨, load() 호출 중...');
-        // autoload=false이므로 명시적으로 load 호출
-        window.kakao.maps.load(() => {
+      // autoload=true (기본값)이므로 바로 사용 가능할 때까지 대기
+      const checkReady = setInterval(() => {
+        if (window.kakao?.maps) {
           console.log('✅ Kakao Maps 초기화 완료');
+          clearInterval(checkReady);
           loadingPromise = null;
           resolve();
-        });
-      } else {
-        console.error('❌ 스크립트는 로드되었으나 window.kakao.maps가 없음');
-        loadingPromise = null;
-        reject(new Error('Kakao Maps SDK가 로드되지 않았습니다'));
-      }
+        }
+      }, 50);
+
+      // 5초 타임아웃
+      setTimeout(() => {
+        clearInterval(checkReady);
+        if (!window.kakao?.maps) {
+          console.error('❌ 스크립트는 로드되었으나 window.kakao.maps가 없음');
+          loadingPromise = null;
+          reject(new Error('Kakao Maps SDK가 로드되지 않았습니다'));
+        }
+      }, 5000);
     };
 
     script.onerror = (error) => {
