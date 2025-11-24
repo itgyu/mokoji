@@ -17,14 +17,19 @@ export default function KakaoMapsScript() {
       return;
     }
 
-    // 스크립트 추가 (async = false로 동기 로딩 강제)
+    // autoload=false로 스크립트 추가 후 수동 초기화
     const script = document.createElement('script');
     script.type = 'text/javascript';
-    script.src = 'https://dapi.kakao.com/v2/maps/sdk.js?appkey=ff364c3f44129afc87e31935ac353ba2&libraries=services';
-    script.async = false; // 명시적으로 false 설정하여 동기 로딩 강제
+    script.src = 'https://dapi.kakao.com/v2/maps/sdk.js?appkey=ff364c3f44129afc87e31935ac353ba2&libraries=services&autoload=false';
 
     script.onload = () => {
-      console.log('✅ Kakao Maps script loaded successfully');
+      console.log('✅ Kakao Maps script loaded, initializing...');
+      // autoload=false이므로 수동으로 초기화
+      if (window.kakao && window.kakao.maps) {
+        window.kakao.maps.load(() => {
+          console.log('✅ Kakao Maps fully initialized with services');
+        });
+      }
     };
 
     script.onerror = (error) => {
