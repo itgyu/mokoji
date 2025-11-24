@@ -65,9 +65,6 @@ export default function RootLayout({
         <Script
           src={`https://dapi.kakao.com/v2/maps/sdk.js?appkey=${kakaoMapKey}&libraries=services`}
           strategy="beforeInteractive"
-          onError={(e) => {
-            console.error('Kakao Maps script failed to load', e)
-          }}
         />
         <VersionChecker />
         <AuthProvider>
