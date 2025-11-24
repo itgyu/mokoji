@@ -17,10 +17,11 @@ export default function KakaoMapsScript() {
       return;
     }
 
-    // 스크립트 추가 (async 제거 - services 라이브러리가 제대로 로드되도록)
+    // 스크립트 추가 (async = false로 동기 로딩 강제)
     const script = document.createElement('script');
     script.type = 'text/javascript';
     script.src = 'https://dapi.kakao.com/v2/maps/sdk.js?appkey=ff364c3f44129afc87e31935ac353ba2&libraries=services';
+    script.async = false; // 명시적으로 false 설정하여 동기 로딩 강제
 
     script.onload = () => {
       console.log('✅ Kakao Maps script loaded successfully');
