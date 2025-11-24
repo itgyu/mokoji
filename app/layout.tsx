@@ -56,13 +56,18 @@ export default function RootLayout({
 }: Readonly<{
   children: React.ReactNode
 }>) {
+  const kakaoMapKey = process.env.NEXT_PUBLIC_KAKAO_MAP_API_KEY || 'ff364c3f44129afc87e31935ac353ba2'
+
   return (
     <html lang="ko" style={{ scrollBehavior: 'smooth' }}>
       <body className={`${geistSans.variable} ${geistMono.variable} font-sans antialiased`}>
         {/* Kakao Maps SDK */}
         <Script
-          src={`//dapi.kakao.com/v2/maps/sdk.js?appkey=${process.env.NEXT_PUBLIC_KAKAO_MAP_API_KEY}&libraries=services&autoload=false`}
+          src={`https://dapi.kakao.com/v2/maps/sdk.js?appkey=${kakaoMapKey}&libraries=services`}
           strategy="beforeInteractive"
+          onError={(e) => {
+            console.error('Kakao Maps script failed to load', e)
+          }}
         />
         <VersionChecker />
         <AuthProvider>

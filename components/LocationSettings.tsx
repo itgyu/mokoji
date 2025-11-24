@@ -139,25 +139,20 @@ export default function LocationSettings({
 
     // Kakao Maps SDK 로드 확인
     const loadMap = async () => {
-      // window.kakao가 로드될 때까지 대기
+      // window.kakao.maps가 로드될 때까지 대기
       let attempts = 0;
-      while (!window.kakao && attempts < 20) {
-        await new Promise(resolve => setTimeout(resolve, 100));
+      while (!window.kakao?.maps && attempts < 30) {
+        await new Promise(resolve => setTimeout(resolve, 200));
         attempts++;
       }
 
-      if (!window.kakao) {
+      if (!window.kakao?.maps) {
         console.error('Kakao Maps SDK 로드 실패');
         setLoading(false);
         return;
       }
 
-      // autoload=false이므로 명시적으로 load 호출
-      if (window.kakao.maps) {
-        initMap();
-      } else {
-        window.kakao.maps.load(initMap);
-      }
+      initMap();
     };
 
     loadMap();
