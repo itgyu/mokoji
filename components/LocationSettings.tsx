@@ -138,17 +138,29 @@ export default function LocationSettings({
     };
 
     // Kakao Maps SDK 로드 확인
-    if (window.kakao?.maps) {
-      initMap();
-    } else {
-      const script = document.createElement('script');
-      script.src = `//dapi.kakao.com/v2/maps/sdk.js?appkey=${process.env.NEXT_PUBLIC_KAKAO_MAP_API_KEY}&autoload=false&libraries=services`;
-      script.async = true;
-      script.onload = () => {
+    const loadMap = async () => {
+      // window.kakao가 로드될 때까지 대기
+      let attempts = 0;
+      while (!window.kakao && attempts < 20) {
+        await new Promise(resolve => setTimeout(resolve, 100));
+        attempts++;
+      }
+
+      if (!window.kakao) {
+        console.error('Kakao Maps SDK 로드 실패');
+        setLoading(false);
+        return;
+      }
+
+      // autoload=false이므로 명시적으로 load 호출
+      if (window.kakao.maps) {
+        initMap();
+      } else {
         window.kakao.maps.load(initMap);
-      };
-      document.head.appendChild(script);
-    }
+      }
+    };
+
+    loadMap();
   }, [isOpen, initialLocation]);
 
   // 반경 변경 시 원 업데이트

@@ -58,10 +58,11 @@ export default function RootLayout({
   return (
     <html lang="ko" style={{ scrollBehavior: 'smooth' }}>
       <head>
-        {/* Kakao Maps SDK - 직접 주입 */}
+        {/* Kakao Maps SDK */}
         <script
           type="text/javascript"
-          src="https://dapi.kakao.com/v2/maps/sdk.js?appkey=ff364c3f44129afc87e31935ac353ba2&libraries=services"
+          src={`https://dapi.kakao.com/v2/maps/sdk.js?appkey=${process.env.NEXT_PUBLIC_KAKAO_MAP_API_KEY}&libraries=services&autoload=false`}
+          async
         ></script>
       </head>
       <body className={`${geistSans.variable} ${geistMono.variable} font-sans antialiased`}>
