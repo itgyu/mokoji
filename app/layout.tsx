@@ -57,6 +57,12 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="ko" style={{ scrollBehavior: 'smooth' }}>
+      <head>
+        <script
+          type="text/javascript"
+          src="https://dapi.kakao.com/v2/maps/sdk.js?appkey=ff364c3f44129afc87e31935ac353ba2&libraries=services"
+        ></script>
+      </head>
       <body className={`${geistSans.variable} ${geistMono.variable} font-sans antialiased`}>
         <VersionChecker />
         <AuthProvider>
