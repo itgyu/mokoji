@@ -159,7 +159,7 @@ export async function getUserMemberships(
   return getDocuments<OrganizationMember>('organizationMembers', [
     where('userId', '==', userId),
     where('status', '==', 'active'),
-    orderBy('stats.lastActivityAt', 'desc'),
+    // orderBy('stats.lastActivityAt', 'desc'),  // 임시로 주석 처리
   ]);
 }
 
