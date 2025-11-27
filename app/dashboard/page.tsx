@@ -152,6 +152,10 @@ export default function DashboardPage() {
   const [searchQuery, setSearchQuery] = useState('')
   const [selectedCategory, setSelectedCategory] = useState('전체')
   const [selectedCategoryGroup, setSelectedCategoryGroup] = useState<string | null>(null)
+  // 카테고리 페이지 전용 상태
+  const [categoryView, setCategoryView] = useState<'main' | 'subCategories' | 'crews'>('main')
+  const [selectedMajorCategory, setSelectedMajorCategory] = useState<string | null>(null)
+  const [selectedSubCategory, setSelectedSubCategory] = useState<string | null>(null)
   const [editingOrg, setEditingOrg] = useState<Organization | null>(null)
   const [crewView, setCrewView] = useState<'schedules' | 'photos'>('schedules')
   const [photos, setPhotos] = useState<any[]>([])

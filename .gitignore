@@ -34,3 +34,15 @@ scripts/*-service-account.json
 *-firebase-key.json
 old-firebase-key.json
 new-firebase-key.json
+
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
