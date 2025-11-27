@@ -347,6 +347,7 @@ export default function DashboardPage() {
 
   const fetchOrganizations = async () => {
     try {
+      console.log('🏁 [fetchOrganizations] 시작 - user:', user?.uid, 'memberships:', memberships.length);
       if (!user) return
 
 
@@ -358,18 +359,22 @@ export default function DashboardPage() {
         userOrgIds = memberships
           .filter(m => m.status === 'active')
           .map(m => m.organizationId)
+        console.log('✅ [fetchOrganizations] memberships에서 orgIds 추출:', userOrgIds);
       } else {
         // ⚠️ 레거시: userProfiles.organizations 배열 사용 (하위 호환)
+        console.log('⚠️ [fetchOrganizations] memberships가 비어있음, 레거시 방식 시도');
         const userProfileRef = doc(db, 'userProfiles', user.uid)
         const userProfileSnap = await getDoc(userProfileRef)
 
         if (userProfileSnap.exists()) {
           const data = userProfileSnap.data()
           userOrgIds = data.joinedOrganizations || data.organizations || []
+          console.log('📝 [fetchOrganizations] userProfile에서 orgIds 가져옴:', userOrgIds);
         }
       }
 
       if (userOrgIds.length === 0) {
+        console.log('❌ [fetchOrganizations] userOrgIds가 비어있음 - organizations 빈 배열로 설정');
         setOrganizations([])
         setOrgMemberCounts({})
         return
@@ -378,6 +383,7 @@ export default function DashboardPage() {
       // 2. organizations 컬렉션에서 크루 정보 가져오기
       const orgsRef = collection(db, 'organizations')
       const orgsSnapshot = await getDocs(orgsRef)
+      console.log('📚 [fetchMyOrganizations] organizations 컬렉션 전체 문서 수:', orgsSnapshot.size);
 
       const fetchedOrgs: Organization[] = []
       orgsSnapshot.forEach((orgDoc) => {
@@ -386,6 +392,7 @@ export default function DashboardPage() {
         }
       })
 
+      console.log('✅ [fetchMyOrganizations] 최종 fetchedOrgs:', fetchedOrgs.length, '개', fetchedOrgs);
       setOrganizations(fetchedOrgs)
 
       // 3. 각 크루의 멤버 수 가져오기

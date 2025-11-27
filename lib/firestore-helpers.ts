@@ -156,11 +156,14 @@ export async function getOrganizationMembers(
 export async function getUserMemberships(
   userId: string
 ): Promise<OrganizationMember[]> {
-  return getDocuments<OrganizationMember>('organizationMembers', [
+  console.log('🔍 [getUserMemberships] 조회 시작 - userId:', userId);
+  const result = await getDocuments<OrganizationMember>('organizationMembers', [
     where('userId', '==', userId),
     where('status', '==', 'active'),
     // orderBy('stats.lastActivityAt', 'desc'),  // 임시로 주석 처리
   ]);
+  console.log('✅ [getUserMemberships] 결과:', result.length, '개', result);
+  return result;
 }
 
 export async function addOrganizationMember(
