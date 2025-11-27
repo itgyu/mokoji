@@ -18,7 +18,7 @@ import { CREW_CATEGORIES, CATEGORY_GROUPS } from '@/lib/constants'
 import LocationVerification from '@/components/LocationVerification'
 import LocationSettings from '@/components/LocationSettings'
 import { getCurrentPosition, getAddressFromCoords, calculateDistance, formatDistance } from '@/lib/location-utils'
-import { getOrganizations, getOrganizationMembers } from '@/lib/firestore-helpers'
+import { getOrganizations, getOrganizationMembers, addOrganizationMember } from '@/lib/firestore-helpers'
 import type { OrganizationMember } from '@/types'
 import { formatTimestamp } from '@/lib/date-utils'
 import LoadingScreen from '@/components/LoadingScreen'
@@ -1401,6 +1401,10 @@ export default function DashboardPage() {
         joinDate: new Date().toLocaleDateString('ko-KR'),
         orgId: orgId
       })
+
+      // ✅ organizationMembers 컬렉션에도 추가 (신규 시스템)
+      await addOrganizationMember(orgId, member.uid, 'member')
+      console.log('✅ organizationMembers에 추가 완료:', orgId, member.uid)
 
       alert(`${member.name}님이 크루에 가입되었습니다!`)
       fetchOrganizations()

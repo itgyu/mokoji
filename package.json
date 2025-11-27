@@ -11,6 +11,7 @@
     "cleanup:firebase": "tsx scripts/cleanup-firebase.ts",
     "check:members": "tsx scripts/check-member-data.ts",
     "migrate:org-members": "tsx scripts/migrate-to-organization-members.ts",
+    "migrate:to-org-members": "tsx scripts/migrate-to-org-members.ts",
     "fix:minji-uid": "tsx scripts/fix-minji-uid.ts",
     "check:minji": "tsx scripts/check-minji-data.ts",
     "create:minji-profile": "tsx scripts/create-minji-profile.ts",
