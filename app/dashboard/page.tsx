@@ -93,7 +93,11 @@ interface Organization {
 }
 
 export default function DashboardPage() {
+  console.log('🚀 [DashboardPage] 컴포넌트 렌더링 시작')
+
   const { user, userProfile, memberships, loading } = useAuth()
+  console.log('👤 [DashboardPage] user:', user?.uid, 'loading:', loading)
+
   const router = useRouter()
   const searchParams = useSearchParams()
 
@@ -242,9 +246,13 @@ export default function DashboardPage() {
   }, [user, loading, router])
 
   useEffect(() => {
+    console.log('🔄 [useEffect] user 변경됨:', user?.uid)
     if (user) {
+      console.log('✅ [useEffect] fetchOrganizations 및 fetchAllOrganizations 호출')
       fetchOrganizations() // 내가 가입한 크루
       fetchAllOrganizations() // 모든 크루 (크루 찾기용)
+    } else {
+      console.log('⚠️ [useEffect] user 없음, fetch 스킵')
     }
   }, [user])
 
