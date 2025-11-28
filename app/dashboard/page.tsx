@@ -3754,15 +3754,15 @@ ${BRAND.NAME}와 함께하는 모임 일정에 참여하세요!
 
           <div className="px-4 py-4 sm:px-5 sm:py-3 md:py-6 space-y-6 sm:space-y-4">
             {/* 내 동네 설정 섹션 */}
-            <div className="bg-white rounded-xl sm:rounded-2xl p-4 sm:p-3 md:p-6 shadow-[0_2px_8px_rgba(0,0,0,0.04)] border-0">
-              <h3 className="text-base leading-6 sm:text-xl md:text-2xl font-extrabold tracking-tight text-gray-900 mb-3 sm:mb-4">
-                내 동네 설정
+            <div className="card-premium p-4 sm:p-5 md:p-6">
+              <h3 className="text-base leading-6 sm:text-lg md:text-xl font-medium tracking-tight text-mokkoji-black mb-3 sm:mb-4 uppercase">
+                My Location
               </h3>
               <LocationVerification onOpenMap={() => setShowLocationSettings(true)} />
             </div>
 
             {/* 프로필 카드 */}
-            <div className="bg-white rounded-xl sm:rounded-2xl p-4 sm:p-3 md:p-6 shadow-[0_2px_8px_rgba(0,0,0,0.04)] border-0">
+            <div className="card-premium p-4 sm:p-5 md:p-6">
               <div className="text-center mb-5 sm:mb-6">
                 <div className="relative w-16 h-16 md:w-20 md:h-20 sm:w-24 sm:h-24 mx-auto mb-3 sm:mb-4 group">
                   <div className="w-full h-full bg-gradient-to-br from-orange-50 to-indigo-50 rounded-full flex items-center justify-center text-xl leading-7 md:text-xl md:text-2xl md:text-3xl sm:text-4xl overflow-hidden">
@@ -3797,50 +3797,50 @@ ${BRAND.NAME}와 함께하는 모임 일정에 참여하세요!
                     </span>
                   </label>
                 </div>
-                <h2 className="text-xl leading-7 sm:text-xl md:text-xl md:text-2xl font-extrabold tracking-tight text-gray-900 mb-1.5 sm:mb-2">{profile.name}</h2>
-                <p className="text-xs sm:text-sm text-gray-600">{profile.email}</p>
+                <h2 className="text-xl leading-7 sm:text-xl md:text-2xl font-medium tracking-tight text-mokkoji-black mb-1.5 sm:mb-2">{profile.name}</h2>
+                <p className="text-xs sm:text-sm text-mokkoji-gray-600">{profile.email}</p>
               </div>
 
               {/* 정보 섹션 */}
-              <div className="bg-[#FFFBF7] rounded-xl sm:rounded-2xl p-4 sm:p-5 space-y-6 sm:space-y-4">
+              <div className="bg-mokkoji-primary-light/30 rounded-xl sm:rounded-2xl p-4 sm:p-5 space-y-6 sm:space-y-4">
                 <div>
-                  <div className="text-sm leading-5 font-extrabold text-gray-600 mb-1.5 sm:mb-2">생년월일</div>
-                  <div className="text-sm leading-5 sm:text-base font-extrabold text-gray-900">{profile.birthdate}</div>
+                  <div className="text-sm leading-5 font-medium text-mokkoji-gray-600 mb-1.5 sm:mb-2 tracking-wider uppercase">Birth Date</div>
+                  <div className="text-sm leading-5 sm:text-base font-normal text-mokkoji-black">{profile.birthdate}</div>
                 </div>
-                <div className="h-px bg-gray-200"></div>
+                <div className="h-px bg-mokkoji-gray-200"></div>
                 <div>
-                  <div className="text-sm leading-5 font-extrabold text-gray-600 mb-1.5 sm:mb-2">성별</div>
-                  <div className="text-sm leading-5 sm:text-base font-extrabold text-gray-900">{profile.gender}</div>
+                  <div className="text-sm leading-5 font-medium text-mokkoji-gray-600 mb-1.5 sm:mb-2 tracking-wider uppercase">Gender</div>
+                  <div className="text-sm leading-5 sm:text-base font-normal text-mokkoji-black">{profile.gender}</div>
                 </div>
-                <div className="h-px bg-gray-200"></div>
+                <div className="h-px bg-mokkoji-gray-200"></div>
                 <div>
-                  <div className="text-sm leading-5 font-extrabold text-gray-600 mb-1.5 sm:mb-2">지역</div>
-                  <div className="text-sm leading-5 sm:text-base font-extrabold text-gray-900">{profile.location}</div>
+                  <div className="text-sm leading-5 font-medium text-mokkoji-gray-600 mb-1.5 sm:mb-2 tracking-wider uppercase">Location</div>
+                  <div className="text-sm leading-5 sm:text-base font-normal text-mokkoji-black">{profile.location}</div>
                 </div>
-                <div className="h-px bg-gray-200"></div>
+                <div className="h-px bg-mokkoji-gray-200"></div>
                 <div>
-                  <div className="text-sm leading-5 font-extrabold text-gray-600 mb-1.5 sm:mb-2">MBTI</div>
-                  <div className="text-sm leading-5 sm:text-base font-extrabold text-gray-900">{profile.mbti || '-'}</div>
+                  <div className="text-sm leading-5 font-medium text-mokkoji-gray-600 mb-1.5 sm:mb-2 tracking-wider uppercase">MBTI</div>
+                  <div className="text-sm leading-5 sm:text-base font-normal text-mokkoji-black">{profile.mbti || '-'}</div>
                 </div>
-                <div className="h-px bg-gray-200"></div>
+                <div className="h-px bg-mokkoji-gray-200"></div>
                 <div>
-                  <div className="text-sm leading-5 font-extrabold text-gray-600 mb-1.5 sm:mb-2">관심 카테고리</div>
+                  <div className="text-sm leading-5 font-medium text-mokkoji-gray-600 mb-1.5 sm:mb-2 tracking-wider uppercase">Interests</div>
                   <div className="flex flex-wrap gap-1.5 sm:gap-2">
                     {(profile.interestCategories || []).length > 0 ? (
                       profile.interestCategories.map((category, idx) => (
-                        <span key={idx} className="inline-flex items-center px-2.5 py-1 sm:px-3 bg-[#FF9B50] text-white text-xs rounded-full font-medium">
+                        <span key={idx} className="inline-flex items-center px-2.5 py-1 sm:px-3 bg-mokkoji-primary text-white text-xs rounded-full font-medium">
                           {category}
                         </span>
                       ))
                     ) : (
-                      <span className="text-sm leading-5 sm:text-base font-extrabold text-gray-900">-</span>
+                      <span className="text-sm leading-5 sm:text-base font-normal text-mokkoji-black">-</span>
                     )}
                   </div>
                 </div>
-                <div className="h-px bg-gray-200"></div>
+                <div className="h-px bg-mokkoji-gray-200"></div>
                 <div>
-                  <div className="text-sm leading-5 font-extrabold text-gray-600 mb-1.5 sm:mb-2">가입일</div>
-                  <div className="text-sm leading-5 sm:text-base font-extrabold text-gray-900">{formatTimestamp(profile.joinDate)}</div>
+                  <div className="text-sm leading-5 font-medium text-mokkoji-gray-600 mb-1.5 sm:mb-2 tracking-wider uppercase">Joined</div>
+                  <div className="text-sm leading-5 sm:text-base font-normal text-mokkoji-black">{formatTimestamp(profile.joinDate)}</div>
                 </div>
               </div>
             </div>
@@ -3866,20 +3866,20 @@ ${BRAND.NAME}와 함께하는 모임 일정에 참여하세요!
                   setSelectedDistrict(district)
                   setEditingMyProfile(true)
                 }}
-                className="w-full bg-[#FF9B50] text-white py-3.5 sm:py-4 rounded-xl sm:rounded-2xl text-sm leading-5 sm:text-base font-extrabold hover:bg-[#FF8A3D] active:scale-[0.99] transition-transform duration-200 ease-out"
+                className="w-full bg-mokkoji-primary text-white py-3.5 sm:py-4 rounded-xl text-sm leading-5 sm:text-base font-medium tracking-wider uppercase hover:bg-mokkoji-primary-hover active:scale-95 transition-all duration-300"
               >
                 <span className="inline-flex items-center gap-2">
                   <Edit className="w-4 h-4" />
-                  정보 수정
+                  Edit Profile
                 </span>
               </button>
               <button
                 onClick={handleLogout}
-                className="w-full bg-[#F5F5F4] text-[#F04452] py-3.5 sm:py-4 rounded-xl sm:rounded-2xl text-sm leading-5 sm:text-base font-extrabold hover:bg-[#FFE5E8] active:scale-[0.99] transition-transform duration-200 ease-out"
+                className="w-full bg-mokkoji-gray-100 text-red-600 py-3.5 sm:py-4 rounded-xl text-sm leading-5 sm:text-base font-medium tracking-wider uppercase hover:bg-red-50 active:scale-95 transition-all duration-300"
               >
                 <span className="inline-flex items-center gap-2">
                   <LogOut className="w-4 h-4" />
-                  로그아웃
+                  Logout
                 </span>
               </button>
             </div>
