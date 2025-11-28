@@ -2132,16 +2132,18 @@ ${BRAND.NAME}와 함께하는 모임 일정에 참여하세요!
             </div>
           </header>
 
-          <div className="px-4 py-4 pb-24 space-y-5">
-            {/* 내 동네 크루 섹션 - 당근마켓 스타일 */}
-            <div className="mb-6">
+          <div className="px-4 md:px-6 py-4 pb-24 space-y-6">
+            {/* 내 동네 크루 섹션 */}
+            <div>
               {/* 헤더 */}
-              <div className="flex items-center justify-between mb-3">
-                <div className="flex items-center gap-2">
-                  <MapPin className="w-6 h-6 text-[#FF9B50]" />
-                  <h2 className="text-xl leading-7 md:text-2xl font-extrabold text-gray-900">내 동네 크루</h2>
+              <div className="flex items-center justify-between mb-4">
+                <div className="flex items-center gap-3">
+                  <MapPin className="w-5 h-5 text-mokkoji-accent" />
+                  <h2 className="text-lg md:text-xl font-medium tracking-wider text-mokkoji-black">
+                    NEARBY CREWS
+                  </h2>
                   {userProfile?.locations && userProfile.locations.length > 0 && (
-                    <span className="px-2 sm:px-3 py-0.5 sm:py-1 bg-orange-50 text-orange-600 text-xs sm:text-sm font-extrabold rounded-full">
+                    <span className="px-3 py-1 bg-mokkoji-primary-light text-mokkoji-primary text-xs font-medium rounded-full">
                       {(userProfile.locations.find(loc => loc.id === userProfile.selectedLocationId) || userProfile.locations[0]).dong}
                     </span>
                   )}
@@ -2151,9 +2153,9 @@ ${BRAND.NAME}와 함께하는 모임 일정에 참여하세요!
                 {(!userProfile?.locations || userProfile.locations.length === 0) && (
                   <button
                     onClick={() => setShowLocationSettings(true)}
-                    className="px-3 sm:px-4 py-1.5 sm:py-2 bg-orange-500 text-white text-xs sm:text-sm font-extrabold rounded-lg hover:bg-orange-600 active:scale-[0.99] transition-transform duration-200 ease-out"
+                    className="px-4 py-2 bg-mokkoji-primary text-white text-sm font-medium rounded-lg hover:bg-mokkoji-primary-hover transition-all duration-300 active:scale-95"
                   >
-                    동네 인증
+                    위치 설정
                   </button>
                 )}
               </div>
@@ -2163,30 +2165,38 @@ ${BRAND.NAME}와 함께하는 모임 일정에 참여하세요!
                 const nearbyCrews = getNearbyOrganizations()
 
                 if (!userProfile?.locations || userProfile.locations.length === 0) {
-                  // 빈 상태 - 동네 미인증
+                  // Empty State - 동네 미인증
                   return (
-                    <div className="mx-6 p-8 bg-gray-100 rounded-2xl text-center">
-                      <div className="flex justify-center mb-2 sm:mb-3"><MapPin className="w-16 h-16 text-[#FF9B50]" /></div>
-                      <p className="text-gray-900 font-extrabold text-sm leading-5 sm:text-base mb-1">
-                        동네 인증이 필요해요
+                    <div className="card-premium p-8 text-center">
+                      <div className="flex justify-center mb-4">
+                        <div className="w-16 h-16 rounded-full bg-mokkoji-accent/10 flex items-center justify-center">
+                          <MapPin className="w-8 h-8 text-mokkoji-accent" />
+                        </div>
+                      </div>
+                      <p className="text-mokkoji-black font-medium text-base mb-2">
+                        위치 설정이 필요합니다
                       </p>
-                      <p className="text-gray-600 text-xs sm:text-sm">
-                        동네를 인증하면 주변 크루를 찾을 수 있어요
+                      <p className="text-mokkoji-gray-600 text-sm">
+                        내 동네를 설정하고 주변 크루를 찾아보세요
                       </p>
                     </div>
                   )
                 }
 
                 if (nearbyCrews.length === 0) {
-                  // 빈 상태 - 크루 없음
+                  // Empty State - 크루 없음
                   return (
-                    <div className="mx-6 p-8 bg-gray-100 rounded-2xl text-center">
-                      <div className="text-7xl mb-4">🏕️</div>
-                      <p className="text-gray-900 font-extrabold text-sm leading-5 sm:text-base mb-1">
-                        아직 크루가 없어요
+                    <div className="card-premium p-8 text-center">
+                      <div className="flex justify-center mb-4">
+                        <div className="w-16 h-16 rounded-full bg-mokkoji-primary/10 flex items-center justify-center">
+                          <Users className="w-8 h-8 text-mokkoji-primary" />
+                        </div>
+                      </div>
+                      <p className="text-mokkoji-black font-medium text-base mb-2">
+                        주변에 크루가 없습니다
                       </p>
-                      <p className="text-gray-600 text-xs sm:text-sm">
-                        가까운 크루를 찾아볼까요?
+                      <p className="text-mokkoji-gray-600 text-sm">
+                        카테고리에서 다른 크루를 찾아보세요
                       </p>
                     </div>
                   )
@@ -2208,63 +2218,69 @@ ${BRAND.NAME}와 함께하는 모임 일정에 참여하세요!
               }
             `}</style>
 
-            {/* 다가오는 일정 섹션 - 토스 스타일 */}
-            <div className="bg-white rounded-3xl p-7 shadow-[0_2px_8px_rgba(0,0,0,0.04)] border-0">
+            {/* 다가오는 일정 섹션 */}
+            <div className="card-premium p-6">
               <div className="flex justify-between items-center mb-6">
                 <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 md:w-12 md:h-12 bg-gradient-to-br from-orange-50 to-indigo-50 rounded-2xl flex items-center justify-center">
-                    <Calendar className="w-6 h-6 text-[#FF9B50]" strokeWidth={2.5} />
-                  </div>
-                  <h2 className="text-xl leading-7 md:text-xl md:text-2xl font-extrabold tracking-tight text-gray-900">다가오는 일정</h2>
+                  <Calendar className="w-5 h-5 text-mokkoji-accent" />
+                  <h2 className="text-lg md:text-xl font-medium tracking-wider text-mokkoji-black">
+                    UPCOMING EVENTS
+                  </h2>
                 </div>
                 <button
                   onClick={() => {
-                    setScheduleFilter('joined')  // ← 중요: 참여한 일정만 보기
-                    router.replace('/dashboard?page=schedules', { scroll: false })  // 독립적인 일정 페이지로 이동
+                    setScheduleFilter('joined')
+                    router.replace('/dashboard?page=schedules', { scroll: false })
                   }}
-                  className="text-[#FF9B50] text-sm leading-5 font-extrabold hover:text-[#FF8A3D] active:scale-[0.99] transition-transform duration-200 ease-out px-3 py-2 rounded-lg hover:bg-orange-50"
+                  className="text-mokkoji-primary text-sm font-medium hover:text-mokkoji-primary-hover transition-colors duration-300 px-3 py-2 rounded-lg hover:bg-mokkoji-primary-light"
                 >
-                  전체보기 →
+                  View All →
                 </button>
               </div>
               {mySchedules.length === 0 ? (
                 <div className="text-center py-12">
-                  <div className="flex justify-center mb-4 text-7xl">📅</div>
-                  <p className="text-gray-900 font-extrabold text-xl leading-7 md:text-xl mb-2">아직 예정된 일정이 없어요</p>
-                  <p className="text-gray-800 text-base leading-6 font-medium">새로운 일정을 만들어볼까요?</p>
+                  <div className="flex justify-center mb-4">
+                    <div className="w-16 h-16 rounded-full bg-mokkoji-primary/10 flex items-center justify-center">
+                      <Calendar className="w-8 h-8 text-mokkoji-primary" />
+                    </div>
+                  </div>
+                  <p className="text-mokkoji-black font-medium text-base mb-2">예정된 일정이 없습니다</p>
+                  <p className="text-mokkoji-gray-600 text-sm">크루에서 새로운 일정을 만들어보세요</p>
                 </div>
               ) : (
-                <div className="space-y-4">
+                <div className="space-y-3">
                   {mySchedules.slice(0, 3).map((schedule) => (
                     <div
                       key={schedule.id}
                       onClick={() => router.push(`/schedules/${schedule.id}?from=${currentPage}${urlOrgId ? `&orgId=${urlOrgId}` : ''}`)}
-                      className="bg-[#FFFBF7] rounded-2xl p-6 hover:bg-[#F5F5F4] active:scale-[0.99] transition-transform duration-200 ease-out cursor-pointer border border-transparent hover:border-[#FF9B50]/20"
+                      className="bg-mokkoji-gray-50 rounded-xl p-5 hover:bg-white hover:shadow-md active:scale-[0.98] transition-all duration-300 cursor-pointer border border-mokkoji-gray-200"
                     >
                       <div className="flex justify-between items-start mb-4">
-                        <h3 className="font-bold text-xl md:text-2xl md:text-3xl tracking-tight text-gray-900 leading-tight">{schedule.title}</h3>
-                        <span className={`text-xs px-3 py-1.5 rounded-full font-extrabold ${getTypeColor(schedule.type)}`}>
+                        <h3 className="font-medium text-lg tracking-tight text-mokkoji-black leading-tight">{schedule.title}</h3>
+                        <span className={`text-xs px-3 py-1.5 rounded-full font-medium ${getTypeColor(schedule.type)}`}>
                           {schedule.type}
                         </span>
                       </div>
-                      <div className="space-y-3">
-                        <p className="text-gray-700 text-base leading-6 font-bold flex items-center gap-2">
-                          <Calendar className="w-5 h-5 text-[#FF9B50] flex-shrink-0" />
+                      <div className="space-y-2.5">
+                        <p className="text-mokkoji-gray-700 text-sm font-normal flex items-center gap-2">
+                          <Calendar className="w-4 h-4 text-mokkoji-primary flex-shrink-0" />
                           <span>{formatDateWithYear(schedule.date)} {schedule.time}</span>
                         </p>
-                        <p className="text-gray-700 text-base leading-6 font-bold flex items-center gap-2">
-                          <MapPin className="w-5 h-5 text-[#FF9B50] flex-shrink-0" />
+                        <p className="text-mokkoji-gray-700 text-sm font-normal flex items-center gap-2">
+                          <MapPin className="w-4 h-4 text-mokkoji-primary flex-shrink-0" />
                           <span>{schedule.location}</span>
                         </p>
-                        <p className="text-gray-700 text-base leading-6 font-bold flex items-center gap-2">
-                          <Target className="w-5 h-5 text-[#FF9B50] flex-shrink-0" />
-                          <span>벙주: {schedule.createdBy}</span>
+                        <p className="text-mokkoji-gray-700 text-sm font-normal flex items-center gap-2">
+                          <Target className="w-4 h-4 text-mokkoji-primary flex-shrink-0" />
+                          <span>Host: {schedule.createdBy}</span>
                         </p>
-                        <div className="flex items-center justify-between pt-2 mt-2 border-t border-gray-200">
-                          <p className="text-gray-600 text-sm leading-5 font-bold"><Users className="w-4 h-4 text-[#FF9B50] inline-block mr-1.5" />참여 인원
+                        <div className="flex items-center justify-between pt-2 mt-2 border-t border-mokkoji-gray-200">
+                          <p className="text-mokkoji-gray-600 text-sm font-normal flex items-center gap-1.5">
+                            <Users className="w-4 h-4 text-mokkoji-primary" />
+                            Participants
                           </p>
-                          <p className="text-gray-900 text-xl leading-7 md:text-2xl font-extrabold">
-                            {schedule.participants?.length || 0}<span className="text-gray-600">/{schedule.maxParticipants}</span>
+                          <p className="text-mokkoji-black text-lg font-medium">
+                            {schedule.participants?.length || 0}<span className="text-mokkoji-gray-500">/{schedule.maxParticipants}</span>
                           </p>
                         </div>
                       </div>
@@ -2949,6 +2965,53 @@ ${BRAND.NAME}와 함께하는 모임 일정에 참여하세요!
           {/* 일정 뷰 */}
           {crewView === 'schedules' && (
           <div className="px-6 py-4 md:py-6 space-y-6 md:space-y-6">
+            {/* 크루장 전용 - 가입 승인 섹션 */}
+            {canManageOrg(selectedOrg.id) && selectedOrg.pendingMembers && selectedOrg.pendingMembers.length > 0 && (
+              <div className="card-premium p-6">
+                <div className="flex items-center justify-between mb-4">
+                  <h3 className="text-lg font-medium tracking-wider uppercase text-mokkoji-black">
+                    가입 대기
+                  </h3>
+                  <span className="px-3 py-1 bg-mokkoji-accent text-white text-sm font-medium rounded-full">
+                    {selectedOrg.pendingMembers.length}명
+                  </span>
+                </div>
+                <div className="space-y-3">
+                  {selectedOrg.pendingMembers.map((member: any, idx: number) => (
+                    <div key={idx} className="flex items-center justify-between p-4 bg-mokkoji-gray-50 rounded-xl">
+                      <div className="flex items-center gap-3">
+                        <div className="w-12 h-12 rounded-full bg-mokkoji-primary-light flex items-center justify-center overflow-hidden">
+                          {member.avatar ? (
+                            <img src={member.avatar} alt={member.name} className="w-full h-full object-cover" />
+                          ) : (
+                            <User className="w-6 h-6 text-mokkoji-primary" />
+                          )}
+                        </div>
+                        <div>
+                          <p className="font-medium text-mokkoji-black">{member.name}</p>
+                          <p className="text-sm text-mokkoji-gray-500">{member.email}</p>
+                        </div>
+                      </div>
+                      <div className="flex gap-2">
+                        <button
+                          onClick={() => handleApproveMember(selectedOrg.id, member)}
+                          className="px-4 py-2 bg-mokkoji-primary text-white text-sm font-medium rounded-lg hover:bg-mokkoji-primary-hover transition-all duration-300 active:scale-95"
+                        >
+                          승인
+                        </button>
+                        <button
+                          onClick={() => handleRejectMember(selectedOrg.id, member)}
+                          className="px-4 py-2 bg-mokkoji-gray-200 text-mokkoji-gray-700 text-sm font-medium rounded-lg hover:bg-mokkoji-gray-300 transition-all duration-300 active:scale-95"
+                        >
+                          거절
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
             {/* 다가오는 일정 */}
             <div>
               <h3 className="text-xl leading-7 md:text-2xl font-extrabold tracking-tight text-gray-900 mb-4">다가오는 일정</h3>
