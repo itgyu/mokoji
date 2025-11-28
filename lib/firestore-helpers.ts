@@ -157,13 +157,17 @@ export async function getUserMemberships(
   userId: string
 ): Promise<OrganizationMember[]> {
   console.log('🔍 [getUserMemberships] 조회 시작 - userId:', userId);
+
+  // status 필터 제거하고 메모리에서 필터링 (인덱스 불필요)
   const result = await getDocuments<OrganizationMember>('organizationMembers', [
     where('userId', '==', userId),
-    where('status', '==', 'active'),
-    // orderBy('stats.lastActivityAt', 'desc'),  // 임시로 주석 처리
   ]);
-  console.log('✅ [getUserMemberships] 결과:', result.length, '개', result);
-  return result;
+
+  // 메모리에서 active 상태만 필터링
+  const activeMembers = result.filter(m => m.status === 'active');
+
+  console.log('✅ [getUserMemberships] 전체:', result.length, '개, active:', activeMembers.length, '개');
+  return activeMembers;
 }
 
 export async function addOrganizationMember(
