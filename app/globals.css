@@ -4,8 +4,9 @@
 @custom-variant dark (&:is(.dark *));
 
 /* ========================================
-   모꼬지 디자인 시스템 v2.0
-   당근마켓의 친근함 + 토스의 정교함
+   모꼬지 디자인 시스템 v3.0 - Premium Edition
+   Phomistone 하이엔드 디자인 + 활기찬 에너지
+   검은색 헤더, 밝은 배경, 프리미엄 타이포그래피
    ======================================== */
 
 :root {
@@ -62,6 +63,36 @@
 
   --info: oklch(0.60 0.20 250);             /* #3B82F6 blue-500 */
   --info-light: oklch(0.92 0.10 250);       /* #DBEAFE */
+
+  /* ========================================
+     Brand Colors (Mokkoji Premium)
+     ======================================== */
+
+  /* Mokkoji Primary - Indigo */
+  --mokkoji-primary: oklch(0.554 0.153 264.4);           /* #6366F1 indigo-500 */
+  --mokkoji-primary-hover: oklch(0.525 0.163 265.3);     /* #5558E3 indigo-600 */
+  --mokkoji-primary-light: oklch(0.907 0.056 265.8);     /* #E0E7FF indigo-100 */
+
+  /* Mokkoji Accent - Amber */
+  --mokkoji-accent: oklch(0.747 0.148 74.4);             /* #F59E0B amber-500 */
+  --mokkoji-accent-hover: oklch(0.700 0.155 68.7);       /* #D97706 amber-600 */
+  --mokkoji-accent-light: oklch(0.947 0.065 83.3);       /* #FEF3C7 amber-100 */
+
+  /* Mokkoji Black - Premium Black */
+  --mokkoji-black: oklch(0.177 0 0);                     /* #1a1a1a */
+  --mokkoji-black-hover: oklch(0.225 0 0);               /* #2a2a2a */
+
+  /* Mokkoji Gray Scale */
+  --mokkoji-gray-50: oklch(0.989 0 0);                   /* #fafafa */
+  --mokkoji-gray-100: oklch(0.968 0 0);                  /* #f5f5f5 */
+  --mokkoji-gray-200: oklch(0.927 0 0);                  /* #e5e5e5 */
+  --mokkoji-gray-300: oklch(0.864 0 0);                  /* #d4d4d4 */
+  --mokkoji-gray-400: oklch(0.688 0 0);                  /* #a3a3a3 */
+  --mokkoji-gray-500: oklch(0.556 0 0);                  /* #737373 */
+  --mokkoji-gray-600: oklch(0.444 0 0);                  /* #525252 */
+  --mokkoji-gray-700: oklch(0.356 0 0);                  /* #404040 */
+  --mokkoji-gray-800: oklch(0.269 0 0);                  /* #262626 */
+  --mokkoji-gray-900: oklch(0.185 0 0);                  /* #171717 */
 
   /* ========================================
      Spacing (8pt Grid System)
@@ -208,6 +239,29 @@
   --color-input: var(--input);
   --color-ring: var(--ring);
 
+  /* Mokkoji Brand Colors */
+  --color-mokkoji-primary: var(--mokkoji-primary);
+  --color-mokkoji-primary-hover: var(--mokkoji-primary-hover);
+  --color-mokkoji-primary-light: var(--mokkoji-primary-light);
+
+  --color-mokkoji-accent: var(--mokkoji-accent);
+  --color-mokkoji-accent-hover: var(--mokkoji-accent-hover);
+  --color-mokkoji-accent-light: var(--mokkoji-accent-light);
+
+  --color-mokkoji-black: var(--mokkoji-black);
+  --color-mokkoji-black-hover: var(--mokkoji-black-hover);
+
+  --color-mokkoji-gray-50: var(--mokkoji-gray-50);
+  --color-mokkoji-gray-100: var(--mokkoji-gray-100);
+  --color-mokkoji-gray-200: var(--mokkoji-gray-200);
+  --color-mokkoji-gray-300: var(--mokkoji-gray-300);
+  --color-mokkoji-gray-400: var(--mokkoji-gray-400);
+  --color-mokkoji-gray-500: var(--mokkoji-gray-500);
+  --color-mokkoji-gray-600: var(--mokkoji-gray-600);
+  --color-mokkoji-gray-700: var(--mokkoji-gray-700);
+  --color-mokkoji-gray-800: var(--mokkoji-gray-800);
+  --color-mokkoji-gray-900: var(--mokkoji-gray-900);
+
   /* Custom animations */
   --animation-float: float 3s ease-in-out infinite;
   --animation-float-delayed: float 3s ease-in-out 0.5s infinite;
@@ -309,6 +363,116 @@
   .text-body-2 {
     @apply text-sm md:text-base font-normal leading-relaxed;
     color: var(--foreground);
+  }
+
+  /* ========================================
+     Premium Design System (Phomistone Style)
+     ======================================== */
+
+  /* 프리미엄 카드 */
+  .card-premium {
+    @apply bg-white rounded-xl md:rounded-2xl shadow-sm border border-gray-200
+           hover:shadow-md transition-all duration-300;
+  }
+
+  /* 프리미엄 버튼 - Primary (Black) */
+  .btn-premium-primary {
+    @apply px-4 py-2.5 md:px-6 md:py-3 text-white
+           font-medium tracking-wider uppercase text-xs md:text-sm
+           active:scale-95 transition-all duration-300
+           flex items-center justify-center gap-2
+           min-h-[44px] min-w-[44px];
+    background-color: var(--mokkoji-black);
+  }
+  .btn-premium-primary:hover {
+    background-color: var(--mokkoji-black-hover);
+  }
+
+  /* 프리미엄 버튼 - Secondary (Indigo) */
+  .btn-premium-secondary {
+    @apply px-4 py-2.5 md:px-6 md:py-3 text-white
+           font-medium tracking-wider uppercase text-xs md:text-sm
+           active:scale-95 transition-all duration-300
+           flex items-center justify-center gap-2
+           min-h-[44px] min-w-[44px];
+    background-color: var(--mokkoji-primary);
+  }
+  .btn-premium-secondary:hover {
+    background-color: var(--mokkoji-primary-hover);
+  }
+
+  /* 프리미엄 인풋 */
+  .input-premium {
+    @apply w-full px-4 py-3 bg-white rounded-xl
+           text-sm font-medium
+           focus:outline-none focus:ring-2 focus:border-transparent
+           transition-all duration-300;
+    border: 1px solid var(--mokkoji-gray-300);
+  }
+  .input-premium::placeholder {
+    color: var(--mokkoji-gray-400);
+  }
+  .input-premium:focus {
+    ring-color: var(--mokkoji-primary);
+  }
+
+  /* 프리미엄 배지 */
+  .badge-premium {
+    @apply inline-flex items-center gap-1 px-2 py-1
+           text-xs font-medium tracking-wider uppercase
+           border rounded-md transition-all duration-300;
+  }
+
+  /* 스크롤바 숨기기 */
+  .scrollbar-hide::-webkit-scrollbar {
+    display: none;
+  }
+  .scrollbar-hide {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+
+  /* 프리미엄 스크롤바 */
+  .scrollbar-premium::-webkit-scrollbar {
+    width: 6px;
+    height: 8px;
+  }
+  .scrollbar-premium::-webkit-scrollbar-track {
+    background: var(--mokkoji-gray-100);
+    border-radius: 10px;
+  }
+  .scrollbar-premium::-webkit-scrollbar-thumb {
+    background: var(--mokkoji-primary);
+    border-radius: 10px;
+  }
+  .scrollbar-premium::-webkit-scrollbar-thumb:hover {
+    background: var(--mokkoji-primary-hover);
+  }
+
+  /* 터치 타겟 (최소 44px) */
+  .touch-target {
+    min-height: 44px;
+    min-width: 44px;
+  }
+
+  /* iOS Safe Area */
+  .pb-safe {
+    padding-bottom: env(safe-area-inset-bottom, 0);
+  }
+
+  /* 그룹 호버 패턴 */
+  .card-hover-group {
+    @apply cursor-pointer transition-all duration-300;
+  }
+  .card-hover-group:hover {
+    @apply shadow-lg;
+  }
+  .card-hover-icon {
+    @apply text-white transition-all duration-300;
+    background-color: var(--mokkoji-primary);
+  }
+  .card-hover-group:hover .card-hover-icon {
+    background-color: var(--mokkoji-primary-hover);
   }
 }
 

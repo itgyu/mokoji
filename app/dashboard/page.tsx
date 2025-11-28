@@ -2111,22 +2111,22 @@ ${BRAND.NAME}와 함께하는 모임 일정에 참여하세요!
 
       {/* Home Page */}
       {currentPage === 'home' && (
-        <div className="bg-[#FFFBF7]">
-          {/* 토스 스타일 헤더 */}
-          <header className="sticky top-0 bg-white z-10 safe-top border-b border-gray-100">
-            <div className="px-4 py-3 flex justify-between items-center">
+        <div className="bg-[#FAFAFA]">
+          {/* Premium Black Header */}
+          <header className="sticky top-0 z-10 safe-top" style={{ backgroundColor: 'var(--mokkoji-black)' }}>
+            <div className="px-4 md:px-6 py-3 flex justify-between items-center">
               <div>
-                <h1 className="text-xl leading-7 font-extrabold text-gray-900 flex items-center gap-2">
-                  <Home className="w-5 h-5 text-[#FF9B50]" />
-                  홈
+                <h1 className="text-lg md:text-xl font-medium tracking-wider text-white flex items-center gap-2">
+                  <Home className="w-5 h-5" style={{ color: 'var(--mokkoji-accent)' }} />
+                  <span className="uppercase text-sm md:text-base">HOME</span>
                 </h1>
               </div>
-              <div className="flex items-center gap-2">
-                <button className="p-2 hover:bg-gray-100 rounded-xl active:scale-[0.99] transition-transform duration-200 ease-out">
-                  <Bell className="w-5 h-5 text-gray-700" strokeWidth={2} />
+              <div className="flex items-center gap-1">
+                <button className="p-2 md:p-2.5 rounded-lg transition-all duration-300 touch-target" style={{ '--hover-bg': 'var(--mokkoji-black-hover)' } as any} onMouseEnter={(e) => e.currentTarget.style.backgroundColor = 'var(--mokkoji-black-hover)'} onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}>
+                  <Bell className="w-5 h-5 text-white" strokeWidth={2} />
                 </button>
-                <button className="p-2 hover:bg-gray-100 rounded-xl active:scale-[0.99] transition-transform duration-200 ease-out">
-                  <Settings className="w-5 h-5 text-gray-700" strokeWidth={2} />
+                <button className="p-2 md:p-2.5 rounded-lg transition-all duration-300 touch-target" onMouseEnter={(e) => e.currentTarget.style.backgroundColor = 'var(--mokkoji-black-hover)'} onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}>
+                  <Settings className="w-5 h-5 text-white" strokeWidth={2} />
                 </button>
               </div>
             </div>
@@ -2277,42 +2277,44 @@ ${BRAND.NAME}와 함께하는 모임 일정에 참여하세요!
         </div>
       )}
 
-      {/* Category Page - 토스 스타일 */}
+      {/* Category Page - Premium Design */}
       {currentPage === 'category' && (
-        <div className="bg-[#FFFBF7] min-h-screen">
-          <header className="sticky top-0 bg-white z-10 safe-top border-b border-gray-100">
-            <div className="px-4 py-3 flex items-center justify-between">
-              <h1 className="text-xl leading-7 font-extrabold text-gray-900 flex items-center gap-2">
-                <Users className="w-5 h-5 text-[#FF9B50]" />
-                카테고리
+        <div className="bg-[#FAFAFA] min-h-screen">
+          <header className="sticky top-0 z-10 safe-top" style={{ backgroundColor: 'var(--mokkoji-black)' }}>
+            <div className="px-4 md:px-6 py-3 flex items-center justify-between">
+              <h1 className="text-lg md:text-xl font-medium tracking-wider text-white flex items-center gap-2">
+                <Users className="w-5 h-5" style={{ color: 'var(--mokkoji-accent)' }} />
+                <span className="uppercase text-sm md:text-base">CATEGORY</span>
               </h1>
-              <div className="flex items-center gap-2">
-                <button onClick={() => setSettingLocation(true)}>
-                  <MapPin className="w-5 h-5 text-gray-600" />
+              <div className="flex items-center gap-1">
+                <button onClick={() => setSettingLocation(true)} className="p-2 md:p-2.5 rounded-lg transition-all duration-300 touch-target" onMouseEnter={(e) => e.currentTarget.style.backgroundColor = 'var(--mokkoji-black-hover)'} onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}>
+                  <MapPin className="w-5 h-5 text-white" />
                 </button>
-                <button onClick={() => router.push('/dashboard?page=home')}>
-                  <Bell className="w-5 h-5 text-gray-600" />
+                <button onClick={() => router.push('/dashboard?page=home')} className="p-2 md:p-2.5 rounded-lg transition-all duration-300 touch-target" onMouseEnter={(e) => e.currentTarget.style.backgroundColor = 'var(--mokkoji-black-hover)'} onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}>
+                  <Bell className="w-5 h-5 text-white" />
                 </button>
               </div>
             </div>
 
-            {/* 검색창 추가 */}
-            <div className="px-4 pb-3">
+            {/* 검색창 */}
+            <div className="px-4 md:px-6 pb-3">
               <div className="relative">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5" style={{ color: 'var(--mokkoji-gray-400)' }} />
                 <input
                   type="text"
                   placeholder="크루명 또는 카테고리 검색..."
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
-                  className="w-full pl-10 pr-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-base leading-6 focus:outline-none focus:ring-2 focus:ring-[#FF9B50] focus:border-transparent transition-all"
+                  className="input-premium text-base"
+                  style={{ fontSize: '16px' }}
                 />
                 {searchQuery && (
                   <button
                     onClick={() => setSearchQuery('')}
-                    className="absolute right-3 top-1/2 -translate-y-1/2"
+                    className="absolute right-3 top-1/2 -translate-y-1/2 p-1 rounded transition-colors"
+                    style={{ color: 'var(--mokkoji-gray-400)' }}
                   >
-                    <X className="w-4 h-4 text-gray-400" />
+                    <X className="w-4 h-4" />
                   </button>
                 )}
               </div>
@@ -2455,13 +2457,13 @@ ${BRAND.NAME}와 함께하는 모임 일정에 참여하세요!
 
       {/* My Crew List Page - 가입한 크루 목록 */}
       {currentPage === 'mycrew' && !urlOrgId && (
-        <div className="bg-[#FFFBF7] min-h-screen">
-          {/* 헤더 */}
-          <header className="sticky top-0 bg-white z-10 safe-top border-b border-gray-100">
-            <div className="px-4 py-3">
-              <h1 className="text-xl leading-7 font-extrabold text-gray-900 flex items-center gap-2">
-                <Tent className="w-5 h-5 text-[#FF9B50]" />
-                내 크루
+        <div className="bg-[#FAFAFA] min-h-screen">
+          {/* Premium Black Header */}
+          <header className="sticky top-0 z-10 safe-top" style={{ backgroundColor: 'var(--mokkoji-black)' }}>
+            <div className="px-4 md:px-6 py-3">
+              <h1 className="text-lg md:text-xl font-medium tracking-wider text-white flex items-center gap-2">
+                <Tent className="w-5 h-5" style={{ color: 'var(--mokkoji-accent)' }} />
+                <span className="uppercase text-sm md:text-base">MY CREW</span>
               </h1>
             </div>
           </header>
@@ -2569,21 +2571,23 @@ ${BRAND.NAME}와 함께하는 모임 일정에 참여하세요!
 
       {/* All Schedules Page - 다가오는 일정 전체보기 (독립 페이지) */}
       {currentPage === 'schedules' && (
-        <div className="bg-[#FFFBF7] min-h-screen">
-          {/* 헤더 */}
-          <header className="sticky top-0 bg-white z-10 safe-top border-b border-gray-100">
-            <div className="px-4 py-3 flex items-center justify-between">
+        <div className="bg-[#FAFAFA] min-h-screen">
+          {/* Premium Black Header */}
+          <header className="sticky top-0 z-10 safe-top" style={{ backgroundColor: 'var(--mokkoji-black)' }}>
+            <div className="px-4 md:px-6 py-3 flex items-center justify-between">
               <div>
-                <h1 className="text-xl leading-7 font-extrabold text-gray-900 flex items-center gap-2">
-                  <Calendar className="w-5 h-5 text-[#FF9B50]" />
-                  다가오는 일정
+                <h1 className="text-lg md:text-xl font-medium tracking-wider text-white flex items-center gap-2">
+                  <Calendar className="w-5 h-5" style={{ color: 'var(--mokkoji-accent)' }} />
+                  <span className="uppercase text-sm md:text-base">SCHEDULE</span>
                 </h1>
               </div>
               <button
                 onClick={() => router.replace('/dashboard?page=home', { scroll: false })}
-                className="p-2 hover:bg-gray-100 rounded-xl active:scale-[0.99] transition-transform duration-200 ease-out"
+                className="p-2 md:p-2.5 rounded-lg transition-all duration-300 touch-target"
+                onMouseEnter={(e) => e.currentTarget.style.backgroundColor = 'var(--mokkoji-black-hover)'}
+                onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
               >
-                <X className="w-5 h-5 text-gray-700" strokeWidth={2} />
+                <X className="w-5 h-5 text-white" strokeWidth={2} />
               </button>
             </div>
 
@@ -3635,13 +3639,13 @@ ${BRAND.NAME}와 함께하는 모임 일정에 참여하세요!
 
       {/* My Profile Page - 토스 스타일 */}
       {currentPage === 'myprofile' && (
-        <div className="bg-[#FFFBF7] min-h-screen pb-20">
-          {/* 헤더 */}
-          <header className="sticky top-0 bg-white z-10 safe-top border-b border-gray-100">
-            <div className="px-4 py-3">
-              <h1 className="text-xl leading-7 font-extrabold text-gray-900 flex items-center gap-2">
-                <User className="w-5 h-5 text-[#FF9B50]" />
-                내 정보
+        <div className="bg-[#FAFAFA] min-h-screen pb-20">
+          {/* Premium Black Header */}
+          <header className="sticky top-0 z-10 safe-top" style={{ backgroundColor: 'var(--mokkoji-black)' }}>
+            <div className="px-4 md:px-6 py-3">
+              <h1 className="text-lg md:text-xl font-medium tracking-wider text-white flex items-center gap-2">
+                <User className="w-5 h-5" style={{ color: 'var(--mokkoji-accent)' }} />
+                <span className="uppercase text-sm md:text-base">MY PROFILE</span>
               </h1>
             </div>
           </header>

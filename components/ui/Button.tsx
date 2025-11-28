@@ -6,16 +6,18 @@ import { clsx } from 'clsx';
 
 /**
  * 모꼬지 Button 스타일 정의
- * 당근마켓 + 토스 스타일
+ * 프리미엄 디자인 시스템 적용
  */
 const buttonVariants = cva(
   [
     'inline-flex items-center justify-center gap-2',
-    'font-medium rounded-lg',
-    'transition-all duration-[250ms]',
+    'font-medium rounded-xl',
+    'transition-all duration-300',
     'focus-visible:outline-none focus-visible:ring-2',
     'focus-visible:ring-primary focus-visible:ring-offset-2',
     'disabled:opacity-50 disabled:cursor-not-allowed',
+    'active:scale-95',
+    'min-h-[44px] min-w-[44px]', // Touch target optimization
   ].join(' '),
   {
   variants: {
@@ -49,6 +51,32 @@ const buttonVariants = cva(
         'text-destructive-foreground',
         'hover:opacity-90',
         'active:opacity-80',
+      ].join(' '),
+
+      // Premium variants
+      'premium-black': [
+        'bg-mokkoji-black text-white',
+        'hover:bg-mokkoji-black-hover',
+        'tracking-wider uppercase text-xs md:text-sm',
+      ].join(' '),
+
+      'premium-primary': [
+        'bg-mokkoji-primary text-white',
+        'hover:bg-mokkoji-primary-hover',
+        'tracking-wider uppercase text-xs md:text-sm',
+      ].join(' '),
+
+      'premium-accent': [
+        'bg-mokkoji-accent text-white',
+        'hover:bg-mokkoji-accent-hover',
+        'tracking-wider uppercase text-xs md:text-sm',
+      ].join(' '),
+
+      'premium-outline': [
+        'border-2 border-mokkoji-primary bg-transparent',
+        'text-mokkoji-primary',
+        'hover:bg-mokkoji-primary-light',
+        'tracking-wider uppercase text-xs md:text-sm',
       ].join(' '),
     },
 

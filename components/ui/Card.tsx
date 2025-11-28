@@ -6,10 +6,10 @@ import { clsx } from 'clsx';
 
 /**
  * 모꼬지 Card 스타일 정의
- * 당근마켓 스타일 - 둥근 모서리
+ * 프리미엄 디자인 시스템 적용
  */
 const cardVariants = cva(
-  'transition-all',
+  'transition-all duration-300',
   {
     variants: {
       variant: {
@@ -29,6 +29,17 @@ const cardVariants = cva(
 
         ghost: [
           'bg-transparent',
+        ].join(' '),
+
+        // Premium variants
+        premium: [
+          'bg-white border border-mokkoji-gray-200',
+          'shadow-sm hover:shadow-md',
+        ].join(' '),
+
+        'premium-elevated': [
+          'bg-white',
+          'shadow-md hover:shadow-lg',
         ].join(' '),
       },
 
