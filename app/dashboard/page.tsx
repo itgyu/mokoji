@@ -117,12 +117,24 @@ export default function DashboardPage() {
   const selectedOrg = useMemo(() => {
     if (!urlOrgId) return null
 
+    console.log('🔍 [selectedOrg] urlOrgId:', urlOrgId)
+    console.log('📊 [selectedOrg] organizations:', organizations.length, '개')
+    console.log('📊 [selectedOrg] allOrganizations:', allOrganizations.length, '개')
+
     // 1. 먼저 내가 가입한 크루에서 찾기
     const myOrg = organizations.find(o => o.id === urlOrgId)
-    if (myOrg) return myOrg
+    if (myOrg) {
+      console.log('✅ [selectedOrg] 내 크루에서 찾음:', myOrg.name)
+      return myOrg
+    }
 
     // 2. 가입하지 않은 크루는 allOrganizations에서 찾기
     const otherOrg = allOrganizations.find(o => o.id === urlOrgId)
+    if (otherOrg) {
+      console.log('✅ [selectedOrg] allOrganizations에서 찾음:', otherOrg.name)
+    } else {
+      console.log('❌ [selectedOrg] 크루를 찾을 수 없음')
+    }
     return otherOrg || null
   }, [urlOrgId, organizations, allOrganizations])
 
@@ -439,7 +451,7 @@ export default function DashboardPage() {
   // 모든 크루 가져오기 (크루 찾기용)
   const fetchAllOrganizations = async () => {
     try {
-
+      console.log('🔍 [fetchAllOrganizations] 모든 크루 로딩 시작...')
       const orgsRef = collection(db, 'organizations')
       const orgsSnapshot = await getDocs(orgsRef)
 
@@ -448,9 +460,10 @@ export default function DashboardPage() {
         allOrgs.push({ id: doc.id, ...doc.data() } as Organization)
       })
 
+      console.log('✅ [fetchAllOrganizations] 크루 로딩 완료:', allOrgs.length, '개')
       setAllOrganizations(allOrgs)
     } catch (error) {
-      console.error('Error fetching all organizations:', error)
+      console.error('❌ [fetchAllOrganizations] Error fetching all organizations:', error)
     }
   }
 
@@ -2692,8 +2705,13 @@ ${BRAND.NAME}와 함께하는 모임 일정에 참여하세요!
       {currentPage === 'mycrew' && urlOrgId && (
         <div className="bg-[#FFFBF7] min-h-screen">
           {!selectedOrg ? (
-            // organizations 로딩 중일 때 빈 화면 표시 (깜빡임 방지)
-            <div className="bg-[#FFFBF7] min-h-screen" />
+            // organizations 로딩 중일 때 로딩 표시
+            <div className="bg-[#FFFBF7] min-h-screen flex items-center justify-center">
+              <div className="text-center">
+                <div className="text-6xl mb-4">🔍</div>
+                <p className="text-lg font-bold text-gray-600">크루 정보를 불러오는 중...</p>
+              </div>
+            </div>
           ) : !isCrewMember ? (
             // 가입하지 않은 크루 - 가입 신청 페이지
             <div className="bg-[#FFFBF7] min-h-screen">
