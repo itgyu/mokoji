@@ -8,7 +8,7 @@ import { useAuth } from '@/contexts/AuthContext'
 import { signOut } from 'firebase/auth'
 import { auth, db } from '@/lib/firebase'
 import { collection, query, where, getDocs, doc, getDoc, updateDoc, onSnapshot, addDoc, arrayUnion, arrayRemove, deleteDoc, writeBatch, orderBy, serverTimestamp, Timestamp } from 'firebase/firestore'
-import { Home, Users, Calendar, User, MapPin, Bell, Settings, Target, MessageCircle, Sparkles, Star, Tent, Search, Plus, Check, Edit, LogOut, X, ChevronLeft, Camera } from 'lucide-react'
+import { Home, Users, Calendar, User, MapPin, Bell, Settings, Target, MessageCircle, Sparkles, Star, Tent, Search, Plus, Check, Edit, LogOut, X, ChevronLeft, Camera, Clock } from 'lucide-react'
 import { uploadToS3 } from '@/lib/s3-client'
 import ScheduleDeepLink from '@/components/ScheduleDeepLink'
 import { getCities, getDistricts } from '@/lib/locations'
@@ -2429,43 +2429,41 @@ ${BRAND.NAME}와 함께하는 모임 일정에 참여하세요!
                   <div
                     key={org.id}
                     onClick={() => {
-                      console.log('🖱️ [카테고리] 크루 클릭:', org.name, org.id)
-                      console.log('📊 [카테고리] 현재 allOrganizations:', allOrganizations.length, '개')
                       router.replace(`/dashboard?page=mycrew&orgId=${org.id}`, { scroll: false })
                     }}
-                    className="bg-white rounded-2xl p-6 shadow-[0_2px_8px_rgba(0,0,0,0.04)] border-0 hover:border-[#FF9B50] hover:shadow-[0_8px_16px_rgba(0,0,0,0.1)] transition-all cursor-pointer active:scale-[0.98]"
+                    className="card-premium p-5 hover:shadow-lg transition-all duration-300 cursor-pointer active:scale-[0.98] border-mokkoji-gray-200 hover:border-mokkoji-primary"
                   >
-                    <div className="flex items-center gap-2 md:gap-4">
-                      <div className="w-14 h-14 rounded-2xl overflow-hidden flex-shrink-0 bg-gray-100">
+                    <div className="flex items-center gap-4">
+                      <div className="w-14 h-14 rounded-xl overflow-hidden flex-shrink-0 bg-mokkoji-gray-100">
                         {org.avatar ? (
                           <img src={org.avatar} alt={org.name} className="w-full h-full object-cover" />
                         ) : (
                           <div className="w-full h-full flex items-center justify-center">
-                            <Tent className="w-5 h-5 md:w-6 md:h-6 text-[#FF9B50]" />
+                            <Tent className="w-6 h-6 text-mokkoji-primary" />
                           </div>
                         )}
                       </div>
                       <div className="flex-1 min-w-0">
                         {org.subtitle && (
-                          <p className="text-sm leading-5 font-extrabold text-gray-600 mb-1 truncate">
+                          <p className="text-sm font-normal text-mokkoji-gray-600 mb-1 truncate">
                             {org.subtitle}
                           </p>
                         )}
-                        <h4 className="text-xl leading-7 md:text-2xl font-extrabold tracking-tight text-gray-900 mb-1 truncate">
+                        <h4 className="text-lg font-medium tracking-tight text-mokkoji-black mb-2 truncate">
                           {org.name}
                         </h4>
                         <div className="flex items-center gap-2 flex-wrap">
-                          {(org.categories || [org.category]).filter(Boolean).map((cat, idx) => (
+                          {(org.categories || [org.category]).filter(Boolean).slice(0, 3).map((cat, idx) => (
                             <span
                               key={idx}
-                              className="inline-flex items-center px-2 py-1 bg-[#F5F5F4] text-gray-700 text-xs rounded-lg font-medium"
+                              className="inline-flex items-center px-2 py-1 bg-mokkoji-gray-100 text-mokkoji-gray-700 text-xs rounded-lg font-normal"
                             >
                               {cat}
                             </span>
                           ))}
                         </div>
                       </div>
-                      <div className="text-[#FF9B50] text-xl leading-7 md:text-xl">→</div>
+                      <div className="text-mokkoji-primary text-xl">→</div>
                     </div>
                   </div>
                 ))}
@@ -2489,12 +2487,16 @@ ${BRAND.NAME}와 함께하는 모임 일정에 참여하세요!
           </header>
 
           {/* 크루 목록 */}
-          <div className="px-6 py-4 md:py-6">
+          <div className="px-4 md:px-6 py-4">
             {organizations.length === 0 ? (
-              <div className="text-center py-16">
-                <div className="flex justify-center mb-4 text-7xl">🏕️</div>
-                <p className="text-base leading-6 font-extrabold text-gray-900 mb-2">아직 참여 중인 크루가 없어요</p>
-                <p className="text-sm leading-5 text-gray-600">가까운 크루를 찾아볼까요?</p>
+              <div className="card-premium p-12 text-center">
+                <div className="flex justify-center mb-4">
+                  <div className="w-16 h-16 rounded-full bg-mokkoji-primary/10 flex items-center justify-center">
+                    <Tent className="w-8 h-8 text-mokkoji-primary" />
+                  </div>
+                </div>
+                <p className="text-base font-medium text-mokkoji-black mb-2">No Crews Yet</p>
+                <p className="text-sm text-mokkoji-gray-600">Find and join crews nearby</p>
               </div>
             ) : (
               <div className="space-y-4">
@@ -2870,59 +2872,63 @@ ${BRAND.NAME}와 함께하는 모임 일정에 참여하세요!
               </div>
             </div>
           ) : (
-            // 가입한 크루 - 기존 크루 상세 페이지
+            // 가입한 크루 - 크루 상세 페이지
             <>
-              {/* 헤더 */}
-              <header className="sticky top-0 bg-white z-10 safe-top border-b border-gray-100">
-                <div className="px-4 py-3">
+              {/* Premium Black Header */}
+              <header className="sticky top-0 z-10 safe-top" style={{ backgroundColor: 'var(--mokkoji-black)' }}>
+                <div className="px-4 md:px-6 py-3">
                   <div className="flex items-center justify-between mb-2">
                     <button
                       onClick={() => {
                         router.replace('/dashboard?page=mycrew', { scroll: false })
                       }}
-                      className="p-2 hover:bg-gray-100 rounded-xl active:scale-[0.99] transition-transform duration-200 ease-out -ml-2"
+                      className="p-2 rounded-lg transition-all duration-300"
+                      onMouseEnter={(e) => e.currentTarget.style.backgroundColor = 'var(--mokkoji-black-hover)'}
+                      onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
                     >
-                      <ChevronLeft className="w-5 h-5 text-gray-700" strokeWidth={2} />
+                      <ChevronLeft className="w-5 h-5 text-white" strokeWidth={2} />
                     </button>
                     {canManageOrg(selectedOrg.id) && (
                       <button
                         onClick={() => router.push(`/crew/${selectedOrg.id}/settings`)}
-                        className="px-3 py-1.5 bg-[#F5F5F4] text-gray-900 text-sm font-extrabold rounded-xl hover:bg-gray-200 active:scale-[0.99] transition-transform duration-200 ease-out"
+                        className="px-3 py-2 bg-mokkoji-primary text-white text-sm font-medium rounded-lg hover:bg-mokkoji-primary-hover transition-all duration-300 active:scale-95"
                       >
                         <span className="inline-flex items-center gap-1.5">
                           <Settings className="w-4 h-4" />
-                          크루 관리
+                          Settings
                         </span>
                       </button>
                     )}
                   </div>
-                  <h1 className="text-xl leading-7 font-extrabold text-gray-900">{selectedOrg.name}</h1>
+                  <h1 className="text-lg md:text-xl font-medium text-white">{selectedOrg.name}</h1>
                   {selectedOrg.subtitle && (
-                    <p className="text-sm text-gray-600 mt-1">{selectedOrg.subtitle}</p>
+                    <p className="text-sm text-mokkoji-gray-300 mt-1">{selectedOrg.subtitle}</p>
                   )}
                 </div>
 
             {/* 탭 전환 버튼 */}
-            <div className="px-4 pb-3 flex gap-2">
+            <div className="px-4 md:px-6 pb-3 flex gap-2">
               <button
                 onClick={() => setCrewView('schedules')}
-                className={`flex-1 py-3 rounded-xl font-extrabold text-base leading-6 transition-all ${
+                className={`flex-1 py-3 rounded-lg font-medium text-sm tracking-wider uppercase transition-all duration-300 active:scale-95 ${
                   crewView === 'schedules'
-                    ? 'bg-[#FF9B50] text-white shadow-md'
-                    : 'bg-[#F5F5F4] text-gray-900 hover:bg-gray-200'
+                    ? 'bg-mokkoji-primary text-white'
+                    : 'bg-mokkoji-gray-800 text-mokkoji-gray-300 hover:bg-mokkoji-gray-700'
                 }`}
               >
-                📅 일정
+                <Calendar className="w-4 h-4 inline-block mr-2" />
+                Events
               </button>
               <button
                 onClick={() => setCrewView('photos')}
-                className={`flex-1 py-3 rounded-xl font-extrabold text-base leading-6 transition-all ${
+                className={`flex-1 py-3 rounded-lg font-medium text-sm tracking-wider uppercase transition-all duration-300 active:scale-95 ${
                   crewView === 'photos'
-                    ? 'bg-[#FF9B50] text-white shadow-md'
-                    : 'bg-[#F5F5F4] text-gray-900 hover:bg-gray-200'
+                    ? 'bg-mokkoji-primary text-white'
+                    : 'bg-mokkoji-gray-800 text-mokkoji-gray-300 hover:bg-mokkoji-gray-700'
                 }`}
               >
-                📸 사진첩
+                <Camera className="w-4 h-4 inline-block mr-2" />
+                Photos
               </button>
             </div>
 
@@ -2931,36 +2937,36 @@ ${BRAND.NAME}와 함께하는 모임 일정에 참여하세요!
             <div className="px-4 pb-4 grid grid-cols-3 gap-3">
               <button
                 onClick={() => setScheduleFilter('all')}
-                className={`rounded-2xl p-4 text-center transition-all ${
+                className={`rounded-xl p-4 text-center transition-all duration-300 active:scale-95 ${
                   scheduleFilter === 'all'
-                    ? 'bg-[#FF9B50] text-white shadow-md'
-                    : 'bg-[#F5F5F4] text-gray-900 hover:bg-gray-200'
+                    ? 'bg-mokkoji-primary text-white shadow-md'
+                    : 'bg-mokkoji-gray-100 text-mokkoji-black hover:bg-mokkoji-gray-200'
                 }`}
               >
-                <div className="text-3xl leading-9 font-extrabold tracking-tight">{upcomingSchedules.length}</div>
-                <div className="text-sm leading-5 font-extrabold mt-1 opacity-80">전체</div>
+                <div className="text-3xl leading-9 font-medium tracking-tight">{upcomingSchedules.length}</div>
+                <div className="text-xs leading-5 font-medium mt-1 opacity-80 tracking-wider uppercase">All</div>
               </button>
               <button
                 onClick={() => setScheduleFilter('joined')}
-                className={`rounded-2xl p-4 text-center transition-all ${
+                className={`rounded-xl p-4 text-center transition-all duration-300 active:scale-95 ${
                   scheduleFilter === 'joined'
-                    ? 'bg-[#FF9B50] text-white shadow-md'
-                    : 'bg-[#F5F5F4] text-gray-900 hover:bg-gray-200'
+                    ? 'bg-mokkoji-primary text-white shadow-md'
+                    : 'bg-mokkoji-gray-100 text-mokkoji-black hover:bg-mokkoji-gray-200'
                 }`}
               >
-                <div className="text-3xl leading-9 font-extrabold tracking-tight">{mySchedules.length}</div>
-                <div className="text-sm leading-5 font-extrabold mt-1 opacity-80">참여 일정</div>
+                <div className="text-3xl leading-9 font-medium tracking-tight">{mySchedules.length}</div>
+                <div className="text-xs leading-5 font-medium mt-1 opacity-80 tracking-wider uppercase">Joined</div>
               </button>
               <button
                 onClick={() => setScheduleFilter('not-joined')}
-                className={`rounded-2xl p-4 text-center transition-all ${
+                className={`rounded-xl p-4 text-center transition-all duration-300 active:scale-95 ${
                   scheduleFilter === 'not-joined'
-                    ? 'bg-[#FF9B50] text-white shadow-md'
-                    : 'bg-[#F5F5F4] text-gray-900 hover:bg-gray-200'
+                    ? 'bg-mokkoji-primary text-white shadow-md'
+                    : 'bg-mokkoji-gray-100 text-mokkoji-black hover:bg-mokkoji-gray-200'
                 }`}
               >
-                <div className="text-3xl leading-9 font-extrabold tracking-tight">{upcomingSchedules.length - mySchedules.length}</div>
-                <div className="text-sm leading-5 font-extrabold mt-1 opacity-80">미참여</div>
+                <div className="text-3xl leading-9 font-medium tracking-tight">{upcomingSchedules.length - mySchedules.length}</div>
+                <div className="text-xs leading-5 font-medium mt-1 opacity-80 tracking-wider uppercase">Available</div>
               </button>
             </div>
             )}
@@ -3018,7 +3024,10 @@ ${BRAND.NAME}와 함께하는 모임 일정에 참여하세요!
 
             {/* 다가오는 일정 */}
             <div>
-              <h3 className="text-xl leading-7 md:text-2xl font-extrabold tracking-tight text-gray-900 mb-4">다가오는 일정</h3>
+              <h3 className="text-lg md:text-xl font-medium tracking-wider uppercase text-mokkoji-black mb-4 flex items-center gap-2">
+                <Calendar className="w-5 h-5 text-mokkoji-primary" />
+                Upcoming Events
+              </h3>
               <div className="space-y-4">
                 {(() => {
                   let filteredSchedules = upcomingSchedules
@@ -3059,9 +3068,13 @@ ${BRAND.NAME}와 함께하는 모임 일정에 참여하세요!
 
                   if (filteredSchedules.length === 0) {
                     return (
-                      <div className="text-center py-16">
-                        <div className="flex justify-center mb-4"><Calendar className="w-16 h-16 text-[#FF9B50]" /></div>
-                        <p className="text-base leading-6 font-extrabold text-gray-600">다가오는 일정이 없습니다</p>
+                      <div className="card-premium p-8 text-center">
+                        <div className="flex justify-center mb-4">
+                          <div className="w-16 h-16 rounded-full bg-mokkoji-accent/10 flex items-center justify-center">
+                            <Calendar className="w-8 h-8 text-mokkoji-accent" />
+                          </div>
+                        </div>
+                        <p className="text-base leading-6 font-medium text-mokkoji-gray-600">No events scheduled</p>
                       </div>
                     )
                   }
@@ -3072,37 +3085,37 @@ ${BRAND.NAME}와 함께하는 모임 일정에 참여하세요!
                     <div
                       key={schedule.id}
                       onClick={() => router.push(`/schedules/${schedule.id}?from=${currentPage}${urlOrgId ? `&orgId=${urlOrgId}` : ''}`)}
-                      className={`bg-white rounded-2xl p-6 shadow-sm border transition-all cursor-pointer active:scale-[0.98] ${
-                        scheduleIsParticipating ? 'border-[#FF9B50] shadow-md' : 'border-gray-200 hover:border-[#FF9B50] hover:shadow-[0_8px_16px_rgba(0,0,0,0.1)]'
+                      className={`card-premium p-6 border transition-all duration-300 cursor-pointer active:scale-[0.98] ${
+                        scheduleIsParticipating ? 'border-mokkoji-primary shadow-md' : 'hover:border-mokkoji-primary hover:shadow-md'
                       }`}
                     >
                       <div className="flex justify-between items-start mb-4">
-                        <h3 className="font-bold text-xl leading-7 tracking-tight text-gray-900 flex-1">{schedule.title}</h3>
-                        <span className={`text-xs px-3 py-1.5 rounded-lg font-extrabold ${getTypeColor(schedule.type)}`}>
+                        <h3 className="font-medium text-lg leading-7 tracking-tight text-mokkoji-black flex-1">{schedule.title}</h3>
+                        <span className={`text-xs px-3 py-1.5 rounded-lg font-medium ${getTypeColor(schedule.type)}`}>
                           {schedule.type}
                         </span>
                       </div>
-                      <div className="space-y-2 text-sm leading-5 text-gray-800">
+                      <div className="space-y-2 text-sm leading-5 text-mokkoji-gray-700">
                         <p className="flex items-center gap-2">
-                          <Calendar className="w-4 h-4 text-[#FF9B50] flex-shrink-0" />
-                          <span className="font-medium">{formatDateWithYear(schedule.date)} {schedule.time}</span>
+                          <Calendar className="w-4 h-4 text-mokkoji-primary flex-shrink-0" />
+                          <span className="font-normal">{formatDateWithYear(schedule.date)} {schedule.time}</span>
                         </p>
                         <p className="flex items-center gap-2">
-                          <MapPin className="w-4 h-4 text-[#FF9B50] flex-shrink-0" />
-                          <span className="font-medium">{schedule.location}</span>
+                          <MapPin className="w-4 h-4 text-mokkoji-primary flex-shrink-0" />
+                          <span className="font-normal">{schedule.location}</span>
                         </p>
                         <p className="flex items-center gap-2">
-                          <Users className="w-4 h-4 text-[#FF9B50] flex-shrink-0" />
-                          <span className="font-medium">{schedule.participants?.length || 0}/{schedule.maxParticipants}명</span>
+                          <Users className="w-4 h-4 text-mokkoji-primary flex-shrink-0" />
+                          <span className="font-normal">{schedule.participants?.length || 0}/{schedule.maxParticipants}명</span>
                         </p>
                         <p className="flex items-center gap-2">
-                          <Target className="w-4 h-4 text-[#FF9B50] flex-shrink-0" />
-                          <span className="font-medium">벙주: {schedule.createdBy}</span>
+                          <Target className="w-4 h-4 text-mokkoji-primary flex-shrink-0" />
+                          <span className="font-normal">Host: {schedule.createdBy}</span>
                         </p>
                       </div>
-                      {isParticipating && (
-                        <div className="mt-4 text-xs bg-[#E8F5E9] text-[#2E7D32] px-3 py-2 rounded-xl font-extrabold text-center">
-                          <span className="inline-flex items-center gap-1"><Check className="w-3.5 h-3.5 text-green-600" />참여 중</span>
+                      {scheduleIsParticipating && (
+                        <div className="mt-4 text-xs bg-mokkoji-primary-light text-mokkoji-primary px-3 py-2 rounded-lg font-medium text-center">
+                          <span className="inline-flex items-center gap-1"><Check className="w-3.5 h-3.5" />Joined</span>
                         </div>
                       )}
                     </div>
@@ -3115,7 +3128,10 @@ ${BRAND.NAME}와 함께하는 모임 일정에 참여하세요!
             {/* 지난 일정 */}
             {pastSchedules.length > 0 && (
               <div className="mt-8">
-                <h3 className="text-xl leading-7 md:text-2xl font-extrabold text-gray-600 mb-3 px-2">지난 일정</h3>
+                <h3 className="text-lg md:text-xl font-medium tracking-wider uppercase text-mokkoji-gray-600 mb-3 flex items-center gap-2">
+                  <Clock className="w-5 h-5 text-mokkoji-gray-500" />
+                  Past Events
+                </h3>
                 <div className="space-y-4">
                   {pastSchedules.map((schedule) => {
                     const isParticipating = schedule.participants?.includes(profile.name)
@@ -3123,23 +3139,35 @@ ${BRAND.NAME}와 함께하는 모임 일정에 참여하세요!
                       <div
                         key={schedule.id}
                         onClick={() => router.push(`/schedules/${schedule.id}?from=${currentPage}${urlOrgId ? `&orgId=${urlOrgId}` : ''}`)}
-                        className="bg-gray-100 rounded-2xl p-6 shadow-sm hover:shadow-[0_4px_12px_rgba(0,0,0,0.08)] transition-all duration-200 cursor-pointer opacity-60"
+                        className="card-premium p-6 opacity-60 hover:opacity-75 hover:shadow-md transition-all duration-300 cursor-pointer border-mokkoji-gray-200"
                       >
                         <div className="flex justify-between items-start mb-3">
-                          <h3 className="font-bold text-xl leading-7 text-gray-700">{schedule.title}</h3>
-                          <span className="text-xs bg-gray-200 text-gray-700 px-3 py-1 rounded-full font-bold">
+                          <h3 className="font-medium text-lg leading-7 text-mokkoji-gray-700">{schedule.title}</h3>
+                          <span className="text-xs bg-mokkoji-gray-100 text-mokkoji-gray-700 px-3 py-1 rounded-lg font-medium">
                             {schedule.type}
                           </span>
                         </div>
-                        <div className="space-y-2 text-sm leading-5 text-gray-600">
-                          <p><Calendar className="w-4 h-4 text-[#FF9B50] inline-block mr-1.5" />{formatDateWithYear(schedule.date)} {schedule.time}</p>
-                          <p><MapPin className="w-4 h-4 text-[#FF9B50] inline-block mr-1.5" />{schedule.location}</p>
-                          <p><Users className="w-4 h-4 text-[#FF9B50] inline-block mr-1.5" />{schedule.participants?.length || 0}/{schedule.maxParticipants}명</p>
-                          <p><Target className="w-4 h-4 text-[#FF9B50] inline-block mr-1.5" />벙주: {schedule.createdBy}</p>
+                        <div className="space-y-2 text-sm leading-5 text-mokkoji-gray-600">
+                          <p className="flex items-center gap-2">
+                            <Calendar className="w-4 h-4 text-mokkoji-gray-500 flex-shrink-0" />
+                            <span className="font-normal">{formatDateWithYear(schedule.date)} {schedule.time}</span>
+                          </p>
+                          <p className="flex items-center gap-2">
+                            <MapPin className="w-4 h-4 text-mokkoji-gray-500 flex-shrink-0" />
+                            <span className="font-normal">{schedule.location}</span>
+                          </p>
+                          <p className="flex items-center gap-2">
+                            <Users className="w-4 h-4 text-mokkoji-gray-500 flex-shrink-0" />
+                            <span className="font-normal">{schedule.participants?.length || 0}/{schedule.maxParticipants}명</span>
+                          </p>
+                          <p className="flex items-center gap-2">
+                            <Target className="w-4 h-4 text-mokkoji-gray-500 flex-shrink-0" />
+                            <span className="font-normal">Host: {schedule.createdBy}</span>
+                          </p>
                         </div>
                         {isParticipating && (
-                          <div className="mt-3 text-xs bg-gray-200 text-gray-700 px-3 py-2 rounded-lg font-extrabold text-center">
-                            <span className="inline-flex items-center gap-1"><Check className="w-3.5 h-3.5 text-green-600" />참여함</span>
+                          <div className="mt-3 text-xs bg-mokkoji-gray-100 text-mokkoji-gray-700 px-3 py-2 rounded-lg font-medium text-center">
+                            <span className="inline-flex items-center gap-1"><Check className="w-3.5 h-3.5" />Attended</span>
                           </div>
                         )}
                       </div>
@@ -3157,16 +3185,16 @@ ${BRAND.NAME}와 함께하는 모임 일정에 참여하세요!
               {/* 사진 업로드 버튼 - 크루 멤버만 */}
               {members.some(m => m.uid === user?.uid) && (
                 <div className="mb-6">
-                  <label className="w-full py-4 px-6 bg-[#FF9B50] hover:bg-[#FF8A3D] text-white rounded-2xl font-extrabold text-base leading-6 cursor-pointer active:scale-[0.98] transition-all flex items-center justify-center gap-2">
+                  <label className="w-full py-4 px-6 bg-mokkoji-primary hover:bg-mokkoji-primary-hover text-white rounded-xl font-medium text-sm tracking-wider uppercase cursor-pointer active:scale-[0.98] transition-all duration-300 flex items-center justify-center gap-2">
                     {uploadingPhoto ? (
                       <>
                         <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                        업로드 중...
+                        Uploading...
                       </>
                     ) : (
                       <>
                         <Camera className="w-5 h-5" />
-                        사진 올리기
+                        Upload Photo
                       </>
                     )}
                     <input
@@ -3187,12 +3215,14 @@ ${BRAND.NAME}와 함께하는 모임 일정에 참여하세요!
 
               {/* 사진 그리드 */}
               {photos.length === 0 ? (
-                <div className="text-center py-16">
+                <div className="card-premium p-8 text-center">
                   <div className="flex justify-center mb-4">
-                    <Camera className="w-16 h-16 text-[#FF9B50]" />
+                    <div className="w-16 h-16 rounded-full bg-mokkoji-accent/10 flex items-center justify-center">
+                      <Camera className="w-8 h-8 text-mokkoji-accent" />
+                    </div>
                   </div>
-                  <p className="text-base leading-6 font-extrabold text-gray-600 mb-2">아직 사진이 없어요</p>
-                  <p className="text-sm leading-5 text-gray-500">첫 번째 사진을 올려보세요!</p>
+                  <p className="text-base leading-6 font-medium text-mokkoji-gray-600 mb-2">No photos yet</p>
+                  <p className="text-sm leading-5 text-mokkoji-gray-500">Upload your first photo!</p>
                 </div>
               ) : (
                 <div className="grid grid-cols-3 gap-2">
@@ -3207,7 +3237,7 @@ ${BRAND.NAME}와 함께하는 모임 일정에 참여하세요!
                           alert('크루 멤버만 사진을 자세히 볼 수 있어요.')
                         }
                       }}
-                      className="aspect-square rounded-xl overflow-hidden bg-gray-200 hover:opacity-80 transition-opacity active:scale-[0.98]"
+                      className="aspect-square rounded-xl overflow-hidden bg-mokkoji-gray-100 hover:opacity-80 transition-all duration-300 active:scale-[0.98]"
                     >
                       <img
                         src={photo.url}
@@ -3221,9 +3251,10 @@ ${BRAND.NAME}와 함께하는 모임 일정에 참여하세요!
 
               {/* 비회원용 안내 메시지 */}
               {!members.some(m => m.uid === user?.uid) && photos.length > 0 && (
-                <div className="mt-6 p-4 bg-[#FFF3E0] border border-[#FF9B50] rounded-xl">
-                  <p className="text-sm leading-5 text-gray-700 text-center">
-                    <Camera className="w-4 h-4 text-[#FF9B50] inline-block" /> 크루에 가입하면 사진을 자세히 보고 업로드할 수 있어요
+                <div className="mt-6 p-4 bg-mokkoji-accent-light border border-mokkoji-accent rounded-xl">
+                  <p className="text-sm leading-5 text-mokkoji-gray-700 text-center flex items-center justify-center gap-2">
+                    <Camera className="w-4 h-4 text-mokkoji-accent flex-shrink-0" />
+                    <span>Join the crew to view and upload photos</span>
                   </p>
                 </div>
               )}
@@ -3235,13 +3266,13 @@ ${BRAND.NAME}와 함께하는 모임 일정에 참여하세요!
           <div className="fixed bottom-32 right-5 flex flex-col gap-2 md:gap-4 z-30">
             <button
               onClick={() => setShowMemberList(true)}
-              className="w-16 h-16 bg-white border-2 border-[#FF9B50] text-[#FF9B50] rounded-full shadow-lg active:scale-[0.99] transition-transform flex items-center justify-center"
+              className="w-16 h-16 bg-white border-2 border-mokkoji-primary text-mokkoji-primary rounded-full shadow-lg active:scale-95 transition-all duration-300 flex items-center justify-center hover:bg-mokkoji-primary-light"
             >
               <Users className="w-7 h-7" />
             </button>
             <button
               onClick={() => setShowCreateSchedule(true)}
-              className="w-16 h-16 bg-[#FF9B50] hover:bg-[#FF8A3D] text-white rounded-full shadow-lg text-xl leading-7 md:text-xl md:text-2xl md:text-3xl font-extrabold active:scale-[0.99] transition-transform"
+              className="w-16 h-16 bg-mokkoji-primary hover:bg-mokkoji-primary-hover text-white rounded-full shadow-lg text-2xl font-medium active:scale-95 transition-all duration-300"
             >
               +
             </button>
