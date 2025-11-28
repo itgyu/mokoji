@@ -146,11 +146,25 @@ export async function updateOrganization(
 export async function getOrganizationMembers(
   orgId: string
 ): Promise<OrganizationMember[]> {
-  return getDocuments<OrganizationMember>('organizationMembers', [
+  console.log('🔍 [getOrganizationMembers] 조회 시작 - orgId:', orgId);
+
+  // status 필터와 orderBy 제거하고 메모리에서 처리 (인덱스 불필요)
+  const result = await getDocuments<OrganizationMember>('organizationMembers', [
     where('organizationId', '==', orgId),
-    where('status', '==', 'active'),
-    orderBy('joinedAt', 'desc'),
   ]);
+
+  // 메모리에서 active 상태만 필터링 & 정렬
+  const activeMembers = result
+    .filter(m => m.status === 'active')
+    .sort((a, b) => {
+      // joinedAt이 Timestamp인 경우 처리
+      const aTime = a.joinedAt?.seconds || 0;
+      const bTime = b.joinedAt?.seconds || 0;
+      return bTime - aTime; // 최신순
+    });
+
+  console.log('✅ [getOrganizationMembers] 전체:', result.length, '개, active:', activeMembers.length, '개');
+  return activeMembers;
 }
 
 export async function getUserMemberships(
