@@ -165,6 +165,7 @@ export default function DashboardPage() {
     mbti: ''
   })
   const [orgMemberCounts, setOrgMemberCounts] = useState<{ [key: string]: number }>({})
+  const [viewingOrgMemberCount, setViewingOrgMemberCount] = useState<number>(0)
   const [editingMyProfile, setEditingMyProfile] = useState(false)
   const [myProfileForm, setMyProfileForm] = useState({
     name: '',
@@ -307,6 +308,45 @@ export default function DashboardPage() {
       fetchPhotos(selectedOrg.id)
     }
   }, [selectedOrg, crewView])
+
+  // 가입하지 않은 크루의 멤버 수 가져오기
+  useEffect(() => {
+    const fetchViewingOrgMemberCount = async () => {
+      if (!selectedOrg || !urlOrgId) return
+      if (isCrewMember) return // 이미 가입한 크루는 orgMemberCounts에 있음
+
+      console.log('🔍 [fetchViewingOrgMemberCount] 비회원 크루 멤버 수 조회:', selectedOrg.id)
+
+      try {
+        const members = await getOrganizationMembers(selectedOrg.id)
+        console.log('✅ [fetchViewingOrgMemberCount] 멤버 수:', members.length)
+        setViewingOrgMemberCount(members.length)
+      } catch (error) {
+        console.error('❌ [fetchViewingOrgMemberCount] 조회 실패:', error)
+        // 레거시 방식으로 시도
+        try {
+          const userProfilesRef = collection(db, 'userProfiles')
+          const userProfilesSnapshot = await getDocs(userProfilesRef)
+
+          let memberCount = 0
+          userProfilesSnapshot.forEach((userDoc) => {
+            const data = userDoc.data()
+            const orgs = data.joinedOrganizations || data.organizations || []
+            if (orgs.includes(selectedOrg.id)) {
+              memberCount++
+            }
+          })
+          console.log('✅ [fetchViewingOrgMemberCount] 레거시 방식 멤버 수:', memberCount)
+          setViewingOrgMemberCount(memberCount)
+        } catch (legacyError) {
+          console.error('❌ [fetchViewingOrgMemberCount] 레거시 방식도 실패:', legacyError)
+          setViewingOrgMemberCount(0)
+        }
+      }
+    }
+
+    fetchViewingOrgMemberCount()
+  }, [selectedOrg, urlOrgId, isCrewMember])
 
   // 모달 열릴 때 백그라운드 스크롤 방지
   useEffect(() => {
@@ -2756,15 +2796,19 @@ ${BRAND.NAME}와 함께하는 모임 일정에 참여하세요!
                       <p className="text-base font-bold text-gray-600 mb-2">{selectedOrg.subtitle}</p>
                     )}
                     <h1 className="text-3xl font-extrabold text-gray-900 mb-3">{selectedOrg.name}</h1>
-                    <div className="flex gap-2 mb-4">
-                      {(selectedOrg.categories || [selectedOrg.category]).filter(Boolean).map((cat, idx) => (
-                        <span
-                          key={idx}
-                          className="px-3 py-1.5 bg-[#F5F5F4] text-gray-700 text-sm rounded-lg font-medium"
-                        >
-                          {cat}
-                        </span>
-                      ))}
+                    {/* 태그 - 가로 스크롤 */}
+                    <div className="w-full mb-4">
+                      <p className="text-sm text-gray-500 font-medium mb-2">관심사</p>
+                      <div className="flex gap-2 overflow-x-auto pb-2 scrollbar-hide -mx-2 px-2">
+                        {(selectedOrg.categories || [selectedOrg.category]).filter(Boolean).map((cat, idx) => (
+                          <span
+                            key={idx}
+                            className="px-3 py-1.5 bg-[#F5F5F4] text-gray-700 text-sm rounded-lg font-medium whitespace-nowrap flex-shrink-0"
+                          >
+                            {cat}
+                          </span>
+                        ))}
+                      </div>
                     </div>
                     {selectedOrg.description && (
                       <p className="text-base text-gray-600 leading-relaxed whitespace-pre-wrap">
@@ -2774,28 +2818,29 @@ ${BRAND.NAME}와 함께하는 모임 일정에 참여하세요!
                   </div>
                 </div>
 
-                {/* 멤버 수 정보 */}
-                <div className="bg-white rounded-2xl p-6 shadow-sm mb-6">
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-3">
-                      <Users className="w-6 h-6 text-[#FF9B50]" />
-                      <span className="text-lg font-bold text-gray-900">크루 멤버</span>
+                {/* 멤버 수 정보 - 개선된 디자인 */}
+                <div className="bg-white rounded-2xl p-6 shadow-sm mb-24">
+                  <div className="flex items-center gap-3">
+                    <span className="text-3xl">👥</span>
+                    <div>
+                      <p className="font-semibold text-2xl text-gray-900">
+                        {viewingOrgMemberCount}명
+                      </p>
+                      <p className="text-sm text-gray-500">크루 멤버</p>
                     </div>
-                    <span className="text-2xl font-extrabold text-[#FF9B50]">
-                      {orgMemberCounts[selectedOrg.id] || 0}명
-                    </span>
                   </div>
                 </div>
+              </div>
 
-                {/* 가입 신청 버튼 */}
+              {/* 하단 고정 가입 신청 버튼 */}
+              <div className="fixed bottom-0 left-0 right-0 p-4 bg-white border-t border-gray-200 safe-area-bottom">
                 <button
                   onClick={() => handleJoinCrew(selectedOrg.id)}
-                  className="w-full bg-gradient-to-r from-[#FF9B50] to-[#2563EB] text-white rounded-2xl py-5 font-extrabold text-lg shadow-lg hover:shadow-xl transition-all active:scale-[0.98]"
+                  className="w-full h-14 bg-[#FF9B50] text-white rounded-xl font-semibold text-lg shadow-lg hover:shadow-xl transition-all active:scale-95"
                 >
                   🙋 크루 가입 신청하기
                 </button>
-
-                <p className="text-center text-sm text-gray-500 mt-4">
+                <p className="text-center text-xs text-gray-500 mt-2">
                   크루장의 승인 후 크루에 참여할 수 있습니다
                 </p>
               </div>
