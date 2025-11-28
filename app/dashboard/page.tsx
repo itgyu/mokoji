@@ -4932,14 +4932,14 @@ ${BRAND.NAME}와 함께하는 모임 일정에 참여하세요!
         </div>
       )}
 
-      {/* Bottom Navigation - 토스 스타일 */}
-      <nav className="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-100 z-20 safe-bottom">
+      {/* Bottom Navigation - Premium */}
+      <nav className="fixed bottom-0 left-0 right-0 bg-white border-t border-mokkoji-gray-200 z-20 safe-bottom">
         <div className="max-w-md mx-auto flex h-14">
           {[
-            { id: 'home' as Page, icon: Home, label: '홈' },
-            { id: 'category' as Page, icon: Users, label: '카테고리' },
-            { id: 'mycrew' as Page, icon: Calendar, label: '내크루' },
-            { id: 'myprofile' as Page, icon: User, label: '내정보' }
+            { id: 'home' as Page, icon: Home, label: 'Home' },
+            { id: 'category' as Page, icon: Users, label: 'Browse' },
+            { id: 'mycrew' as Page, icon: Calendar, label: 'My Crew' },
+            { id: 'myprofile' as Page, icon: User, label: 'Profile' }
           ].map(({ id, icon: Icon, label }) => (
             <button
               key={id}
@@ -4957,12 +4957,12 @@ ${BRAND.NAME}와 함께하는 모임 일정에 참여하세요!
                   router.replace(`/dashboard?page=${id}`, { scroll: false })
                 }
               }}
-              className={`flex-1 flex flex-col items-center justify-center gap-0.5 py-1.5 transition-transform duration-200 ease-out active:scale-[0.97] ${
-                currentPage === id ? 'text-[#FF9B50]' : 'text-gray-600'
+              className={`flex-1 flex flex-col items-center justify-center gap-0.5 py-1.5 transition-all duration-300 active:scale-95 ${
+                currentPage === id ? 'text-mokkoji-primary' : 'text-mokkoji-gray-600'
               }`}
             >
               <Icon className="w-6 h-6" strokeWidth={currentPage === id ? 2.5 : 2} />
-              <span className={`text-[10px] font-semibold ${currentPage === id ? 'font-extrabold' : ''}`}>{label}</span>
+              <span className={`text-[10px] ${currentPage === id ? 'font-medium' : 'font-normal'}`}>{label}</span>
             </button>
           ))}
         </div>
