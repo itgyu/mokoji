@@ -2517,44 +2517,44 @@ ${BRAND.NAME}와 함께하는 모임 일정에 참여하세요!
                       onClick={() => {
                         router.replace(`/dashboard?page=mycrew&orgId=${org.id}`, { scroll: false })
                       }}
-                      className="bg-white rounded-2xl p-6 shadow-[0_2px_8px_rgba(0,0,0,0.04)] border-0 hover:border-[#FF9B50] hover:shadow-[0_8px_16px_rgba(0,0,0,0.1)] transition-all cursor-pointer active:scale-[0.98]"
+                      className="card-premium p-6 border border-mokkoji-gray-200 hover:border-mokkoji-primary hover:shadow-md transition-all duration-300 cursor-pointer active:scale-[0.98]"
                     >
                       <div className="flex items-center gap-2 md:gap-4">
-                        <div className="w-12 h-12 md:w-16 md:h-16 rounded-2xl overflow-hidden flex-shrink-0 bg-gray-100">
+                        <div className="w-12 h-12 md:w-16 md:h-16 rounded-xl overflow-hidden flex-shrink-0 bg-mokkoji-gray-100">
                           {org.avatar ? (
                             <img src={org.avatar} alt={org.name} className="w-full h-full object-cover" />
                           ) : (
-                            <div className="w-full h-full flex items-center justify-center"><Tent className="w-5 h-5 md:w-6 md:h-6 md:w-7 md:h-7 text-[#FF9B50]" /></div>
+                            <div className="w-full h-full flex items-center justify-center"><Tent className="w-5 h-5 md:w-6 md:h-6 md:w-7 md:h-7 text-mokkoji-primary" /></div>
                           )}
                         </div>
                         <div className="flex-1 min-w-0">
                           {org.subtitle && (
-                            <p className="text-sm leading-5 font-extrabold text-gray-600 mb-1 truncate">{org.subtitle}</p>
+                            <p className="text-sm leading-5 font-normal text-mokkoji-gray-600 mb-1 truncate">{org.subtitle}</p>
                           )}
-                          <h3 className="text-xl leading-7 md:text-2xl font-extrabold tracking-tight text-gray-900 mb-1 truncate">
+                          <h3 className="text-lg leading-7 md:text-xl font-medium tracking-tight text-mokkoji-black mb-1 truncate">
                             {org.name}
                           </h3>
-                          <div className="flex items-center gap-3 text-sm leading-5 text-gray-800">
+                          <div className="flex items-center gap-3 text-sm leading-5 text-mokkoji-gray-700">
                             <span className="flex items-center gap-1">
-                              <Users className="w-4 h-4 text-[#FF9B50] flex-shrink-0" />
-                              <span className="font-bold">{memberCount}명</span>
+                              <Users className="w-4 h-4 text-mokkoji-primary flex-shrink-0" />
+                              <span className="font-normal">{memberCount}명</span>
                             </span>
                             <span className="flex items-center gap-1">
-                              <Calendar className="w-4 h-4 text-[#FF9B50] flex-shrink-0" />
-                              <span className="font-bold">{orgScheduleCount}개 일정</span>
+                              <Calendar className="w-4 h-4 text-mokkoji-primary flex-shrink-0" />
+                              <span className="font-normal">{orgScheduleCount}개 일정</span>
                             </span>
                           </div>
                           {(org.categories || [org.category]).filter(Boolean).length > 0 && (
                             <div className="flex items-center gap-2 flex-wrap mt-2">
                               {(org.categories || [org.category]).filter(Boolean).slice(0, 3).map((cat, idx) => (
-                                <span key={idx} className="inline-flex items-center px-2 py-1 bg-[#F5F5F4] text-gray-700 text-xs rounded-lg font-medium">
+                                <span key={idx} className="inline-flex items-center px-2 py-1 bg-mokkoji-gray-100 text-mokkoji-gray-700 text-xs rounded-lg font-normal">
                                   {cat}
                                 </span>
                               ))}
                             </div>
                           )}
                         </div>
-                        <div className="text-[#FF9B50]">
+                        <div className="text-mokkoji-primary">
                           <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M9 5l7 7-7 7" />
                           </svg>
@@ -2574,15 +2574,15 @@ ${BRAND.NAME}와 함께하는 모임 일정에 참여하세요!
                   setOrgForm({ name: '', subtitle: '', description: '', categories: [] })
                   setOrgAvatarFile(null)
                 }}
-                className="w-full bg-gradient-to-r from-[#FF9B50] to-[#2563EB] rounded-2xl p-3 md:p-6 shadow-lg hover:shadow-xl transition-all active:scale-[0.98] text-white"
+                className="w-full bg-mokkoji-primary hover:bg-mokkoji-primary-hover rounded-xl p-5 md:p-6 shadow-md hover:shadow-lg transition-all duration-300 active:scale-[0.98] text-white"
               >
                 <div className="flex items-center justify-between">
                   <div className="text-left">
-                    <h3 className="text-xl leading-7 md:text-2xl font-extrabold mb-1">새 크루 만들기</h3>
-                    <p className="text-sm leading-5 opacity-90">나만의 크루를 시작하세요</p>
+                    <h3 className="text-lg md:text-xl font-medium tracking-wider uppercase mb-1">Create New Crew</h3>
+                    <p className="text-sm leading-5 opacity-90 font-normal">Start your own community</p>
                   </div>
                   <div className="flex items-center justify-center">
-                    <Plus className="w-10 h-10 text-white" />
+                    <Plus className="w-8 h-8 md:w-10 md:h-10 text-white" />
                   </div>
                 </div>
               </button>
