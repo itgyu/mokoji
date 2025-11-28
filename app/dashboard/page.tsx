@@ -115,12 +115,22 @@ export default function DashboardPage() {
   // URL에서 orgId 파라미터를 읽어 선택된 크루를 직접 계산 (useState 대신 useMemo 사용)
   const urlOrgId = searchParams.get('orgId')
   const selectedOrg = useMemo(() => {
-    if (!urlOrgId || organizations.length === 0) return null
-    const org = organizations.find(o => o.id === urlOrgId)
-    if (org) {
-    }
-    return org || null
-  }, [urlOrgId, organizations])
+    if (!urlOrgId) return null
+
+    // 1. 먼저 내가 가입한 크루에서 찾기
+    const myOrg = organizations.find(o => o.id === urlOrgId)
+    if (myOrg) return myOrg
+
+    // 2. 가입하지 않은 크루는 allOrganizations에서 찾기
+    const otherOrg = allOrganizations.find(o => o.id === urlOrgId)
+    return otherOrg || null
+  }, [urlOrgId, organizations, allOrganizations])
+
+  // 현재 보고 있는 크루에 가입했는지 확인
+  const isCrewMember = useMemo(() => {
+    if (!selectedOrg || !user) return false
+    return organizations.some(o => o.id === selectedOrg.id)
+  }, [selectedOrg, organizations, user])
   const [selectedSchedule, setSelectedSchedule] = useState<Schedule | null>(null)
   const [showMemberList, setShowMemberList] = useState(false)
   const [scheduleFilter, setScheduleFilter] = useState<'all' | 'joined' | 'not-joined'>('all')
@@ -1362,6 +1372,9 @@ export default function DashboardPage() {
 
       alert('가입 신청을 보냈어요! 크루장의 승인을 기다려주세요.')
       fetchOrganizations()
+
+      // 카테고리 페이지로 돌아가기
+      router.replace('/dashboard?page=category', { scroll: false })
 
     } catch (error) {
       console.error('가입 신청 실패:', error)
@@ -2681,7 +2694,83 @@ ${BRAND.NAME}와 함께하는 모임 일정에 참여하세요!
           {!selectedOrg ? (
             // organizations 로딩 중일 때 빈 화면 표시 (깜빡임 방지)
             <div className="bg-[#FFFBF7] min-h-screen" />
+          ) : !isCrewMember ? (
+            // 가입하지 않은 크루 - 가입 신청 페이지
+            <div className="bg-[#FFFBF7] min-h-screen">
+              <header className="sticky top-0 bg-white z-10 safe-top border-b border-gray-100">
+                <div className="px-4 py-3">
+                  <button
+                    onClick={() => router.replace('/dashboard?page=category', { scroll: false })}
+                    className="p-2 hover:bg-gray-100 rounded-xl active:scale-[0.99] transition-transform duration-200 ease-out -ml-2"
+                  >
+                    <ChevronLeft className="w-5 h-5 text-gray-700" strokeWidth={2} />
+                  </button>
+                </div>
+              </header>
+
+              <div className="px-6 py-8">
+                {/* 크루 정보 카드 */}
+                <div className="bg-white rounded-3xl p-8 shadow-sm mb-6">
+                  <div className="flex flex-col items-center text-center">
+                    <div className="w-24 h-24 rounded-3xl overflow-hidden mb-4 bg-gray-100">
+                      {selectedOrg.avatar ? (
+                        <img src={selectedOrg.avatar} alt={selectedOrg.name} className="w-full h-full object-cover" />
+                      ) : (
+                        <div className="w-full h-full flex items-center justify-center">
+                          <Tent className="w-12 h-12 text-[#FF9B50]" />
+                        </div>
+                      )}
+                    </div>
+                    {selectedOrg.subtitle && (
+                      <p className="text-base font-bold text-gray-600 mb-2">{selectedOrg.subtitle}</p>
+                    )}
+                    <h1 className="text-3xl font-extrabold text-gray-900 mb-3">{selectedOrg.name}</h1>
+                    <div className="flex gap-2 mb-4">
+                      {(selectedOrg.categories || [selectedOrg.category]).filter(Boolean).map((cat, idx) => (
+                        <span
+                          key={idx}
+                          className="px-3 py-1.5 bg-[#F5F5F4] text-gray-700 text-sm rounded-lg font-medium"
+                        >
+                          {cat}
+                        </span>
+                      ))}
+                    </div>
+                    {selectedOrg.description && (
+                      <p className="text-base text-gray-600 leading-relaxed whitespace-pre-wrap">
+                        {selectedOrg.description}
+                      </p>
+                    )}
+                  </div>
+                </div>
+
+                {/* 멤버 수 정보 */}
+                <div className="bg-white rounded-2xl p-6 shadow-sm mb-6">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                      <Users className="w-6 h-6 text-[#FF9B50]" />
+                      <span className="text-lg font-bold text-gray-900">크루 멤버</span>
+                    </div>
+                    <span className="text-2xl font-extrabold text-[#FF9B50]">
+                      {orgMemberCounts[selectedOrg.id] || 0}명
+                    </span>
+                  </div>
+                </div>
+
+                {/* 가입 신청 버튼 */}
+                <button
+                  onClick={() => handleJoinCrew(selectedOrg.id)}
+                  className="w-full bg-gradient-to-r from-[#FF9B50] to-[#2563EB] text-white rounded-2xl py-5 font-extrabold text-lg shadow-lg hover:shadow-xl transition-all active:scale-[0.98]"
+                >
+                  🙋 크루 가입 신청하기
+                </button>
+
+                <p className="text-center text-sm text-gray-500 mt-4">
+                  크루장의 승인 후 크루에 참여할 수 있습니다
+                </p>
+              </div>
+            </div>
           ) : (
+            // 가입한 크루 - 기존 크루 상세 페이지
             <>
               {/* 헤더 */}
               <header className="sticky top-0 bg-white z-10 safe-top border-b border-gray-100">
