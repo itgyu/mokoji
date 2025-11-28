@@ -100,9 +100,12 @@ export default function DashboardPage() {
   // URL에서 page 파라미터를 읽어 현재 페이지를 직접 계산 (useState 대신 useMemo 사용)
   const currentPage = useMemo(() => {
     const page = searchParams.get('page')
+    console.log('📄 [currentPage] URL page 파라미터:', page)
     if (page && ['home', 'category', 'mycrew', 'myprofile', 'schedules'].includes(page)) {
+      console.log('✅ [currentPage] 페이지 설정:', page)
       return page as Page
     }
+    console.log('⚠️ [currentPage] 기본값 home으로 설정')
     return 'home' as Page
   }, [searchParams])
 
@@ -2356,6 +2359,8 @@ ${BRAND.NAME}와 함께하는 모임 일정에 참여하세요!
                   <div
                     key={org.id}
                     onClick={() => {
+                      console.log('🖱️ [카테고리] 크루 클릭:', org.name, org.id)
+                      console.log('📊 [카테고리] 현재 allOrganizations:', allOrganizations.length, '개')
                       router.replace(`/dashboard?page=mycrew&orgId=${org.id}`, { scroll: false })
                     }}
                     className="bg-white rounded-2xl p-6 shadow-[0_2px_8px_rgba(0,0,0,0.04)] border-0 hover:border-[#FF9B50] hover:shadow-[0_8px_16px_rgba(0,0,0,0.1)] transition-all cursor-pointer active:scale-[0.98]"
