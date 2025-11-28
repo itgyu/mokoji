@@ -2337,23 +2337,23 @@ ${BRAND.NAME}와 함께하는 모임 일정에 참여하세요!
             </div>
           </header>
 
-          {/* 카테고리 필터 칩 - 2단 계층 구조 */}
-          <div className="sticky top-[var(--header-height)] bg-white z-9 border-b border-gray-100">
+          {/* 카테고리 필터 칩 */}
+          <div className="sticky top-[var(--header-height)] bg-white z-9 border-b border-mokkoji-gray-200">
             {/* 대카테고리 */}
-            <div className="px-4 pt-3 pb-2 overflow-x-auto scrollbar-hide border-b border-gray-50">
+            <div className="px-4 md:px-6 pt-3 pb-2 overflow-x-auto scrollbar-hide border-b border-mokkoji-gray-100">
               <div className="flex gap-2">
                 <button
                   onClick={() => {
                     setSelectedCategoryGroup(null)
                     setSelectedCategory('전체')
                   }}
-                  className={`flex-shrink-0 px-4 py-2 rounded-full text-sm leading-5 font-bold transition-all ${
+                  className={`flex-shrink-0 px-4 py-2 rounded-full text-sm font-medium transition-all duration-300 active:scale-95 ${
                     selectedCategoryGroup === null
-                      ? 'bg-[#FF9B50] text-white shadow-lg shadow-orange-200'
-                      : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                      ? 'bg-mokkoji-primary text-white shadow-md'
+                      : 'bg-mokkoji-gray-100 text-mokkoji-gray-700 hover:bg-mokkoji-gray-200'
                   }`}
                 >
-                  🔥 전체
+                  ALL
                 </button>
                 {Object.keys(CATEGORY_GROUPS).map((groupName) => (
                   <button
@@ -2362,10 +2362,10 @@ ${BRAND.NAME}와 함께하는 모임 일정에 참여하세요!
                       setSelectedCategoryGroup(groupName)
                       setSelectedCategory('전체')
                     }}
-                    className={`flex-shrink-0 px-4 py-2 rounded-full text-sm leading-5 font-bold transition-all ${
+                    className={`flex-shrink-0 px-4 py-2 rounded-full text-sm font-medium transition-all duration-300 active:scale-95 ${
                       selectedCategoryGroup === groupName
-                        ? 'bg-[#FF9B50] text-white shadow-lg shadow-orange-200'
-                        : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                        ? 'bg-mokkoji-primary text-white shadow-md'
+                        : 'bg-mokkoji-gray-100 text-mokkoji-gray-700 hover:bg-mokkoji-gray-200'
                     }`}
                   >
                     {groupName}
@@ -2375,29 +2375,29 @@ ${BRAND.NAME}와 함께하는 모임 일정에 참여하세요!
             </div>
 
             {/* 세부 카테고리 */}
-            <div className="px-4 py-2 overflow-x-auto scrollbar-hide">
+            <div className="px-4 md:px-6 py-2 overflow-x-auto scrollbar-hide">
               <div className="flex gap-2">
                 <button
                   onClick={() => setSelectedCategory('전체')}
-                  className={`flex-shrink-0 px-3 py-1.5 rounded-full text-xs font-semibold transition-all ${
+                  className={`flex-shrink-0 px-3 py-1.5 rounded-lg text-xs font-medium transition-all duration-300 ${
                     selectedCategory === '전체'
-                      ? 'bg-orange-100 text-[#FF9B50] border-2 border-[#FF9B50]'
-                      : 'bg-white text-gray-600 border border-gray-200 hover:border-gray-300'
+                      ? 'bg-mokkoji-primary-light text-mokkoji-primary border border-mokkoji-primary'
+                      : 'bg-white text-mokkoji-gray-600 border border-mokkoji-gray-200 hover:border-mokkoji-gray-300'
                   }`}
                 >
-                  전체
+                  All
                 </button>
                 {(selectedCategoryGroup
                   ? CATEGORY_GROUPS[selectedCategoryGroup as keyof typeof CATEGORY_GROUPS]
-                  : CREW_CATEGORIES.slice(0, 10) // 전체 선택 시 Tier 1만 표시
+                  : CREW_CATEGORIES.slice(0, 10)
                 ).map((category) => (
                   <button
                     key={category}
                     onClick={() => setSelectedCategory(category)}
-                    className={`flex-shrink-0 px-3 py-1.5 rounded-full text-xs font-semibold transition-all ${
+                    className={`flex-shrink-0 px-3 py-1.5 rounded-lg text-xs font-medium transition-all duration-300 ${
                       selectedCategory === category
-                        ? 'bg-orange-100 text-[#FF9B50] border-2 border-[#FF9B50]'
-                        : 'bg-white text-gray-600 border border-gray-200 hover:border-gray-300'
+                        ? 'bg-mokkoji-primary-light text-mokkoji-primary border border-mokkoji-primary'
+                        : 'bg-white text-mokkoji-gray-600 border border-mokkoji-gray-200 hover:border-mokkoji-gray-300'
                     }`}
                   >
                     {category}
@@ -2408,15 +2408,19 @@ ${BRAND.NAME}와 함께하는 모임 일정에 참여하세요!
           </div>
 
           {/* 크루 리스트 */}
-          <div className="px-4 py-4">
+          <div className="px-4 md:px-6 py-4">
             {filteredCrews.length === 0 ? (
-              <div className="text-center py-16">
-                <div className="text-7xl mb-6">🔍</div>
-                <p className="text-xl leading-7 font-bold text-gray-900 mb-2">
-                  검색 결과가 없어요
+              <div className="card-premium p-12 text-center">
+                <div className="flex justify-center mb-4">
+                  <div className="w-16 h-16 rounded-full bg-mokkoji-gray-200/50 flex items-center justify-center">
+                    <Search className="w-8 h-8 text-mokkoji-gray-400" />
+                  </div>
+                </div>
+                <p className="text-lg font-medium text-mokkoji-black mb-2">
+                  No Results Found
                 </p>
-                <p className="text-base leading-6 text-gray-600">
-                  다른 검색어나 카테고리를 시도해보세요
+                <p className="text-sm text-mokkoji-gray-600">
+                  Try different keywords or categories
                 </p>
               </div>
             ) : (
