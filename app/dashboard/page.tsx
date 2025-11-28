@@ -2618,33 +2618,33 @@ ${BRAND.NAME}와 함께하는 모임 일정에 참여하세요!
               <div className="flex gap-2">
                 <button
                   onClick={() => setScheduleFilter('all')}
-                  className={`px-4 py-2 rounded-full text-sm font-extrabold whitespace-nowrap transition-all flex-shrink-0 ${
+                  className={`px-4 py-2 rounded-full text-sm font-medium whitespace-nowrap transition-all duration-300 active:scale-95 flex-shrink-0 ${
                     scheduleFilter === 'all'
-                      ? 'bg-[#FF9B50] text-white shadow-md'
-                      : 'bg-[#F5F5F4] text-gray-900 hover:bg-gray-200'
+                      ? 'bg-mokkoji-primary text-white shadow-md'
+                      : 'bg-mokkoji-gray-100 text-mokkoji-black hover:bg-mokkoji-gray-200'
                   }`}
                 >
-                  전체 ({upcomingSchedules.length})
+                  All ({upcomingSchedules.length})
                 </button>
                 <button
                   onClick={() => setScheduleFilter('joined')}
-                  className={`px-4 py-2 rounded-full text-sm font-extrabold whitespace-nowrap transition-all flex-shrink-0 ${
+                  className={`px-4 py-2 rounded-full text-sm font-medium whitespace-nowrap transition-all duration-300 active:scale-95 flex-shrink-0 ${
                     scheduleFilter === 'joined'
-                      ? 'bg-[#FF9B50] text-white shadow-md'
-                      : 'bg-[#F5F5F4] text-gray-900 hover:bg-gray-200'
+                      ? 'bg-mokkoji-primary text-white shadow-md'
+                      : 'bg-mokkoji-gray-100 text-mokkoji-black hover:bg-mokkoji-gray-200'
                   }`}
                 >
-                  참여 중 ({mySchedules.length})
+                  Joined ({mySchedules.length})
                 </button>
                 <button
                   onClick={() => setScheduleFilter('not-joined')}
-                  className={`px-4 py-2 rounded-full text-sm font-extrabold whitespace-nowrap transition-all flex-shrink-0 ${
+                  className={`px-4 py-2 rounded-full text-sm font-medium whitespace-nowrap transition-all duration-300 active:scale-95 flex-shrink-0 ${
                     scheduleFilter === 'not-joined'
-                      ? 'bg-[#FF9B50] text-white shadow-md'
-                      : 'bg-[#F5F5F4] text-gray-900 hover:bg-gray-200'
+                      ? 'bg-mokkoji-primary text-white shadow-md'
+                      : 'bg-mokkoji-gray-100 text-mokkoji-black hover:bg-mokkoji-gray-200'
                   }`}
                 >
-                  미참여 ({upcomingSchedules.length - mySchedules.length})
+                  Available ({upcomingSchedules.length - mySchedules.length})
                 </button>
               </div>
             </div>
@@ -2691,12 +2691,16 @@ ${BRAND.NAME}와 함께하는 모임 일정에 참여하세요!
 
               if (filteredSchedules.length === 0) {
                 return (
-                  <div className="text-center py-16">
-                    <div className="flex justify-center mb-4"><Calendar className="w-16 h-16 text-[#FF9B50]" /></div>
-                    <p className="text-base leading-6 font-extrabold text-gray-600">
-                      {scheduleFilter === 'all' && '다가오는 일정이 없습니다'}
-                      {scheduleFilter === 'joined' && '참여 중인 일정이 없습니다'}
-                      {scheduleFilter === 'not-joined' && '참여하지 않은 일정이 없습니다'}
+                  <div className="card-premium p-8 text-center">
+                    <div className="flex justify-center mb-4">
+                      <div className="w-16 h-16 rounded-full bg-mokkoji-accent/10 flex items-center justify-center">
+                        <Calendar className="w-8 h-8 text-mokkoji-accent" />
+                      </div>
+                    </div>
+                    <p className="text-base leading-6 font-medium text-mokkoji-gray-600">
+                      {scheduleFilter === 'all' && 'No events scheduled'}
+                      {scheduleFilter === 'joined' && 'No joined events'}
+                      {scheduleFilter === 'not-joined' && 'No available events'}
                     </p>
                   </div>
                 )
@@ -2720,11 +2724,11 @@ ${BRAND.NAME}와 함께하는 모임 일정에 참여하세요!
                       <div key={orgId}>
                         {/* 크루 헤더 */}
                         <div className="flex items-center justify-between mb-3">
-                          <h2 className="text-xl leading-7 md:text-2xl font-extrabold text-gray-900">
+                          <h2 className="text-lg md:text-xl font-medium text-mokkoji-black">
                             {org?.name || '알 수 없는 크루'}
                           </h2>
-                          <span className="text-sm leading-5 text-gray-600 font-bold">
-                            {orgSchedules.length}개
+                          <span className="text-sm leading-5 text-mokkoji-gray-600 font-medium">
+                            {orgSchedules.length} events
                           </span>
                         </div>
 
@@ -2737,33 +2741,33 @@ ${BRAND.NAME}와 함께하는 모임 일정에 참여하세요!
                               <div
                                 key={schedule.id}
                                 onClick={() => router.push(`/schedules/${schedule.id}?from=${currentPage}${urlOrgId ? `&orgId=${urlOrgId}` : ''}`)}
-                                className={`bg-white rounded-2xl p-6 shadow-sm border transition-all cursor-pointer active:scale-[0.98] ${
-                                  isParticipating ? 'border-[#FF9B50] shadow-md' : 'border-gray-200 hover:border-[#FF9B50] hover:shadow-[0_8px_16px_rgba(0,0,0,0.1)]'
+                                className={`card-premium p-6 border transition-all duration-300 cursor-pointer active:scale-[0.98] ${
+                                  isParticipating ? 'border-mokkoji-primary shadow-md' : 'hover:border-mokkoji-primary hover:shadow-md'
                                 }`}
                               >
                                 <div className="flex justify-between items-start mb-4">
-                                  <h3 className="font-bold text-xl leading-7 tracking-tight text-gray-900 flex-1">{schedule.title}</h3>
-                                  <span className={`text-xs px-3 py-1.5 rounded-lg font-extrabold ${getTypeColor(schedule.type)}`}>
+                                  <h3 className="font-medium text-lg leading-7 tracking-tight text-mokkoji-black flex-1">{schedule.title}</h3>
+                                  <span className={`text-xs px-3 py-1.5 rounded-lg font-medium ${getTypeColor(schedule.type)}`}>
                                     {schedule.type}
                                   </span>
                                 </div>
-                                <div className="space-y-2 text-sm leading-5 text-gray-800">
+                                <div className="space-y-2 text-sm leading-5 text-mokkoji-gray-700">
                                   <p className="flex items-center gap-2">
-                                    <Calendar className="w-4 h-4 text-[#FF9B50] flex-shrink-0" />
-                                    <span className="font-medium">{formatDateWithYear(schedule.date)} {schedule.time}</span>
+                                    <Calendar className="w-4 h-4 text-mokkoji-primary flex-shrink-0" />
+                                    <span className="font-normal">{formatDateWithYear(schedule.date)} {schedule.time}</span>
                                   </p>
                                   <p className="flex items-center gap-2">
-                                    <MapPin className="w-4 h-4 text-[#FF9B50] flex-shrink-0" />
-                                    <span className="font-medium">{schedule.location}</span>
+                                    <MapPin className="w-4 h-4 text-mokkoji-primary flex-shrink-0" />
+                                    <span className="font-normal">{schedule.location}</span>
                                   </p>
                                   <p className="flex items-center gap-2">
-                                    <Users className="w-4 h-4 text-[#FF9B50] flex-shrink-0" />
-                                    <span className="font-medium">{schedule.participants?.length || 0}/{schedule.maxParticipants}명</span>
+                                    <Users className="w-4 h-4 text-mokkoji-primary flex-shrink-0" />
+                                    <span className="font-normal">{schedule.participants?.length || 0}/{schedule.maxParticipants}명</span>
                                   </p>
                                 </div>
                                 {isParticipating && (
-                                  <div className="mt-4 text-xs bg-[#E8F5E9] text-[#2E7D32] px-3 py-2 rounded-xl font-extrabold text-center">
-                                    <span className="inline-flex items-center gap-1"><Check className="w-3.5 h-3.5 text-green-600" />참여 중</span>
+                                  <div className="mt-4 text-xs bg-mokkoji-primary-light text-mokkoji-primary px-3 py-2 rounded-lg font-medium text-center">
+                                    <span className="inline-flex items-center gap-1"><Check className="w-3.5 h-3.5" />Joined</span>
                                   </div>
                                 )}
                               </div>
