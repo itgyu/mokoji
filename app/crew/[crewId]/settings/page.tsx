@@ -1,9 +1,25 @@
 'use client';
 
+/**
+ * CONVERSION NOTE: Firebase → DynamoDB Migration
+ *
+ * This file has been converted from Firebase/Firestore to AWS DynamoDB.
+ *
+ * Major changes:
+ * 1. Imports: Removed Firebase imports, added DynamoDB library imports
+ * 2. Database operations:
+ *    - loadCrewData: Uses organizationsDB.get() instead of Firestore doc query
+ *    - Member loading: Uses membersDB.getByOrganization() and usersDB.get()
+ * 3. Timestamps: serverTimestamp() replaced with Date.now()
+ * 4. JSON serialization removed (not needed for DynamoDB)
+ *
+ * Known limitations:
+ * - No real-time updates (client needs to refresh to see changes)
+ */
+
 import { useEffect, useState, use } from 'react';
 import { useRouter } from 'next/navigation';
-import { doc, getDoc, collection, query, where, getDocs } from 'firebase/firestore';
-import { db } from '@/lib/firebase';
+import { organizationsDB, membersDB, usersDB } from '@/lib/dynamodb';
 import { useAuth } from '@/contexts/AuthContext';
 import { CrewSettingsClient } from './CrewSettingsClient';
 import LoadingScreen from '@/components/LoadingScreen';
@@ -35,29 +51,26 @@ export default function CrewSettingsPage({
   const loadCrewData = async () => {
     try {
       // 크루 정보 가져오기
-      const crewDoc = await getDoc(doc(db, 'organizations', unwrappedParams.crewId));
+      const crewDoc = await organizationsDB.get(unwrappedParams.crewId);
 
-      if (!crewDoc.exists()) {
+      if (!crewDoc) {
         alert('크루를 찾을 수 없습니다.');
         router.push('/dashboard');
         return;
       }
 
-      // JSON 직렬화로 Timestamp 객체 완전히 제거
-      const crewRawData = JSON.parse(JSON.stringify(crewDoc.data()));
-
       // 필요한 필드만 추출
       const crew = {
-        id: crewDoc.id,
-        name: crewRawData.name || '',
-        subtitle: crewRawData.subtitle || '',
-        description: crewRawData.description || '',
-        imageUrl: crewRawData.imageUrl || '',
-        avatar: crewRawData.avatar || '',
-        ownerUid: crewRawData.ownerUid || '',
-        ownerName: crewRawData.ownerName || '',
-        categories: crewRawData.categories || [],
-        memberCount: crewRawData.memberCount || 0,
+        id: crewDoc.organizationId,
+        name: crewDoc.name || '',
+        subtitle: crewDoc.subtitle || '',
+        description: crewDoc.description || '',
+        imageUrl: crewDoc.imageUrl || '',
+        avatar: crewDoc.avatar || '',
+        ownerUid: crewDoc.ownerUid || '',
+        ownerName: crewDoc.ownerName || '',
+        categories: crewDoc.categories || [],
+        memberCount: crewDoc.memberCount || 0,
       };
 
       // 크루장 권한 확인
@@ -70,25 +83,32 @@ export default function CrewSettingsPage({
       setCrewData(crew);
 
       // 크루 멤버 목록 가져오기
-      const membersSnapshot = await getDocs(
-        query(collection(db, 'members'), where('orgId', '==', unwrappedParams.crewId))
+      console.log('🔍 멤버 조회 시작:', unwrappedParams.crewId);
+
+      const orgMembers = await membersDB.getByOrganization(unwrappedParams.crewId);
+
+      console.log('📊 organizationMembers 조회 결과:', orgMembers.length, '명');
+
+      // 멤버 리스트 생성
+      const membersList = await Promise.all(
+        orgMembers.map(async (orgMemberData) => {
+          const userProfile = await usersDB.get(orgMemberData.userId);
+
+          return {
+            id: orgMemberData.memberId,
+            uid: orgMemberData.userId,
+            name: userProfile?.name || orgMemberData.userId,
+            email: userProfile?.email || '',
+            avatar: userProfile?.avatar || userProfile?.photoURL || '',
+            birthdate: userProfile?.birthdate || undefined,
+            orgId: orgMemberData.organizationId,
+            role: orgMemberData.role || 'member',
+            joinedAt: orgMemberData.joinedAt || null,
+          };
+        })
       );
 
-      // JSON 직렬화로 Timestamp 제거
-      const membersList = membersSnapshot.docs.map((doc) => {
-        const data = JSON.parse(JSON.stringify(doc.data()));
-        return {
-          id: doc.id,
-          uid: data.uid || '',
-          name: data.name || '',
-          email: data.email || '',
-          avatar: data.avatar || '',
-          orgId: data.orgId || '',
-          role: data.role || 'member',
-          joinedAt: data.joinedAt || '',
-        };
-      });
-
+      console.log('✅ 최종 멤버 리스트:', membersList.length, '명');
       setMembers(membersList);
       setLoading(false);
     } catch (error) {

@@ -2,10 +2,9 @@
 
 import { useState } from 'react';
 import { Button } from '@/components/ui';
-import { doc, runTransaction, serverTimestamp } from 'firebase/firestore';
-import { db } from '@/lib/firebase';
-import { COLLECTIONS } from '@/types/firestore';
-import { createRSVPSystemMessage, createSystemMessage } from '@/lib/firestore/chat-helpers';
+import { docClient, TABLES, schedulesDB } from '@/lib/dynamodb';
+import { GetCommand, UpdateCommand } from '@aws-sdk/lib-dynamodb';
+import { createRSVPSystemMessage, createSystemMessage } from '@/lib/dynamodb/chat-helpers';
 import type { RSVPStatus, ScheduleParticipant } from '@/types/firestore';
 
 interface RSVPButtonsProps {
@@ -53,68 +52,76 @@ export function RSVPButtons({
     setIsUpdating(true);
 
     try {
-      const scheduleRef = doc(db, COLLECTIONS.ORG_SCHEDULES, scheduleId);
+      // DynamoDB에서 현재 일정 데이터 조회
+      const scheduleResult = await docClient.send(
+        new GetCommand({
+          TableName: TABLES.SCHEDULES,
+          Key: { scheduleId },
+        })
+      );
 
-      // Transaction을 사용하여 원자적으로 업데이트
-      await runTransaction(db, async (transaction) => {
-        const scheduleDoc = await transaction.get(scheduleRef);
+      if (!scheduleResult.Item) {
+        throw new Error('일정을 찾을 수 없습니다.');
+      }
 
-        if (!scheduleDoc.exists()) {
-          throw new Error('일정을 찾을 수 없습니다.');
+      const scheduleData = scheduleResult.Item;
+      const participants = (scheduleData.participants || [])
+        .filter((p: any) => typeof p === 'object' && p !== null && p.userId); // 객체만 필터링
+
+      // 기존 참여자 중에서 현재 사용자를 제외한 목록
+      const otherParticipants = participants.filter(
+        (p: any) => p.userId !== currentUserId
+      );
+
+      let updatedParticipants;
+
+      if (isCanceling) {
+        // 취소: 현재 사용자를 participants에서 제거
+        updatedParticipants = otherParticipants;
+      } else {
+        // 정원 체크 (참석으로 변경하려는 경우에만)
+        if (newStatus === 'going') {
+          const currentGoingCount = otherParticipants.filter(
+            (p: any) => p.status === 'going'
+          ).length;
+
+          if (
+            scheduleData.maxParticipants &&
+            currentGoingCount >= scheduleData.maxParticipants
+          ) {
+            throw new Error('정원이 마감되었습니다. 대기를 선택해주세요.');
+          }
         }
 
-        const scheduleData = scheduleDoc.data();
-        const participants = (scheduleData.participants || [])
-          .filter((p: any) => typeof p === 'object' && p !== null && p.userId); // 객체만 필터링
+        // 새로운 참여자 데이터
+        const newParticipant: any = {
+          userId: currentUserId,
+          userName: currentUserName,
+          status: newStatus,
+          respondedAt: Date.now(),
+        };
 
-        // 기존 참여자 중에서 현재 사용자를 제외한 목록
-        const otherParticipants = participants.filter(
-          (p: any) => p.userId !== currentUserId
-        );
-
-        let updatedParticipants;
-
-        if (isCanceling) {
-          // 취소: 현재 사용자를 participants에서 제거
-          updatedParticipants = otherParticipants;
-        } else {
-          // 정원 체크 (참석으로 변경하려는 경우에만)
-          if (newStatus === 'going') {
-            const currentGoingCount = otherParticipants.filter(
-              (p: any) => p.status === 'going'
-            ).length;
-
-            if (
-              scheduleData.maxParticipants &&
-              currentGoingCount >= scheduleData.maxParticipants
-            ) {
-              throw new Error('정원이 마감되었습니다. 대기를 선택해주세요.');
-            }
-          }
-
-          // 새로운 참여자 데이터
-          const newParticipant: any = {
-            userId: currentUserId,
-            userName: currentUserName,
-            status: newStatus,
-            respondedAt: new Date(),
-          };
-
-          // userAvatar가 있을 때만 추가
-          if (currentUserAvatar) {
-            newParticipant.userAvatar = currentUserAvatar;
-          }
-
-          // 업데이트된 participants 배열
-          updatedParticipants = [...otherParticipants, newParticipant];
+        // userAvatar가 있을 때만 추가
+        if (currentUserAvatar) {
+          newParticipant.userAvatar = currentUserAvatar;
         }
 
-        // Firestore 업데이트
-        transaction.update(scheduleRef, {
-          participants: updatedParticipants,
-          updatedAt: serverTimestamp(),
-        });
-      });
+        // 업데이트된 participants 배열
+        updatedParticipants = [...otherParticipants, newParticipant];
+      }
+
+      // DynamoDB 업데이트
+      await docClient.send(
+        new UpdateCommand({
+          TableName: TABLES.SCHEDULES,
+          Key: { scheduleId },
+          UpdateExpression: 'SET participants = :participants, updatedAt = :updatedAt',
+          ExpressionAttributeValues: {
+            ':participants': updatedParticipants,
+            ':updatedAt': Date.now(),
+          },
+        })
+      );
 
       console.log('[RSVPButtons] RSVP 업데이트 성공:', {
         scheduleId,

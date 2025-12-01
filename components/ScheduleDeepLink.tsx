@@ -2,8 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import { useSearchParams, useRouter } from 'next/navigation'
-import { db } from '@/lib/firebase'
-import { doc, getDoc } from 'firebase/firestore'
+import { schedulesDB } from '@/lib/dynamodb'
 
 interface Schedule {
   id: string
@@ -38,7 +37,7 @@ export default function ScheduleDeepLink({
   const [showLoading, setShowLoading] = useState(false)
   const [notFoundMessage, setNotFoundMessage] = useState('')
 
-  // URL에서 scheduleId를 가져와서 Firestore에서 일정 조회 후 해당 크루 선택
+  // URL에서 scheduleId를 가져와서 DynamoDB에서 일정 조회 후 해당 크루 선택
   useEffect(() => {
     const scheduleId = searchParams.get('schedule')
     if (scheduleId && !targetScheduleId && organizations.length > 0) {
@@ -46,16 +45,15 @@ export default function ScheduleDeepLink({
       setTargetScheduleId(scheduleId)
       setShowLoading(true)
 
-      // Firestore에서 일정 문서 직접 조회
+      // DynamoDB에서 일정 데이터 직접 조회
       const fetchScheduleAndSelectOrg = async () => {
         try {
-          const scheduleDoc = await getDoc(doc(db, 'org_schedules', scheduleId))
-          if (scheduleDoc.exists()) {
-            const scheduleData = scheduleDoc.data()
-            const orgId = scheduleData.orgId
-            console.log('📅 일정의 orgId:', orgId)
+          const scheduleData = await schedulesDB.get(scheduleId)
+          if (scheduleData) {
+            const orgId = scheduleData.organizationId
+            console.log('📅 일정의 organizationId:', orgId)
 
-            // 해당 orgId의 크루 찾기
+            // 해당 organizationId의 크루 찾기
             const targetOrg = organizations.find(org => org.id === orgId)
             if (targetOrg) {
               console.log('🎯 크루 선택:', targetOrg.name)
@@ -67,7 +65,7 @@ export default function ScheduleDeepLink({
               setTargetScheduleId(null)
             }
           } else {
-            console.log('⚠️ 일정 문서가 존재하지 않음')
+            console.log('⚠️ 일정 데이터가 존재하지 않음')
             setNotFoundMessage('일정을 찾을 수 없습니다.')
             setShowLoading(false)
             setTargetScheduleId(null)

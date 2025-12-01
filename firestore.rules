@@ -1,10 +1,11 @@
 rules_version = '2';
 
 /**
- * 모꼬지 Firestore Security Rules (개발용)
+ * 모꼬지 Firestore Security Rules
  *
- * ⚠️ 개발 환경용 규칙 - 인증된 사용자에게 모든 권한 허용
- * 프로덕션 배포 전에 반드시 더 엄격한 규칙으로 교체 필요
+ * 🛡️ 중요 데이터 보호:
+ * - organizationMembers.joinedAt: 생성 시에만 설정 가능, 이후 수정 불가
+ * - 다른 필드는 정상적으로 읽기/쓰기 가능
  */
 
 service cloud.firestore {
@@ -20,11 +21,76 @@ service cloud.firestore {
     }
 
     // ============================================
-    // 개발용: 인증된 사용자에게 모든 권한 허용
+    // organizationMembers: joinedAt 필드 보호
     // ============================================
+    match /organizationMembers/{memberId} {
+      // 읽기는 인증된 사용자 모두 허용
+      allow read: if isAuthenticated();
 
+      // 생성: joinedAt 필드 필수, 한 번만 설정 가능
+      allow create: if isAuthenticated()
+                    && request.resource.data.keys().hasAll(['joinedAt', 'userId', 'organizationId']);
+
+      // 수정: joinedAt 필드는 절대 변경 불가 (기존 값 유지 필수)
+      allow update: if isAuthenticated()
+                    && (!request.resource.data.keys().hasAny(['joinedAt'])
+                        || request.resource.data.joinedAt == resource.data.joinedAt);
+
+      // 삭제는 허용
+      allow delete: if isAuthenticated();
+    }
+
+    // ============================================
+    // userProfiles: 일반적인 읽기/쓰기
+    // ============================================
+    match /userProfiles/{userId} {
+      allow read: if isAuthenticated();
+      allow write: if isAuthenticated();
+    }
+
+    // ============================================
+    // organizations: 일반적인 읽기/쓰기
+    // ============================================
+    match /organizations/{orgId} {
+      allow read: if isAuthenticated();
+      allow write: if isAuthenticated();
+    }
+
+    // ============================================
+    // org_schedules: 일반적인 읽기/쓰기
+    // ============================================
+    match /org_schedules/{scheduleId} {
+      allow read: if isAuthenticated();
+      allow write: if isAuthenticated();
+
+      // 하위 컬렉션 (messages 등)
+      match /{document=**} {
+        allow read, write: if isAuthenticated();
+      }
+    }
+
+    // ============================================
+    // org_activity_logs: 일반적인 읽기/쓰기
+    // ============================================
+    match /org_activity_logs/{logId} {
+      allow read: if isAuthenticated();
+      allow write: if isAuthenticated();
+    }
+
+    // ============================================
+    // org_schedules_archive: 일반적인 읽기/쓰기
+    // ============================================
+    match /org_schedules_archive/{scheduleId} {
+      allow read: if isAuthenticated();
+      allow write: if isAuthenticated();
+    }
+
+    // ============================================
+    // 기타 컬렉션: 기본 권한
+    // ============================================
     match /{document=**} {
-      allow read, write: if isAuthenticated();
+      allow read: if isAuthenticated();
+      allow write: if isAuthenticated();
     }
   }
 }

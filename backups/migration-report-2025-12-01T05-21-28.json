@@ -1,0 +1,33 @@
+{
+  "timestamp": "2025-12-01T05:21:28.129Z",
+  "duration": "6.39s",
+  "results": {
+    "users": {
+      "total": 44,
+      "skipped": 7,
+      "successCount": 37,
+      "failCount": 0
+    },
+    "organizations": {
+      "total": 1,
+      "successCount": 1,
+      "failCount": 0
+    },
+    "members": {
+      "total": 38,
+      "missingJoinedAt": 0,
+      "successCount": 38,
+      "failCount": 0
+    },
+    "schedules": {
+      "total": 19,
+      "successCount": 0,
+      "failCount": 19
+    },
+    "activityLogs": {
+      "total": 0,
+      "successCount": 0,
+      "failCount": 0
+    }
+  }
+}

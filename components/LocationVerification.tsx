@@ -2,8 +2,7 @@
 
 import { useState } from 'react'
 import { getCurrentPosition, getAddressFromCoords, getDaysUntilExpiry, isLocationExpired } from '@/lib/location-utils'
-import { doc, updateDoc, arrayUnion, Timestamp } from 'firebase/firestore'
-import { db } from '@/lib/firebase'
+import { usersDB } from '@/lib/dynamodb'
 import { useAuth, type UserLocation } from '@/contexts/AuthContext'
 
 export default function LocationVerification({
@@ -52,7 +51,7 @@ export default function LocationVerification({
         ? '집'
         : '직장'
 
-      // Firestore에 저장할 데이터
+      // DynamoDB에 저장할 데이터
       const locationData: UserLocation = {
         id: `loc_${Date.now()}`,
         name: locationName,
@@ -66,14 +65,16 @@ export default function LocationVerification({
         isPrimary: !userProfile?.locations || userProfile.locations.length === 0,
       }
 
-      console.log('💾 Step 3: Firestore에 저장 중...')
-      const userRef = doc(db, 'userProfiles', user.uid)
+      console.log('💾 Step 3: DynamoDB에 저장 중...')
 
-      await updateDoc(userRef, {
-        locations: arrayUnion({
-          ...locationData,
-          verifiedAt: Timestamp.fromDate(locationData.verifiedAt)
-        }),
+      // 기존 위치 데이터 포함 (배열 업데이트)
+      const updatedLocations = [
+        ...(userProfile?.locations || []),
+        locationData
+      ]
+
+      await usersDB.update(user.uid, {
+        locations: updatedLocations,
         // 첫 번째 지역이면 자동으로 선택
         ...((!userProfile?.locations || userProfile.locations.length === 0) && {
           selectedLocationId: locationData.id
@@ -126,13 +127,8 @@ export default function LocationVerification({
 
       const newLocations = userProfile.locations
         .filter(loc => loc.id !== locationId)
-        .map(loc => ({
-          ...loc,
-          verifiedAt: Timestamp.fromDate(loc.verifiedAt)
-        }))
 
-      const userRef = doc(db, 'userProfiles', user.uid)
-      await updateDoc(userRef, {
+      await usersDB.update(user.uid, {
         locations: newLocations,
         // 삭제한 지역이 선택된 지역이면 첫 번째 지역으로 변경
         ...(userProfile.selectedLocationId === locationId && newLocations.length > 0 && {
@@ -155,8 +151,7 @@ export default function LocationVerification({
     if (!user) return
 
     try {
-      const userRef = doc(db, 'userProfiles', user.uid)
-      await updateDoc(userRef, {
+      await usersDB.update(user.uid, {
         selectedLocationId: locationId
       })
       await refreshUserProfile()
@@ -186,18 +181,13 @@ export default function LocationVerification({
         if (loc.id === locationId) {
           return {
             ...loc,
-            name: editingName.trim(),
-            verifiedAt: Timestamp.fromDate(loc.verifiedAt)
+            name: editingName.trim()
           }
         }
-        return {
-          ...loc,
-          verifiedAt: Timestamp.fromDate(loc.verifiedAt)
-        }
+        return loc
       })
 
-      const userRef = doc(db, 'userProfiles', user.uid)
-      await updateDoc(userRef, {
+      await usersDB.update(user.uid, {
         locations: updatedLocations
       })
 

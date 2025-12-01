@@ -1,11 +1,8 @@
 'use client'
 
 import React, { createContext, useContext, useEffect, useState } from 'react'
-import type { User } from 'firebase/auth'
-import { onAuthStateChanged, signOut as firebaseSignOut } from 'firebase/auth'
-import { collection, query, where, getDocs, doc, getDoc, updateDoc, Timestamp } from 'firebase/firestore'
-import { auth, db } from '@/lib/firebase'
-import { getUserProfile, getUserMemberships } from '@/lib/firestore-helpers'
+import { getCurrentUser, signOut as cognitoSignOut, type CognitoAuthUser } from '@/lib/cognito'
+import { usersAPI, membersAPI } from '@/lib/api-client'
 import type { UserProfile as NewUserProfile, OrganizationMember } from '@/types'
 
 // ============================================
@@ -49,12 +46,12 @@ export interface UserProfile {
 // ============================================
 
 interface AuthContextType {
-  user: User | null
+  user: CognitoAuthUser | null
   userProfile: UserProfile | null
-  memberships: OrganizationMember[]  // 새로 추가: 크루 멤버십 목록
+  memberships: OrganizationMember[]
   loading: boolean
   refreshUserProfile: () => Promise<void>
-  signOut: () => Promise<void>  // 새로 추가: 로그아웃 함수
+  signOut: () => Promise<void>
 }
 
 const AuthContext = createContext<AuthContextType>({
@@ -69,150 +66,157 @@ const AuthContext = createContext<AuthContextType>({
 export const useAuth = () => useContext(AuthContext)
 
 // ============================================
-// AuthProvider 구현
+// AuthProvider 구현 (Cognito + DynamoDB)
 // ============================================
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
-  const [user, setUser] = useState<User | null>(null)
+  const [user, setUser] = useState<CognitoAuthUser | null>(null)
   const [userProfile, setUserProfile] = useState<UserProfile | null>(null)
   const [memberships, setMemberships] = useState<OrganizationMember[]>([])
   const [loading, setLoading] = useState(true)
 
-  const fetchUserProfile = async (uid: string) => {
+  const fetchUserProfile = async (cognitoUser: CognitoAuthUser) => {
     try {
-      const user = auth.currentUser
-      if (!user) return
-
-      console.log('🔍 프로필 데이터 조회 시작:', uid)
+      console.log('🔍 프로필 데이터 조회 시작:', cognitoUser.sub)
 
       // ============================================
-      // 1. members 컬렉션에서 기본 정보 가져오기
+      // 1. API를 통해 사용자 프로필 가져오기
       // ============================================
-      const membersRef = collection(db, 'members')
-      let q = query(membersRef, where('uid', '==', uid))
-      let querySnapshot = await getDocs(q)
+      console.log('🔍 API users 테이블 조회 시도')
+      const userDataByEmail = await usersAPI.getByEmail(cognitoUser.email)
 
-      // uid로 못 찾으면 email로 시도
-      if (querySnapshot.empty && user.email) {
-        console.log('uid로 못 찾음, email로 재시도:', user.email)
-        q = query(membersRef, where('email', '==', user.email))
-        querySnapshot = await getDocs(q)
-      }
+      let userProfileData: any = {}
+      let userId = cognitoUser.sub
 
-      if (!querySnapshot.empty) {
-        const memberDoc = querySnapshot.docs[0]
-        const memberData = memberDoc.data()
-
-        // 아바타를 제외한 필드만 로그 출력
-        const { avatar, ...memberDataWithoutAvatar } = memberData
-        console.log('✅ members 컬렉션 필드 목록:', Object.keys(memberData))
-        console.log('✅ members 컬렉션 데이터 (아바타 제외):', memberDataWithoutAvatar)
-
-        // ============================================
-        // 2. userProfiles 컬렉션에서 상세 프로필 가져오기
-        // ============================================
-        console.log('🔍 userProfiles 컬렉션 조회 시도:', uid)
-        const userDocRef = doc(db, 'userProfiles', uid)
-        const userDocSnap = await getDoc(userDocRef)
-
-        let userProfileData: any = {}
-        if (userDocSnap.exists()) {
-          userProfileData = userDocSnap.data()
-          console.log('✅ userProfiles 컬렉션 필드 목록:', Object.keys(userProfileData))
-          console.log('✅ userProfiles 컬렉션 데이터:', userProfileData)
-        } else {
-          console.log('⚠️ userProfiles 컬렉션에 문서 없음 - 문서 ID:', uid)
-        }
-
-        // ============================================
-        // 3. organizationMembers에서 멤버십 가져오기 (새로 추가)
-        // ============================================
-        console.log('🔍 organizationMembers 컬렉션 조회 시도:', uid)
-        try {
-          const userMemberships = await getUserMemberships(uid)
-          console.log('✅ organizationMembers:', userMemberships.length, '개')
-          setMemberships(userMemberships)
-
-          // joinedOrganizations 업데이트
-          const joinedOrgIds = userMemberships.map(m => m.organizationId)
-          if (joinedOrgIds.length > 0 && userDocSnap.exists()) {
-            await updateDoc(userDocRef, {
-              joinedOrganizations: joinedOrgIds
-            })
-          }
-        } catch (error) {
-          console.log('⚠️ organizationMembers 조회 실패 (아직 마이그레이션 안됨):', error)
-          setMemberships([])
-        }
-
-        // Firestore의 Timestamp를 Date로 변환
-        const convertLocations = (locations: any[]): UserLocation[] => {
-          if (!locations) return []
-          return locations.map(loc => ({
-            ...loc,
-            verifiedAt: loc.verifiedAt?.toDate ? loc.verifiedAt.toDate() : new Date(loc.verifiedAt)
-          }))
-        }
-
-        // ============================================
-        // 4. 기존 유저 자동 마이그레이션 (레거시 지원)
-        // ============================================
-        let joinedOrgs = userProfileData.joinedOrganizations || []
-        if (joinedOrgs.length === 0 && memberships.length === 0) {
-          console.log('🔄 기존 유저 감지 - 기본 크루 자동 가입 중...')
-          // 모꼬지 기본 크루 ID 찾기
-          const orgsSnapshot = await getDocs(collection(db, 'organizations'))
-          let defaultCrewId = ''
-          orgsSnapshot.forEach(orgDoc => {
-            if (orgDoc.data().name === '잇츠 캠퍼즈') {
-              defaultCrewId = orgDoc.id
-            }
-          })
-
-          if (defaultCrewId) {
-            joinedOrgs = [defaultCrewId]
-            // Firestore에 저장
-            if (userDocSnap.exists()) {
-              await updateDoc(userDocRef, {
-                joinedOrganizations: joinedOrgs
-              })
-            }
-            console.log('✅ 기본 크루 자동 가입 완료')
-          }
-        } else if (memberships.length > 0) {
-          // organizationMembers에서 가져온 데이터로 업데이트
-          joinedOrgs = memberships.map(m => m.organizationId)
-        }
-
-        // ============================================
-        // 5. 최종 프로필 설정
-        // ============================================
-        setUserProfile({
-          uid: memberData.uid || uid,
-          email: memberData.email,
-          name: memberData.name,
-          gender: userProfileData.gender || memberData.gender || '-',
-          birthdate: userProfileData.birthdate || memberData.birthdate || '-',
-          location: userProfileData.location || memberData.location || '서울',
-          mbti: userProfileData.mbti || memberData.mbti || '-',
-          avatar: memberData.avatar || userProfileData.avatar,
-          joinDate: memberData.joinDate,
-          role: memberData.isCaptain ? 'captain' : (memberData.isStaff ? 'staff' : 'member'),
-          interestCategories: userProfileData.interestCategories || [],
-          organizations: userProfileData.organizations || [],
-          joinedOrganizations: joinedOrgs,
-          locations: convertLocations(userProfileData.locations || []),
-          selectedLocationId: userProfileData.selectedLocationId || ''
-        })
-
-        console.log('✅ 최종 프로필 설정 완료')
-        console.log('   - joinedOrganizations:', joinedOrgs)
-        console.log('   - memberships:', memberships.length)
+      if (userDataByEmail) {
+        userProfileData = userDataByEmail
+        userId = userDataByEmail.userId
+        console.log('✅ API users 테이블 데이터:', userProfileData)
       } else {
-        console.log('❌ 멤버 데이터를 찾을 수 없음')
-        console.log('- uid:', uid)
-        console.log('- email:', user.email)
+        console.log('⚠️ API users 테이블에 데이터 없음 - 기본 프로필 생성')
+        // 기본 프로필 생성
+        const newUser = {
+          userId: cognitoUser.sub,
+          email: cognitoUser.email,
+          name: cognitoUser.name || cognitoUser.email.split('@')[0],
+          gender: '-',
+          birthdate: '-',
+          location: '서울',
+          mbti: '-',
+          avatar: '',
+          createdAt: Date.now(),
+          updatedAt: Date.now(),
+        }
+
+        try {
+          await usersAPI.create(newUser)
+          userProfileData = newUser
+          console.log('✅ 기본 프로필 생성 완료')
+        } catch (error) {
+          console.error('❌ 기본 프로필 생성 실패:', error)
+        }
       }
+
+      // ============================================
+      // 2. API를 통해 멤버십 가져오기
+      // ============================================
+      console.log('🔍 API members 테이블 조회 시도:', userId)
+      let userMemberships: any[] = []
+
+      try {
+        const membersData = await membersAPI.getByUser(userId)
+        console.log('✅ API members:', membersData.length, '개')
+
+        // OrganizationMember 타입으로 변환
+        userMemberships = membersData.map((m: any) => ({
+          id: m.memberId,
+          userId: m.userId,
+          organizationId: m.organizationId,
+          role: m.role || 'member',
+          joinedAt: m.joinedAt ? { seconds: Math.floor(m.joinedAt / 1000) } : null,
+          status: m.status || 'active',
+        })) as OrganizationMember[]
+
+        setMemberships(userMemberships)
+      } catch (error) {
+        console.log('⚠️ API members 조회 실패:', error)
+        setMemberships([])
+      }
+
+      // Timestamp를 Date로 변환
+      const convertLocations = (locations: any[]): UserLocation[] => {
+        if (!locations) return []
+        return locations.map(loc => ({
+          ...loc,
+          verifiedAt: new Date(loc.verifiedAt || Date.now())
+        }))
+      }
+
+      // ============================================
+      // 3. 멤버십 데이터에서 역할과 가입일 결정
+      // ============================================
+      let userRole: 'member' | 'staff' | 'captain' = 'member'
+      let joinDate = ''
+
+      if (userMemberships.length > 0) {
+        // 첫 번째 멤버십의 역할 사용
+        const firstMembership = userMemberships[0]
+        if (firstMembership.role === 'owner') {
+          userRole = 'captain'
+        } else if (firstMembership.role === 'admin') {
+          userRole = 'staff'
+        }
+
+        // 가장 오래된 가입일 사용
+        const joinedAt = firstMembership.joinedAt
+        if (joinedAt) {
+          try {
+            if (typeof joinedAt === 'object' && 'seconds' in joinedAt) {
+              joinDate = new Date(joinedAt.seconds * 1000).toLocaleDateString('ko-KR')
+            } else if (typeof joinedAt === 'number') {
+              joinDate = new Date(joinedAt).toLocaleDateString('ko-KR')
+            } else {
+              joinDate = new Date(joinedAt).toLocaleDateString('ko-KR')
+            }
+          } catch (e) {
+            console.log('⚠️ joinDate 변환 실패:', e)
+            joinDate = ''
+          }
+        }
+      }
+
+      // joinedOrganizations 생성
+      const joinedOrgs = userMemberships.map(m => m.organizationId)
+
+      // ============================================
+      // 4. 최종 프로필 설정
+      // ============================================
+      setUserProfile({
+        uid: userId,
+        email: userProfileData.email || cognitoUser.email,
+        name: userProfileData.name || cognitoUser.name || '사용자',
+        gender: userProfileData.gender || '-',
+        birthdate: userProfileData.birthdate || '-',
+        location: userProfileData.location || '서울',
+        mbti: userProfileData.mbti || '-',
+        avatar: userProfileData.avatar || '',
+        joinDate: joinDate,
+        role: userRole,
+        interestCategories: userProfileData.interestCategories || [],
+        organizations: userProfileData.organizations || [],
+        joinedOrganizations: joinedOrgs,
+        locations: convertLocations(userProfileData.locations || []),
+        selectedLocationId: userProfileData.selectedLocationId || ''
+      })
+
+      console.log('✅ 최종 프로필 설정 완료')
+      console.log('   - name:', userProfileData.name)
+      console.log('   - email:', cognitoUser.email)
+      console.log('   - role:', userRole)
+      console.log('   - joinDate:', joinDate)
+      console.log('   - joinedOrganizations:', joinedOrgs)
+      console.log('   - memberships:', userMemberships.length)
+
     } catch (error) {
       console.error('❌ Error fetching user profile:', error)
     }
@@ -220,13 +224,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const refreshUserProfile = async () => {
     if (user) {
-      await fetchUserProfile(user.uid)
+      await fetchUserProfile(user)
     }
   }
 
   const signOut = async () => {
     try {
-      await firebaseSignOut(auth)
+      await cognitoSignOut()
       setUser(null)
       setUserProfile(null)
       setMemberships([])
@@ -238,18 +242,33 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }
 
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, async (user) => {
-      setUser(user)
-      if (user) {
-        await fetchUserProfile(user.uid)
-      } else {
+    const checkAuth = async () => {
+      try {
+        const cognitoUser = await getCurrentUser()
+        setUser(cognitoUser)
+
+        if (cognitoUser) {
+          await fetchUserProfile(cognitoUser)
+        } else {
+          setUserProfile(null)
+          setMemberships([])
+        }
+      } catch (error) {
+        console.error('❌ 인증 확인 실패:', error)
+        setUser(null)
         setUserProfile(null)
         setMemberships([])
+      } finally {
+        setLoading(false)
       }
-      setLoading(false)
-    })
+    }
 
-    return unsubscribe
+    checkAuth()
+
+    // 5분마다 세션 확인
+    const interval = setInterval(checkAuth, 5 * 60 * 1000)
+
+    return () => clearInterval(interval)
   }, [])
 
   return (

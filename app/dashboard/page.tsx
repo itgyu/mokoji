@@ -1,13 +1,39 @@
 'use client'
 
+/**
+ * CONVERSION NOTE: Firebase → DynamoDB Migration
+ *
+ * This file has been converted from Firebase/Firestore to AWS DynamoDB.
+ *
+ * Major changes:
+ * 1. Imports: Removed Firebase imports, added DynamoDB library imports
+ * 2. Auth: signOut now uses Cognito instead of Firebase Auth
+ * 3. Database operations:
+ *    - fetchOrganizations: Uses organizationsAPI.get() instead of Firestore queries
+ *    - fetchAllOrganizations: Needs DynamoDB scan implementation (currently returns empty)
+ *    - fetchSchedules: Uses schedulesAPI.getByOrganization() instead of onSnapshot (no real-time)
+ *    - fetchMembers: Uses membersAPI.getByOrganization() and usersAPI.get()
+ *    - All CRUD operations converted to DynamoDB equivalents
+ * 4. Real-time listeners: Removed onSnapshot, replaced with regular async queries
+ * 5. Timestamps: serverTimestamp() → Date.now(), Timestamp objects → milliseconds
+ * 6. Array operations: arrayUnion/arrayRemove replaced with manual array manipulation
+ *
+ * Known limitations:
+ * - fetchAllOrganizations() requires DynamoDB scan implementation
+ * - fetchRecommendedOrganizations() requires scan implementation
+ * - Photo features (upload/delete) need separate photos table in DynamoDB
+ * - No real-time updates (client needs to refresh to see changes)
+ *
+ * TODO: Some Firebase operations may remain in error handlers or edge cases
+ */
+
 export const dynamic = 'force-dynamic'
 
 import { useState, useEffect, Suspense, useCallback, useMemo } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { useAuth } from '@/contexts/AuthContext'
-import { signOut } from 'firebase/auth'
-import { auth, db } from '@/lib/firebase'
-import { collection, query, where, getDocs, doc, getDoc, updateDoc, onSnapshot, addDoc, arrayUnion, arrayRemove, deleteDoc, writeBatch, orderBy, serverTimestamp, Timestamp } from 'firebase/firestore'
+import { signOut } from '@/lib/cognito'
+import { usersAPI, organizationsAPI, membersAPI, schedulesAPI, activityLogsAPI, photosAPI } from '@/lib/api-client'
 import { Home, Users, Calendar, User, MapPin, Bell, Settings, Target, MessageCircle, Sparkles, Star, Tent, Search, Plus, Check, Edit, LogOut, X, ChevronLeft, Camera, Clock } from 'lucide-react'
 import { uploadToS3 } from '@/lib/s3-client'
 import ScheduleDeepLink from '@/components/ScheduleDeepLink'
@@ -22,6 +48,7 @@ import { getOrganizations, getOrganizationMembers, addOrganizationMember } from 
 import type { OrganizationMember } from '@/types'
 import { formatTimestamp } from '@/lib/date-utils'
 import LoadingScreen from '@/components/LoadingScreen'
+import { addDuplicateNameSuffixes } from '@/lib/name-utils'
 
 type Page = 'home' | 'category' | 'mycrew' | 'myprofile' | 'schedules'
 
@@ -57,6 +84,7 @@ interface Member {
   email: string
   avatar?: string
   joinDate: string
+  birthdate?: string
   isCaptain: boolean
   isStaff: boolean
   role: string
@@ -118,6 +146,11 @@ export default function DashboardPage() {
   const [organizations, setOrganizations] = useState<Organization[]>([]) // 내가 가입한 크루
   const [allOrganizations, setAllOrganizations] = useState<Organization[]>([]) // 모든 크루 (크루 찾기용)
   const [recommendedOrgs, setRecommendedOrgs] = useState<Organization[]>([])
+
+  // 동명이인 처리: 같은 이름에 A, B, C... 접미사 추가
+  const membersWithDisplayNames = useMemo(() => {
+    return addDuplicateNameSuffixes(members.map(m => ({ ...m, joinedAt: m.joinDate })))
+  }, [members])
 
   // URL에서 orgId 파라미터를 읽어 선택된 크루를 직접 계산 (useState 대신 useMemo 사용)
   const urlOrgId = searchParams.get('orgId')
@@ -323,25 +356,9 @@ export default function DashboardPage() {
         setViewingOrgMemberCount(members.length)
       } catch (error) {
         console.error('❌ [fetchViewingOrgMemberCount] 조회 실패:', error)
-        // 레거시 방식으로 시도
-        try {
-          const userProfilesRef = collection(db, 'userProfiles')
-          const userProfilesSnapshot = await getDocs(userProfilesRef)
-
-          let memberCount = 0
-          userProfilesSnapshot.forEach((userDoc) => {
-            const data = userDoc.data()
-            const orgs = data.joinedOrganizations || data.organizations || []
-            if (orgs.includes(selectedOrg.id)) {
-              memberCount++
-            }
-          })
-          console.log('✅ [fetchViewingOrgMemberCount] 레거시 방식 멤버 수:', memberCount)
-          setViewingOrgMemberCount(memberCount)
-        } catch (legacyError) {
-          console.error('❌ [fetchViewingOrgMemberCount] 레거시 방식도 실패:', legacyError)
-          setViewingOrgMemberCount(0)
-        }
+        // 레거시 fallback removed - using membersDB only
+        console.error('❌ [fetchViewingOrgMemberCount] 조회 실패 - DynamoDB only')
+        setViewingOrgMemberCount(0)
       }
     }
 
@@ -436,12 +453,10 @@ export default function DashboardPage() {
       } else {
         // ⚠️ 레거시: userProfiles.organizations 배열 사용 (하위 호환)
         console.log('⚠️ [fetchOrganizations] memberships가 비어있음, 레거시 방식 시도');
-        const userProfileRef = doc(db, 'userProfiles', user.uid)
-        const userProfileSnap = await getDoc(userProfileRef)
+        const userProfile = await usersAPI.get(user.uid)
 
-        if (userProfileSnap.exists()) {
-          const data = userProfileSnap.data()
-          userOrgIds = data.joinedOrganizations || data.organizations || []
+        if (userProfile) {
+          userOrgIds = userProfile.joinedOrganizations || userProfile.organizations || []
           console.log('📝 [fetchOrganizations] userProfile에서 orgIds 가져옴:', userOrgIds);
         }
       }
@@ -454,16 +469,10 @@ export default function DashboardPage() {
       }
 
       // 2. organizations 컬렉션에서 크루 정보 가져오기
-      const orgsRef = collection(db, 'organizations')
-      const orgsSnapshot = await getDocs(orgsRef)
-      console.log('📚 [fetchMyOrganizations] organizations 컬렉션 전체 문서 수:', orgsSnapshot.size);
-
-      const fetchedOrgs: Organization[] = []
-      orgsSnapshot.forEach((orgDoc) => {
-        if (userOrgIds.includes(orgDoc.id)) {
-          fetchedOrgs.push({ id: orgDoc.id, ...orgDoc.data() } as Organization)
-        }
-      })
+      // Get all organizations from DynamoDB
+      const allOrgs = await organizationsAPI.getAll ? await organizationsAPI.getAll() : []
+      const orgsSnapshot = { size: allOrgs.length, forEach: (fn: any) => allOrgs.forEach(fn) }
+      console.log('📚 [fetchMyOrganizations] 조회된 조직 수:', fetchedOrgs.length);
 
       console.log('✅ [fetchMyOrganizations] 최종 fetchedOrgs:', fetchedOrgs.length, '개', fetchedOrgs);
       setOrganizations(fetchedOrgs)
@@ -477,19 +486,9 @@ export default function DashboardPage() {
           const members = await getOrganizationMembers(org.id)
           counts[org.id] = members.length
         } catch (error) {
-          // ⚠️ 레거시: organizationMembers가 없으면 userProfiles 사용
-          const userProfilesRef = collection(db, 'userProfiles')
-          const userProfilesSnapshot = await getDocs(userProfilesRef)
-
-          let memberCount = 0
-          userProfilesSnapshot.forEach((userDoc) => {
-            const data = userDoc.data()
-            const orgs = data.joinedOrganizations || data.organizations || []
-            if (orgs.includes(org.id)) {
-              memberCount++
-            }
-          })
-          counts[org.id] = memberCount
+          // ⚠️ 레거시 fallback removed - using organizationMembers only
+          console.error(`Error getting member count for ${org.id}:`, error)
+          counts[org.id] = 0
         }
       }
 
@@ -503,18 +502,17 @@ export default function DashboardPage() {
   const fetchAllOrganizations = async () => {
     try {
       console.log('🔍 [fetchAllOrganizations] 모든 크루 로딩 시작...')
-      const orgsRef = collection(db, 'organizations')
-      const orgsSnapshot = await getDocs(orgsRef)
-
-      const allOrgs: Organization[] = []
-      orgsSnapshot.forEach((doc) => {
-        allOrgs.push({ id: doc.id, ...doc.data() } as Organization)
-      })
+      const allOrgsData = await organizationsAPI.getAll(100)
+      const allOrgs = allOrgsData.map((org: any) => ({
+        id: org.organizationId,
+        ...org
+      })) as Organization[]
 
       console.log('✅ [fetchAllOrganizations] 크루 로딩 완료:', allOrgs.length, '개')
       setAllOrganizations(allOrgs)
     } catch (error) {
       console.error('❌ [fetchAllOrganizations] Error fetching all organizations:', error)
+      setAllOrganizations([])
     }
   }
 
@@ -547,12 +545,15 @@ export default function DashboardPage() {
       const userOrgIds = userProfile.organizations || []
 
       // 모든 organizations 가져오기
-      const orgsRef = collection(db, 'organizations')
-      const orgsSnapshot = await getDocs(orgsRef)
-
+      const allOrgsData = await organizationsAPI.getAll(100)
+      const allOrgs = allOrgsData.map((org: any) => ({
+        id: org.organizationId,
+        ...org
+      })) as Organization[]
+      
       const recommended: OrganizationWithDistance[] = []
-      orgsSnapshot.forEach((doc) => {
-        const org = { id: doc.id, ...doc.data() } as Organization
+      allOrgs.forEach((orgData) => {
+        const org = { id: orgData.organizationId, ...orgData } as Organization
 
         // 이미 가입한 크루는 제외
         if (userOrgIds.includes(org.id)) {
@@ -603,140 +604,106 @@ export default function DashboardPage() {
     }
   }
 
-  const fetchSchedules = (orgId: string) => {
+  const fetchSchedules = async (orgId: string) => {
     try {
+      // DynamoDB: No real-time listeners, using regular query
+      const schedules = await schedulesAPI.getByOrganization(orgId)
+      
+      const fetchedSchedules: Schedule[] = schedules.map((schedule: any) => ({
+        id: schedule.scheduleId,
+        ...schedule
+      }))
 
-      // schedules 컬렉션에서 해당 크루의 일정을 실시간으로 감지 (서버 사이드 필터링)
-      const q = query(
-        collection(db, 'org_schedules'),
-        where('orgId', '==', orgId)
-      )
-
-      const unsubscribe = onSnapshot(q, (querySnapshot) => {
-
-        const fetchedSchedules: Schedule[] = []
-
-        querySnapshot.forEach((doc) => {
-          const data = doc.data()
-          fetchedSchedules.push({ id: doc.id, ...data } as Schedule)
-        })
-
-        setSchedules(fetchedSchedules)
-      }, (error) => {
-        console.error('❌ 일정 실시간 감지 오류:', error)
-      })
-
-      return unsubscribe
+      setSchedules(fetchedSchedules)
+      
+      // Return empty function for compatibility (no unsubscribe needed)
+      return () => {}
     } catch (error) {
-      console.error('❌ Error setting up schedule listener:', error)
+      console.error('❌ Error fetching schedules:', error)
       return () => {}
     }
   }
 
   // 모든 크루의 일정을 가져오는 함수 (홈 화면용)
-  const fetchAllUserSchedules = (orgIds: string[]) => {
+  const fetchAllUserSchedules = async (orgIds: string[]) => {
     try {
-
       if (orgIds.length === 0) {
         setSchedules([])
         return () => {}
       }
 
-      // 각 크루별로 리스너를 설정하고, 모든 일정을 합쳐서 관리
-      const unsubscribers: (() => void)[] = []
-      const allSchedulesMap = new Map<string, Schedule>()
+      // DynamoDB: Fetch all schedules for all orgs (no real-time updates)
+      const allSchedulesPromises = orgIds.map(orgId => 
+        schedulesAPI.getByOrganization(orgId)
+      )
+      
+      const schedulesArrays = await Promise.all(allSchedulesPromises)
+      const allSchedules: Schedule[] = schedulesArrays
+        .flat()
+        .map((schedule: any) => ({
+          id: schedule.scheduleId,
+          ...schedule
+        }))
 
-      orgIds.forEach((orgId) => {
-        const q = query(
-          collection(db, 'org_schedules'),
-          where('orgId', '==', orgId)
-        )
-
-        const unsubscribe = onSnapshot(q, (querySnapshot) => {
-
-          // 해당 크루의 기존 일정 제거
-          allSchedulesMap.forEach((schedule, id) => {
-            if (schedule.orgId === orgId) {
-              allSchedulesMap.delete(id)
-            }
-          })
-
-          // 새로운 일정 추가
-          querySnapshot.forEach((doc) => {
-            const data = doc.data()
-            allSchedulesMap.set(doc.id, { id: doc.id, ...data } as Schedule)
-          })
-
-          // 전체 일정을 배열로 변환하여 상태 업데이트
-          const allSchedules = Array.from(allSchedulesMap.values())
-          setSchedules(allSchedules)
-        }, (error) => {
-          console.error(`❌ 크루 ${orgId} 일정 감지 오류:`, error)
-        })
-
-        unsubscribers.push(unsubscribe)
-      })
-
-
-      // 모든 리스너를 해제하는 함수 반환
-      return () => {
-        unsubscribers.forEach(unsub => unsub())
-      }
+      setSchedules(allSchedules)
+      
+      // Return empty function for compatibility (no unsubscribe needed)
+      return () => {}
     } catch (error) {
-      console.error('❌ Error setting up all schedules listeners:', error)
+      console.error('❌ Error fetching all schedules:', error)
       return () => {}
     }
   }
 
   const fetchMembers = async (orgId: string) => {
     try {
+      // DynamoDB: Get organization members
+      const orgMembers = await membersAPI.getByOrganization(orgId)
 
-      // userProfiles의 organizations 배열로 크루 멤버 찾기
-      const userProfilesRef = collection(db, 'userProfiles')
-      const userProfilesSnapshot = await getDocs(userProfilesRef)
-
-      const memberUids: string[] = []
-      const userProfilesMap: { [uid: string]: any } = {}
-      userProfilesSnapshot.forEach((doc) => {
-        const data = doc.data()
-        if (data.organizations && Array.isArray(data.organizations) && data.organizations.includes(orgId)) {
-          memberUids.push(doc.id)
-          userProfilesMap[doc.id] = data
-        }
-      })
-
-      if (memberUids.length === 0) {
+      if (orgMembers.length === 0) {
         setMembers([])
         return
       }
 
-      // members 컬렉션에서 상세 정보 가져오기
-      const membersRef = collection(db, 'members')
-      const membersSnapshot = await getDocs(membersRef)
+      // Get all user profiles for these members
+      const userIds = orgMembers.map((m: any) => m.userId)
+      const userProfilesPromises = userIds.map((uid: string) => usersAPI.get(uid))
+      const userProfilesResults = await Promise.all(userProfilesPromises)
 
-      const fetchedMembers: Member[] = []
-      membersSnapshot.forEach((doc) => {
-        const data = doc.data()
-        if (memberUids.includes(data.uid)) {
-          // userProfiles에서 location 정보 가져와서 병합
-          const userProfile = userProfilesMap[data.uid]
-
-          // Firestore Timestamp를 한국 날짜 형식으로 변환
-          let joinDateString = data.joinDate
-          if (data.joinDate && typeof data.joinDate === 'object' && 'seconds' in data.joinDate) {
-            joinDateString = new Date(data.joinDate.seconds * 1000).toLocaleDateString('ko-KR')
-          }
-
-          fetchedMembers.push({
-            id: doc.id,
-            ...data,
-            joinDate: joinDateString,
-            location: userProfile?.location || undefined
-          } as Member)
+      const userProfilesMap: { [uid: string]: any } = {}
+      userProfilesResults.forEach((profile, index) => {
+        if (profile) {
+          userProfilesMap[userIds[index]] = profile
         }
       })
 
-      fetchedMembers.forEach(m => {
+      // 멤버 리스트 생성
+      const fetchedMembers: Member[] = []
+      orgMembers.forEach((orgMemberData: any) => {
+        const userProfile = userProfilesMap[orgMemberData.userId] || {}
+
+        // DynamoDB timestamp를 한국 날짜 형식으로 변환
+        let joinDateString = ''
+        if (orgMemberData.joinedAt) {
+          if (typeof orgMemberData.joinedAt === 'number') {
+            joinDateString = new Date(orgMemberData.joinedAt).toLocaleDateString('ko-KR')
+          }
+        }
+
+        fetchedMembers.push({
+          id: orgMemberData.memberId,
+          uid: orgMemberData.userId,
+          name: userProfile.name || '알 수 없음',
+          email: userProfile.email || '',
+          avatar: userProfile.avatar || userProfile.photoURL || '',
+          role: orgMemberData.role || 'member',
+          isCaptain: orgMemberData.role === 'owner',
+          isStaff: orgMemberData.role === 'admin',
+          joinDate: joinDateString,
+          birthdate: userProfile.birthdate || undefined,
+          location: userProfile.location || undefined,
+          orgId: orgId
+        } as Member)
       })
 
       setMembers(fetchedMembers)
@@ -747,7 +714,7 @@ export default function DashboardPage() {
 
   const handleLogout = async () => {
     try {
-      await signOut(auth)
+      await signOut()
       router.push('/auth')
     } catch (error) {
       console.error('Error signing out:', error)
@@ -764,8 +731,6 @@ export default function DashboardPage() {
     if (!user) return
 
     try {
-      const userRef = doc(db, 'userProfiles', user.uid)
-
       // 지역 이름 결정
       const locationName = !userProfile?.locations || userProfile.locations.length === 0
         ? '집'
@@ -782,12 +747,16 @@ export default function DashboardPage() {
         latitude: location.latitude,
         longitude: location.longitude,
         radius: location.radius,
-        verifiedAt: Timestamp.fromDate(new Date()),
+        verifiedAt: Date.now(),
         isPrimary: !userProfile?.locations || userProfile.locations.length === 0,
       }
 
-      await updateDoc(userRef, {
-        locations: arrayUnion(locationData),
+      // DynamoDB: Manually add to locations array
+      const currentLocations = userProfile?.locations || []
+      const updatedLocations = [...currentLocations, locationData]
+
+      await usersAPI.update(user.uid, {
+        locations: updatedLocations,
         // 첫 번째 지역이면 자동으로 선택
         ...((!userProfile?.locations || userProfile.locations.length === 0) && {
           selectedLocationId: locationData.id
@@ -809,15 +778,19 @@ export default function DashboardPage() {
     if (!confirmRemove) return
 
     try {
+      // 1. organizationMembers에서 멤버 삭제
+      const memberRecords = await membersAPI.getByOrganization(selectedOrg.id)
+      const memberToRemove = memberRecords.find((m: any) => m.userId === member.uid)
 
-      // userProfiles의 organizations 배열에서 제거
-      const userProfileRef = doc(db, 'userProfiles', member.uid)
-      const userProfileSnap = await getDoc(userProfileRef)
+      if (memberToRemove) {
+        await membersAPI.delete(memberToRemove.memberId)
+      }
 
-      if (userProfileSnap.exists()) {
-        const data = userProfileSnap.data()
-        const updatedOrgs = (data.organizations || []).filter((id: string) => id !== selectedOrg.id)
-        await updateDoc(userProfileRef, { organizations: updatedOrgs })
+      // 2. userProfiles의 organizations 배열에서 제거
+      const userProfile = await usersAPI.get(member.uid)
+      if (userProfile) {
+        const updatedOrgs = (userProfile.organizations || []).filter((id: string) => id !== selectedOrg.id)
+        await usersAPI.update(member.uid, { organizations: updatedOrgs })
       } else {
         console.error('❌ userProfile을 찾을 수 없습니다.')
         alert('멤버 프로필을 찾을 수 없습니다.')
@@ -839,24 +812,18 @@ export default function DashboardPage() {
     if (!selectedOrg) return
 
     try {
-      // members 컬렉션 업데이트
-      const membersRef = collection(db, 'members')
-      const membersQuery = query(membersRef, where('uid', '==', member.uid))
-      const membersSnapshot = await getDocs(membersQuery)
+      // organizationMembers 컬렉션 업데이트
+      const memberRecords = await membersAPI.getByOrganization(selectedOrg.id)
+      const memberToUpdate = memberRecords.find((m: any) => m.userId === member.uid)
 
-      if (membersSnapshot.empty) {
+      if (!memberToUpdate) {
         alert('멤버 정보를 찾을 수 없습니다.')
         return
       }
 
-      const memberUpdatePromises = membersSnapshot.docs.map(doc =>
-        updateDoc(doc.ref, {
-          isCaptain: newRole === 'captain',
-          isStaff: newRole === 'staff',
-          role: newRole === 'captain' ? '크루장' : newRole === 'staff' ? '운영진' : '멤버'
-        })
-      )
-      await Promise.all(memberUpdatePromises)
+      // organizationMembers의 role 필드 업데이트
+      const roleValue = newRole === 'captain' ? 'owner' : newRole === 'staff' ? 'admin' : 'member'
+      await membersAPI.update(memberToUpdate.memberId, { role: roleValue })
 
       alert('역할이 변경되었습니다.')
       setEditingMember(null)
@@ -872,14 +839,11 @@ export default function DashboardPage() {
   const handleOpenMemberInfoEdit = async (member: Member) => {
     // userProfiles에서 상세 정보 가져오기
     try {
-      const userProfileRef = doc(db, 'userProfiles', member.uid)
-      const userProfileSnap = await getDoc(userProfileRef)
+      const userProfile = await usersAPI.get(member.uid)
 
-      if (userProfileSnap.exists()) {
-        const data = userProfileSnap.data()
-
+      if (userProfile) {
         // 지역 정보 파싱 (예: "서울특별시 강남구" -> city: "서울특별시", district: "강남구")
-        const locationParts = (data.location || '').split(' ')
+        const locationParts = (userProfile.location || '').split(' ')
         const city = locationParts[0] || ''
         const district = locationParts[1] || ''
 
@@ -888,10 +852,10 @@ export default function DashboardPage() {
 
         setEditForm({
           name: member.name || '',
-          gender: data.gender || '',
-          birthdate: data.birthdate || '',
-          location: data.location || '',
-          mbti: data.mbti || ''
+          gender: userProfile.gender || '',
+          birthdate: userProfile.birthdate || '',
+          location: userProfile.location || '',
+          mbti: userProfile.mbti || ''
         })
       } else {
         setSelectedCityForMemberEdit('')
@@ -918,24 +882,13 @@ export default function DashboardPage() {
 
     try {
       // userProfiles 업데이트
-      const userProfileRef = doc(db, 'userProfiles', editingMemberInfo.uid)
-      await updateDoc(userProfileRef, {
+      await usersAPI.update(editingMemberInfo.uid, {
         name: editForm.name,
         gender: editForm.gender,
         birthdate: editForm.birthdate,
         location: editForm.location,
         mbti: editForm.mbti.toUpperCase()
       })
-
-      // members 컬렉션도 이름 업데이트
-      const membersRef = collection(db, 'members')
-      const membersQuery = query(membersRef, where('uid', '==', editingMemberInfo.uid))
-      const membersSnapshot = await getDocs(membersQuery)
-
-      const memberUpdatePromises = membersSnapshot.docs.map(doc =>
-        updateDoc(doc.ref, { name: editForm.name })
-      )
-      await Promise.all(memberUpdatePromises)
 
       alert('멤버 정보가 수정됐어요.')
       setEditingMemberInfo(null)
@@ -959,18 +912,7 @@ export default function DashboardPage() {
       const avatarUrl = await uploadToS3(file, `avatars/${user.uid}`)
 
       // userProfiles 업데이트
-      const userProfileRef = doc(db, 'userProfiles', user.uid)
-      await updateDoc(userProfileRef, { avatar: avatarUrl })
-
-      // members 컬렉션도 아바타 업데이트
-      const membersRef = collection(db, 'members')
-      const membersQuery = query(membersRef, where('uid', '==', user.uid))
-      const membersSnapshot = await getDocs(membersQuery)
-
-      const memberUpdatePromises = membersSnapshot.docs.map(doc =>
-        updateDoc(doc.ref, { avatar: avatarUrl })
-      )
-      await Promise.all(memberUpdatePromises)
+      await usersAPI.update(user.uid, { avatar: avatarUrl })
 
       // 페이지 새로고침
       window.location.reload()
@@ -992,7 +934,6 @@ export default function DashboardPage() {
     }
 
     try {
-
       // Update 객체 생성 (아바타 제외)
       const updateData: any = {
         name: myProfileForm.name,
@@ -1003,20 +944,8 @@ export default function DashboardPage() {
         interestCategories: myProfileForm.interestCategories
       }
 
-
       // userProfiles 업데이트
-      const userProfileRef = doc(db, 'userProfiles', user.uid)
-      await updateDoc(userProfileRef, updateData)
-
-      // members 컬렉션도 이름 업데이트
-      const membersRef = collection(db, 'members')
-      const membersQuery = query(membersRef, where('uid', '==', user.uid))
-      const membersSnapshot = await getDocs(membersQuery)
-
-      const memberUpdatePromises = membersSnapshot.docs.map(doc =>
-        updateDoc(doc.ref, { name: myProfileForm.name })
-      )
-      await Promise.all(memberUpdatePromises)
+      await usersAPI.update(user.uid, updateData)
 
       alert('프로필이 수정됐어요.')
       setEditingMyProfile(false)
@@ -1073,39 +1002,36 @@ export default function DashboardPage() {
     if (!editingOrg) return
 
     try {
-      const batch = writeBatch(db)
+      // 1. organizationMembers에서 해당 크루의 모든 멤버 삭제
+      const members = await membersAPI.getByOrganization(editingOrg.id)
+      const memberDeletePromises = members.map((member: any) =>
+        membersAPI.delete(member.memberId)
+      )
 
-      // 1. 크루 문서 삭제
-      const orgRef = doc(db, 'organizations', editingOrg.id)
-      batch.delete(orgRef)
+      // 2. schedules에서 해당 크루의 모든 일정 삭제
+      const schedules = await schedulesAPI.getByOrganization(editingOrg.id)
+      const scheduleDeletePromises = schedules.map((schedule: any) =>
+        schedulesAPI.delete(schedule.scheduleId)
+      )
 
-      // 2. organizationMembers에서 해당 크루의 모든 멤버 삭제
-      const membersQuery = query(collection(db, 'organizationMembers'), where('organizationId', '==', editingOrg.id))
-      const membersSnapshot = await getDocs(membersQuery)
-      membersSnapshot.docs.forEach((memberDoc) => {
-        batch.delete(doc(db, 'organizationMembers', memberDoc.id))
-      })
-
-      // 3. schedules에서 해당 크루의 모든 일정 삭제
-      const schedulesQuery = query(collection(db, 'org_schedules'), where('orgId', '==', editingOrg.id))
-      const schedulesSnapshot = await getDocs(schedulesQuery)
-      schedulesSnapshot.docs.forEach((scheduleDoc) => {
-        batch.delete(doc(db, 'org_schedules', scheduleDoc.id))
-      })
-
-      // 4. 모든 userProfiles의 organizations 배열에서 크루 ID 제거
-      const userProfilesSnapshot = await getDocs(collection(db, 'userProfiles'))
-      userProfilesSnapshot.docs.forEach((profileDoc) => {
-        const profileData = profileDoc.data()
-        if (profileData.organizations && profileData.organizations.includes(editingOrg.id)) {
-          const userProfileRef = doc(db, 'userProfiles', profileDoc.id)
-          batch.update(userProfileRef, {
-            organizations: arrayRemove(editingOrg.id)
-          })
+      // 3. 모든 멤버의 userProfiles의 organizations 배열에서 크루 ID 제거
+      const userUpdatePromises = members.map(async (member: any) => {
+        const userProfile = await usersAPI.get(member.userId)
+        if (userProfile && userProfile.organizations) {
+          const updatedOrgs = userProfile.organizations.filter((id: string) => id !== editingOrg.id)
+          await usersAPI.update(member.userId, { organizations: updatedOrgs })
         }
       })
 
-      await batch.commit()
+      // 모든 삭제 작업 실행
+      await Promise.all([
+        ...memberDeletePromises,
+        ...scheduleDeletePromises,
+        ...userUpdatePromises
+      ])
+
+      // 4. 크루 문서 삭제
+      await organizationsAPI.delete(editingOrg.id)
 
       alert(`"${editingOrg.name}" 크루가 해체되었습니다.`)
       setEditingOrg(null)
@@ -1139,14 +1065,17 @@ export default function DashboardPage() {
     }
 
     try {
-      // 1. 먼저 크루 문서 생성 (ID 얻기 위해)
+      // 1. 먼저 크루 문서 생성 (ID 생성)
+      const orgId = `org_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`
+
       const orgData: any = {
+        organizationId: orgId,
         name: orgForm.name,
         description: orgForm.description,
         categories: orgForm.categories,
         ownerUid: user.uid,
         ownerName: userProfile.name,
-        createdAt: new Date().toISOString(),
+        createdAt: Date.now(),
         avatar: ''
       }
 
@@ -1158,20 +1087,24 @@ export default function DashboardPage() {
         orgData.location = orgForm.location
       }
 
-
-      const docRef = await addDoc(collection(db, 'organizations'), orgData)
-
-      // 2. 이미지가 있으면 S3에 업로드하고 URL 업데이트
+      // 2. 이미지가 있으면 S3에 업로드
       if (orgAvatarFile) {
-        const avatarUrl = await uploadToS3(orgAvatarFile, `organizations/${docRef.id}`)
-        await updateDoc(docRef, { avatar: avatarUrl })
+        const avatarUrl = await uploadToS3(orgAvatarFile, `organizations/${orgId}`)
+        orgData.avatar = avatarUrl
       }
 
-      // 3. 사용자 프로필의 organizations 배열에 추가
-      const userProfileRef = doc(db, 'userProfiles', user.uid)
-      await updateDoc(userProfileRef, {
-        organizations: arrayUnion(docRef.id)
+      // 3. 크루 생성
+      await organizationsAPI.create(orgData)
+
+      // 4. 사용자 프로필의 organizations 배열에 추가
+      const currentProfile = await usersAPI.get(user.uid)
+      const currentOrgs = currentProfile?.organizations || []
+      await usersAPI.update(user.uid, {
+        organizations: [...currentOrgs, orgId]
       })
+
+      // 5. 크루장을 멤버로 추가
+      await addOrganizationMember(orgId, user.uid, 'owner')
 
       alert('크루가 만들어졌어요!')
       setShowCreateCrew(false)
@@ -1182,10 +1115,7 @@ export default function DashboardPage() {
       await fetchOrganizations()
 
       // 새로 생성한 크루를 선택
-      const newOrg = await getDoc(docRef)
-      if (newOrg.exists()) {
-        router.replace(`/dashboard?page=mycrew&orgId=${newOrg.id}`, { scroll: false })
-      }
+      router.replace(`/dashboard?page=mycrew&orgId=${orgId}`, { scroll: false })
     } catch (error) {
       console.error('❌ 크루 생성 실패:', error)
       alert('크루를 만드는 중에 문제가 생겼어요.')
@@ -1230,14 +1160,14 @@ export default function DashboardPage() {
         updateData.location = null
       }
 
-      const orgRef = doc(db, 'organizations', editingOrg.id)
-      await updateDoc(orgRef, updateData)
-
       // 2. 새 이미지가 있으면 S3에 업로드하고 URL 업데이트
       if (orgAvatarFile) {
         const avatarUrl = await uploadToS3(orgAvatarFile, `organizations/${editingOrg.id}`)
-        await updateDoc(orgRef, { avatar: avatarUrl })
+        updateData.avatar = avatarUrl
       }
+
+      // 크루 정보 업데이트
+      await organizationsAPI.update(editingOrg.id, updateData)
 
       alert('크루 정보가 수정되었어요!')
       setEditingOrg(null)
@@ -1256,16 +1186,18 @@ export default function DashboardPage() {
   // 사진첩: 사진 목록 불러오기
   const fetchPhotos = async (orgId: string) => {
     try {
-      const photosRef = collection(db, 'organizations', orgId, 'photos')
-      const q = query(photosRef, orderBy('createdAt', 'desc'))
-      const snapshot = await getDocs(q)
-      const photoList = snapshot.docs.map(doc => ({
-        id: doc.id,
-        ...doc.data()
-      }))
-      setPhotos(photoList)
+      const photos = await photosAPI.getByOrganization(orgId, 50);
+      setPhotos(photos.map((photo: any) => ({
+        id: photo.photoId,
+        url: photo.url,
+        uploadedBy: photo.uploaderName,
+        uploadedByUid: photo.uploaderUid,
+        createdAt: photo.createdAt,
+        fileName: photo.fileName
+      })));
     } catch (error) {
       console.error('사진 목록 불러오기 실패:', error)
+      setPhotos([])
     }
   }
 
@@ -1285,17 +1217,19 @@ export default function DashboardPage() {
       // S3에 업로드
       const photoUrl = await uploadToS3(file, `organizations/${orgId}/photos/${Date.now()}_${file.name}`)
 
-      // Firestore에 메타데이터 저장
-      const photosRef = collection(db, 'organizations', orgId, 'photos')
-      await addDoc(photosRef, {
+      // DynamoDB에 메타데이터 저장
+      const photoId = `photo_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`
+
+      await photosAPI.create({
+        photoId,
+        organizationId: orgId,
         url: photoUrl,
         uploaderUid: user.uid,
         uploaderName: userProfile.name,
-        createdAt: serverTimestamp(),
+        createdAt: Date.now(),
         fileName: file.name
       })
 
-      alert('사진이 업로드되었어요!')
       await fetchPhotos(orgId)
     } catch (error) {
       console.error('사진 업로드 실패:', error)
@@ -1312,8 +1246,7 @@ export default function DashboardPage() {
     if (!confirm('이 사진을 삭제할까요?')) return
 
     try {
-      await deleteDoc(doc(db, 'organizations', orgId, 'photos', photoId))
-      alert('사진이 삭제되었어요!')
+      await photosAPI.delete(photoId)
       await fetchPhotos(orgId)
       setSelectedPhoto(null)
     } catch (error) {
@@ -1406,16 +1339,14 @@ export default function DashboardPage() {
     }
 
     try {
-      const orgRef = doc(db, 'organizations', orgId)
-      const orgSnap = await getDoc(orgRef)
+      const org = await organizationsAPI.get(orgId)
 
-      if (!orgSnap.exists()) {
+      if (!org) {
         alert('크루를 찾을 수 없습니다.')
         return
       }
 
-      const orgData = orgSnap.data()
-      const existingPending = orgData.pendingMembers || []
+      const existingPending = org.pendingMembers || []
 
       // 이미 신청한 경우
       if (existingPending.some((m: any) => m.uid === user.uid)) {
@@ -1424,14 +1355,16 @@ export default function DashboardPage() {
       }
 
       // pendingMembers에 추가
-      await updateDoc(orgRef, {
-        pendingMembers: arrayUnion({
-          uid: user.uid,
-          name: userProfile.name,
-          email: userProfile.email,
-          avatar: userProfile.avatar || '',
-          requestedAt: new Date()
-        })
+      const newPendingMember = {
+        uid: user.uid,
+        name: userProfile.name,
+        email: userProfile.email,
+        avatar: userProfile.avatar || '',
+        requestedAt: Date.now()
+      }
+
+      await organizationsAPI.update(orgId, {
+        pendingMembers: [...existingPending, newPendingMember]
       })
 
       alert('가입 신청을 보냈어요! 크루장의 승인을 기다려주세요.')
@@ -1451,35 +1384,25 @@ export default function DashboardPage() {
     if (!confirm(`${member.name}님의 가입을 승인하시겠습니까?`)) return
 
     try {
+      // 1. pendingMembers에서 제거
+      const org = await organizationsAPI.get(orgId)
+      if (org) {
+        const updatedPending = (org.pendingMembers || []).filter((m: any) => m.uid !== member.uid)
+        await organizationsAPI.update(orgId, {
+          pendingMembers: updatedPending
+        })
+      }
 
-      const orgRef = doc(db, 'organizations', orgId)
-      const userRef = doc(db, 'userProfiles', member.uid)
+      // 2. userProfiles의 organizations 배열에 추가
+      const userProfile = await usersAPI.get(member.uid)
+      if (userProfile) {
+        const currentOrgs = userProfile.organizations || []
+        await usersAPI.update(member.uid, {
+          organizations: [...currentOrgs, orgId]
+        })
+      }
 
-      // pendingMembers에서 제거
-      await updateDoc(orgRef, {
-        pendingMembers: arrayRemove(member)
-      })
-
-      // userProfiles의 organizations 배열에 추가 (joinedOrganizations가 아님!)
-      await updateDoc(userRef, {
-        organizations: arrayUnion(orgId)
-      })
-
-      // members 컬렉션에 레코드 추가
-      const membersRef = collection(db, 'members')
-      await addDoc(membersRef, {
-        uid: member.uid,
-        name: member.name,
-        email: member.email || '',
-        avatar: member.avatar || null,
-        role: '멤버',
-        isCaptain: false,
-        isStaff: false,
-        joinDate: new Date().toLocaleDateString('ko-KR'),
-        orgId: orgId
-      })
-
-      // ✅ organizationMembers 컬렉션에도 추가 (신규 시스템)
+      // 3. organizationMembers 컬렉션에 추가
       await addOrganizationMember(orgId, member.uid, 'member')
       console.log('✅ organizationMembers에 추가 완료:', orgId, member.uid)
 
@@ -1490,7 +1413,6 @@ export default function DashboardPage() {
       if (selectedOrg) {
         await fetchMembers(orgId)
       }
-
 
     } catch (error) {
       console.error('❌ 승인 실패:', error)
@@ -1503,12 +1425,14 @@ export default function DashboardPage() {
     if (!confirm(`${member.name}님의 가입을 거절하시겠습니까?`)) return
 
     try {
-      const orgRef = doc(db, 'organizations', orgId)
-
       // pendingMembers에서만 제거
-      await updateDoc(orgRef, {
-        pendingMembers: arrayRemove(member)
-      })
+      const org = await organizationsAPI.get(orgId)
+      if (org) {
+        const updatedPending = (org.pendingMembers || []).filter((m: any) => m.uid !== member.uid)
+        await organizationsAPI.update(orgId, {
+          pendingMembers: updatedPending
+        })
+      }
 
       alert(`${member.name}님의 가입 신청을 거절했어요.`)
       fetchOrganizations()
@@ -1545,8 +1469,6 @@ export default function DashboardPage() {
     }
 
     try {
-      const { addDoc, collection } = await import('firebase/firestore')
-
       // createScheduleForm.date is now in ISO format: "2025-11-17"
       const isoDate = createScheduleForm.date
       // Generate display format: "11/17(일)"
@@ -1557,7 +1479,11 @@ export default function DashboardPage() {
       const dayOfWeek = days[selectedDate.getDay()]
       const displayDate = `${month}/${day}(${dayOfWeek})`
 
-      await addDoc(collection(db, 'org_schedules'), {
+      const scheduleId = `schedule_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`
+
+      await schedulesAPI.create({
+        scheduleId,
+        organizationId: selectedOrg.id,
         title: createScheduleForm.title,
         date: displayDate,      // Display format for UI
         dateISO: isoDate,       // ISO format for comparison
@@ -1570,7 +1496,7 @@ export default function DashboardPage() {
         createdByUid: user.uid,
         orgId: selectedOrg.id,
         comments: [],
-        createdAt: new Date().toISOString(),
+        createdAt: Date.now(),
         hasChat: true,  // 채팅 기능 활성화
         lastChatMessageAt: null,
         lastChatMessagePreview: null
@@ -1586,6 +1512,9 @@ export default function DashboardPage() {
         type: '',
         maxParticipants: 10
       })
+
+      // 일정 목록 새로고침
+      await fetchSchedules(selectedOrg.id)
     } catch (error) {
       console.error('Error creating schedule:', error)
       alert('일정을 만드는 중에 문제가 생겼어요.')
@@ -1618,8 +1547,6 @@ export default function DashboardPage() {
     }
 
     try {
-      const scheduleRef = doc(db, 'org_schedules', editingSchedule.id)
-
       // editScheduleForm.date is now in ISO format: "2025-11-22"
       const isoDate = editScheduleForm.date
       // Generate display format: "11/22(토)"
@@ -1630,7 +1557,7 @@ export default function DashboardPage() {
       const dayOfWeek = days[selectedDate.getDay()]
       const displayDate = `${month}/${day}(${dayOfWeek})`
 
-      await updateDoc(scheduleRef, {
+      await schedulesAPI.update(editingSchedule.id, {
         title: editScheduleForm.title,
         date: displayDate,      // Display format for UI
         dateISO: isoDate,       // ISO format for comparison
@@ -1643,6 +1570,11 @@ export default function DashboardPage() {
       alert('일정이 수정됐어요.')
       setEditingSchedule(null)
       setSelectedSchedule(null)
+
+      // 일정 목록 새로고침
+      if (selectedOrg) {
+        await fetchSchedules(selectedOrg.id)
+      }
     } catch (error) {
       console.error('Error updating schedule:', error)
       alert('일정을 수정하는 중에 문제가 생겼어요.')
@@ -1653,9 +1585,8 @@ export default function DashboardPage() {
     if (!window.confirm('정말 삭제하시겠어요?')) return
 
     try {
-      const { deleteDoc } = await import('firebase/firestore')
-      const scheduleRef = doc(db, 'org_schedules', schedule.id)
-      await deleteDoc(scheduleRef)
+      // TODO: Convert to DynamoDB - removed Firebase dynamic import
+      await schedulesAPI.delete(schedule.id)
 
       alert('일정이 삭제됐어요.')
       setSelectedSchedule(null)
@@ -1673,9 +1604,8 @@ export default function DashboardPage() {
         return
       }
 
-      const scheduleRef = doc(db, 'org_schedules', schedule.id)
       const updatedParticipants = [...(schedule.participants || []), memberName]
-      await updateDoc(scheduleRef, { participants: updatedParticipants })
+      await schedulesAPI.update(schedule.id, { participants: updatedParticipants })
 
       // selectedSchedule 업데이트 (UI 즉시 반영)
       if (selectedSchedule?.id === schedule.id) {
@@ -1683,6 +1613,11 @@ export default function DashboardPage() {
           ...selectedSchedule,
           participants: updatedParticipants
         })
+      }
+
+      // 일정 목록 새로고침
+      if (selectedOrg) {
+        await fetchSchedules(selectedOrg.id)
       }
     } catch (error) {
       console.error('Error adding participant:', error)
@@ -1692,9 +1627,8 @@ export default function DashboardPage() {
 
   const handleRemoveParticipant = async (schedule: Schedule, memberName: string) => {
     try {
-      const scheduleRef = doc(db, 'org_schedules', schedule.id)
       const updatedParticipants = schedule.participants.filter(name => name !== memberName)
-      await updateDoc(scheduleRef, { participants: updatedParticipants })
+      await schedulesAPI.update(schedule.id, { participants: updatedParticipants })
 
       // selectedSchedule 업데이트 (UI 즉시 반영)
       if (selectedSchedule?.id === schedule.id) {
@@ -1702,6 +1636,11 @@ export default function DashboardPage() {
           ...selectedSchedule,
           participants: updatedParticipants
         })
+      }
+
+      // 일정 목록 새로고침
+      if (selectedOrg) {
+        await fetchSchedules(selectedOrg.id)
       }
     } catch (error) {
       console.error('Error removing participant:', error)
@@ -1756,7 +1695,6 @@ ${BRAND.NAME}와 함께하는 모임 일정에 참여하세요!
     if (!commentText.trim() || !user) return
 
     try {
-      const scheduleRef = doc(db, 'org_schedules', schedule.id)
       const newComment: Comment = {
         id: Date.now().toString(),
         userName: userProfile?.name || user.displayName || '익명',
@@ -1765,8 +1703,13 @@ ${BRAND.NAME}와 함께하는 모임 일정에 참여하세요!
         createdAt: new Date().toISOString()
       }
       const updatedComments = [...(schedule.comments || []), newComment]
-      await updateDoc(scheduleRef, { comments: updatedComments })
+      await schedulesAPI.update(schedule.id, { comments: updatedComments })
       setCommentText('')
+
+      // 일정 목록 새로고침
+      if (selectedOrg) {
+        await fetchSchedules(selectedOrg.id)
+      }
     } catch (error) {
       console.error('Error adding comment:', error)
       alert('댓글을 추가하는 중에 문제가 생겼어요.')
@@ -1777,9 +1720,13 @@ ${BRAND.NAME}와 함께하는 모임 일정에 참여하세요!
     if (!window.confirm('정말 삭제하시겠어요?')) return
 
     try {
-      const scheduleRef = doc(db, 'org_schedules', schedule.id)
       const updatedComments = schedule.comments?.filter(comment => comment.id !== commentId) || []
-      await updateDoc(scheduleRef, { comments: updatedComments })
+      await schedulesAPI.update(schedule.id, { comments: updatedComments })
+
+      // 일정 목록 새로고침
+      if (selectedOrg) {
+        await fetchSchedules(selectedOrg.id)
+      }
     } catch (error) {
       console.error('Error deleting comment:', error)
       alert('댓글 삭제 중 오류가 발생했습니다.')
@@ -1960,7 +1907,6 @@ ${BRAND.NAME}와 함께하는 모임 일정에 참여하세요!
       if (!selectedOrg) return
 
       const myName = userProfile?.name || user?.displayName || '익명'
-      const scheduleRef = doc(db, 'org_schedules', schedule.id)
       const isParticipating = schedule.participants?.includes(myName)
 
       let updatedParticipants: string[]
@@ -1976,11 +1922,12 @@ ${BRAND.NAME}와 함께하는 모임 일정에 참여하세요!
         updatedParticipants = [...schedule.participants, myName]
       }
 
-      await updateDoc(scheduleRef, {
+      await schedulesAPI.update(schedule.id, {
         participants: updatedParticipants
       })
 
-      // 실시간 리스너가 자동으로 업데이트하므로 로컬 상태 업데이트 불필요
+      // 일정 목록 새로고침
+      await fetchSchedules(selectedOrg.id)
     } catch (error) {
       console.error('Error toggling participation:', error)
       alert('참여 상태를 바꾸는 중에 문제가 생겼어요.')
@@ -3371,15 +3318,15 @@ ${BRAND.NAME}와 함께하는 모임 일정에 참여하세요!
 
             <div className="p-4 overflow-y-auto flex-1">
               <div className="space-y-4">
-                {members.length === 0 ? (
+                {membersWithDisplayNames.length === 0 ? (
                   <p className="text-gray-400 text-center py-4 md:py-8">멤버가 없습니다.</p>
                 ) : (
-                  members
+                  membersWithDisplayNames
                     .filter((member) => {
                       // 활동 경과일 필터 적용
                       if (memberActivityFilter === 'all') return true
 
-                      const daysSinceLastParticipation = getMemberLastParticipationDays(member.name)
+                      const daysSinceLastParticipation = getMemberLastParticipationDays(member.displayName)
 
                       if (memberActivityFilter === '10plus') {
                         return daysSinceLastParticipation !== null && daysSinceLastParticipation >= 10
@@ -3464,7 +3411,7 @@ ${BRAND.NAME}와 함께하는 모임 일정에 참여하세요!
                         </div>
                         <div className="flex-1">
                           <div className="flex items-center gap-2">
-                            <span className="font-bold">{member.name}</span>
+                            <span className="font-bold">{member.displayName}</span>
                             {member.isCaptain && (
                               <span className="text-xs bg-[#FF9B50] text-white px-2 py-0.5 rounded-full">
                                 크루장
@@ -3477,6 +3424,9 @@ ${BRAND.NAME}와 함께하는 모임 일정에 참여하세요!
                             )}
                           </div>
                           <p className="text-xs text-gray-600 mt-1">가입일: {formatTimestamp(member.joinDate)}</p>
+                          {member.birthdate && (
+                            <p className="text-xs text-gray-600 mt-0.5">생년월일: {member.birthdate}</p>
+                          )}
                           {(member as any).location && (
                             <p className="text-xs text-gray-600 mt-0.5">지역: {(member as any).location}</p>
                           )}
@@ -3602,20 +3552,20 @@ ${BRAND.NAME}와 함께하는 모임 일정에 참여하세요!
                     {managingParticipants ? '관리 종료' : '+ 참석자 추가하기'}
                   </button>
                 )}
-                {managingParticipants && members.filter(m => !selectedSchedule.participants?.includes(m.name)).length > 0 && (
+                {managingParticipants && membersWithDisplayNames.filter(m => !selectedSchedule.participants?.includes(m.displayName)).length > 0 && (
                   <div className="mt-3 p-4 bg-[#FFFBF7] rounded-2xl max-h-40 overflow-y-auto">
                     <div className="text-sm leading-5 font-extrabold text-gray-600 mb-3">멤버를 클릭하여 추가</div>
                     <div className="flex flex-wrap gap-2">
-                      {members.filter(m => !selectedSchedule.participants?.includes(m.name)).map(member => (
+                      {membersWithDisplayNames.filter(m => !selectedSchedule.participants?.includes(m.displayName)).map(member => (
                         <button
                           key={member.id}
                           onClick={(e) => {
                             e.stopPropagation()
-                            handleAddParticipant(selectedSchedule, member.name)
+                            handleAddParticipant(selectedSchedule, member.displayName)
                           }}
                           className="text-sm leading-5 font-extrabold bg-white px-4 py-2 rounded-xl hover:bg-[#FF9B50] hover:text-white border border-[#E5E8EB] active:scale-[0.99] transition-transform duration-200 ease-out"
                         >
-                          + {member.name}
+                          + {member.displayName}
                         </button>
                       ))}
                     </div>

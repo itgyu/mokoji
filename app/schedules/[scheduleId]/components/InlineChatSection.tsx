@@ -1,8 +1,8 @@
 'use client';
 
 import { useState, useRef, useEffect } from 'react';
-import { doc, deleteDoc } from 'firebase/firestore';
-import { db } from '@/lib/firebase';
+import { docClient, TABLES } from '@/lib/dynamodb';
+import { DeleteCommand } from '@aws-sdk/lib-dynamodb';
 import { SkeletonChatMessage } from '@/components/ui';
 import { ChatMessageBubble, DateDivider } from './ChatMessageBubble';
 import { ChatInputBar } from './ChatInputBar';
@@ -110,10 +110,15 @@ export function InlineChatSection({
   // 메시지 삭제 핸들러
   const handleDeleteMessage = async (messageId: string) => {
     try {
-      // Firestore에서 메시지 삭제
-      await deleteDoc(doc(db, 'org_schedules', scheduleId, 'messages', messageId));
+      // DynamoDB에서 메시지 삭제
+      await docClient.send(
+        new DeleteCommand({
+          TableName: TABLES.SCHEDULES,
+          Key: { scheduleId, messageId },
+        })
+      );
 
-      // UI 업데이트는 실시간 리스너가 자동으로 처리
+      // UI 업데이트는 컴포넌트 부모에서 처리됨
     } catch (error) {
       console.error('메시지 삭제 실패:', error);
       alert('메시지를 삭제하는 중에 문제가 생겼어요');
@@ -251,13 +256,16 @@ function groupMessagesByDate(messages: ScheduleChatMessage[]): Array<{
   const groups: Array<{ date: Date; messages: ScheduleChatMessage[] }> = [];
 
   messages.forEach((message) => {
-    // createdAt이 null이거나 toDate 메서드가 없는 경우 처리
-    if (!message.createdAt || typeof message.createdAt.toDate !== 'function') {
+    // createdAt이 null이거나 유효하지 않은 경우 처리
+    if (!message.createdAt) {
       console.warn('[groupMessagesByDate] Invalid createdAt for message:', message.id);
       return; // 이 메시지는 건너뛰기
     }
 
-    const messageDate = message.createdAt.toDate();
+    // DynamoDB에서는 timestamp가 number (Unix timestamp in milliseconds)
+    const messageDate = typeof message.createdAt === 'number'
+      ? new Date(message.createdAt)
+      : (message.createdAt instanceof Date ? message.createdAt : new Date(message.createdAt));
 
     // 마지막 그룹과 같은 날짜인지 확인
     const lastGroup = groups[groups.length - 1];

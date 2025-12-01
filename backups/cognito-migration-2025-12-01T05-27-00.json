@@ -1,0 +1,270 @@
+{
+  "timestamp": "2025-12-01T05:27:00.526Z",
+  "summary": {
+    "total": 37,
+    "success": 37,
+    "failed": 0,
+    "skipped": 0
+  },
+  "results": [
+    {
+      "userId": "0fN7kqRGodPg8IAhqVdYQTUQDrY2",
+      "email": "ian@keystonepartners.co.kr",
+      "name": "이태규",
+      "status": "success",
+      "temporaryPassword": "TempuxtTAh3PFjM=123"
+    },
+    {
+      "userId": "3BG36fSW5vhm2d2lLzKf36JLYoM2",
+      "email": "siyoonstellakim@gmail.com",
+      "name": "김시윤",
+      "status": "success",
+      "temporaryPassword": "TempQuTIQUpkD7U=123"
+    },
+    {
+      "userId": "4upL7jlHVeVlDls7ApqBlT30k6X2",
+      "email": "ly3197j@gmail.com",
+      "name": "이준용",
+      "status": "success",
+      "temporaryPassword": "TempsZg8o0qxVns=123"
+    },
+    {
+      "userId": "5M0sV7vC3xPknW8Fwz295E1CcyA2",
+      "email": "namgisukk@gmail.com",
+      "name": "남기수",
+      "status": "success",
+      "temporaryPassword": "Tempdk0wLtcctF8=123"
+    },
+    {
+      "userId": "7AVkrkkkHDOQuSjHko0RKt7LoVU2",
+      "email": "wlduslee@naver.com",
+      "name": "이지연",
+      "status": "success",
+      "temporaryPassword": "TempiMbpzCwwhfY=123"
+    },
+    {
+      "userId": "7VnQtaRO5NN49EENlxxHOXFhm8u2",
+      "email": "luh601@naver.com",
+      "name": "임운학",
+      "status": "success",
+      "temporaryPassword": "Tempcc3aR0jtZIU=123"
+    },
+    {
+      "userId": "90gDdg8vwKMEpMBEzgQq5B4BaGP2",
+      "email": "dhkdwlsaud1299@naver.com",
+      "name": "박진명",
+      "status": "success",
+      "temporaryPassword": "TempJaabicgHHMM=123"
+    },
+    {
+      "userId": "AOS8TRKIOOes6gwp3VSucK7KLkI3",
+      "email": "sheeyang3967@naver.com",
+      "name": "김학근",
+      "status": "success",
+      "temporaryPassword": "TemphYnnYm6llTg=123"
+    },
+    {
+      "userId": "BAmAOVjVqORlRAfB3XB8U4qmY4x2",
+      "email": "jiyoung4565@gmail.com",
+      "name": "이지영",
+      "status": "success",
+      "temporaryPassword": "TempFKMIjdQHzQg=123"
+    },
+    {
+      "userId": "CAj9LYffMwc4Q7jk7QmEqd2pVKc2",
+      "email": "dpajfkem@naver.com",
+      "name": "dpajfkem",
+      "status": "success",
+      "temporaryPassword": "Temp8Mjqc9G8UpI=123"
+    },
+    {
+      "userId": "DSDpHoFmkINoMfB8n6G5xhrA7843",
+      "email": "anwlro8567@gmail.com",
+      "name": "박훈태",
+      "status": "success",
+      "temporaryPassword": "Temp/gH+F02uFLQ=123"
+    },
+    {
+      "userId": "EOJZcBKybEPh9jC34BGF6sGEyRh2",
+      "email": "chldydrl88@naver.com",
+      "name": "최용기",
+      "status": "success",
+      "temporaryPassword": "TempIaxCHxdJ0G8=123"
+    },
+    {
+      "userId": "IkWjCU5F45R8x2zcJi0MCZwE5s33",
+      "email": "hyacinth6434@naver.com",
+      "name": "강현구",
+      "status": "success",
+      "temporaryPassword": "Tempg4nPKFDq1Go=123"
+    },
+    {
+      "userId": "NdVpR8vz1jerpv95s5VSpnjAT9g1",
+      "email": "ddollobb@nate.com",
+      "name": "신민정",
+      "status": "success",
+      "temporaryPassword": "TempbHKpBVmKuDc=123"
+    },
+    {
+      "userId": "Ng2AroWF0BgRDP6nrR1WXqf4ImA3",
+      "email": "itgyu@kakao.com",
+      "name": "이태규",
+      "status": "success",
+      "temporaryPassword": "Temp9Bg4JpgCuLM=123"
+    },
+    {
+      "userId": "QnQz4IfcWGaNWiCEg6IcYBXeKjl1",
+      "email": "suhyun5042@hanmail.net",
+      "name": "곽수현",
+      "status": "success",
+      "temporaryPassword": "TempEBuh5RG8y6Q=123"
+    },
+    {
+      "userId": "TgwQy4tz0eNaXRtnFv4ootyHQh42",
+      "email": "ysb4370@naver.com",
+      "name": "여승빈",
+      "status": "success",
+      "temporaryPassword": "TempCp+KtAcAzjY=123"
+    },
+    {
+      "userId": "V6QbW4BZwtgGigIMNVhEr9rxV622",
+      "email": "simon2766@naver.com",
+      "name": "유시몬",
+      "status": "success",
+      "temporaryPassword": "TempHgPF7NHooz8=123"
+    },
+    {
+      "userId": "WIRoWFcL6lV95YpHkwuvghlDp0p1",
+      "email": "yoonjiya11@gmail.com",
+      "name": "권윤지",
+      "status": "success",
+      "temporaryPassword": "TempmhqGtgvQ8FE=123"
+    },
+    {
+      "userId": "WX53j8CBWeOoRCXNy15uWIFJutK2",
+      "email": "ohyounghoo2@naver.com",
+      "name": "오영후",
+      "status": "success",
+      "temporaryPassword": "TempSGQz4abNFyE=123"
+    },
+    {
+      "userId": "WztuHqQSDzfu55IDtozD0YrtZ4A2",
+      "email": "wl0601@naver.com",
+      "name": "김민지",
+      "status": "success",
+      "temporaryPassword": "Temp0cMJ094KU/k=123"
+    },
+    {
+      "userId": "cDELRgc5QfQTaM3g0hjmxlWMHJ63",
+      "email": "hausdean.kim@gmail.com",
+      "name": "김종수",
+      "status": "success",
+      "temporaryPassword": "TempQcK/hZl4DAI=123"
+    },
+    {
+      "userId": "dPZfotI5GeXnEIEiqirPfpDBpsB2",
+      "email": "byyoume87@gmail.com",
+      "name": "조유미",
+      "status": "success",
+      "temporaryPassword": "TempFJ/HieYNF+A=123"
+    },
+    {
+      "userId": "ePtHpj95tuOxokVBum4uU02PmJn2",
+      "email": "dpajfkem@gmail.com",
+      "name": "김은정",
+      "status": "success",
+      "temporaryPassword": "TempHVTbF7uqzgg=123"
+    },
+    {
+      "userId": "fJsi4KvBQxU9M4jg9RG0jYYvQQr1",
+      "email": "jungik92@naver.com",
+      "name": "이정익",
+      "status": "success",
+      "temporaryPassword": "TempKWOyxK9BaYc=123"
+    },
+    {
+      "userId": "iqAnVQ2tWwOLcP7arSAujx4qnKk1",
+      "email": "yennnim@naver.com",
+      "name": "박소연",
+      "status": "success",
+      "temporaryPassword": "TempelXK3BxXqpI=123"
+    },
+    {
+      "userId": "jM4obY7rxcOj17wbV8r7bR2Muzf2",
+      "email": "yg7988@naver.com",
+      "name": "정영근",
+      "status": "success",
+      "temporaryPassword": "TempbwLSeA5I5r0=123"
+    },
+    {
+      "userId": "jcap8UJrciZpUl66i7fPJpzgRgW2",
+      "email": "bk98079@nate.com",
+      "name": "주윤경",
+      "status": "success",
+      "temporaryPassword": "TempkvC4kh1qEfk=123"
+    },
+    {
+      "userId": "kODxwEwwtqMuU60MyTlbA02sgsC2",
+      "email": "fjqjwngml@gmail.com",
+      "name": "김민지",
+      "status": "success",
+      "temporaryPassword": "TempamwGGfSBiZA=123"
+    },
+    {
+      "userId": "klZURdnFG6dyeZcYUw3j74dekm52",
+      "email": "shrudal1234@gmail.com",
+      "name": "노경미",
+      "status": "success",
+      "temporaryPassword": "TempzhFzDs3tfpo=123"
+    },
+    {
+      "userId": "rwT5vvwMBfYZ16Hg7VwZEngVxeu2",
+      "email": "tvfn3121@naver.com",
+      "name": "정수현",
+      "status": "success",
+      "temporaryPassword": "Temp5wYWVMgTvyM=123"
+    },
+    {
+      "userId": "t8HLC8aD4cedOAMmJw2j5MDGhd43",
+      "email": "sh.rozel@hanmail.net",
+      "name": "김지완",
+      "status": "success",
+      "temporaryPassword": "Temp5Kx0z9SIyxE=123"
+    },
+    {
+      "userId": "tlqVZSkTlCSLDyw2uEPfg5ixHVz2",
+      "email": "leejm8763@hanmail.net",
+      "name": "이정민",
+      "status": "success",
+      "temporaryPassword": "TempvOx9cE9V/Nw=123"
+    },
+    {
+      "userId": "vr1ej7yOmDNNFXk3niNLxTfWkwh1",
+      "email": "bellkim1@icloud.com",
+      "name": "bellkim1",
+      "status": "success",
+      "temporaryPassword": "Temp7th6j5xfAfo=123"
+    },
+    {
+      "userId": "x0l6uQJZCEXlxlp7D7PDDdrkyM22",
+      "email": "thdensk09@naver.com",
+      "name": "송두나",
+      "status": "success",
+      "temporaryPassword": "TempHVolwBK5yT4=123"
+    },
+    {
+      "userId": "yGlKbLn7StQJMUR7BJd94xvd52t2",
+      "email": "hjjo0109@naver.com",
+      "name": "조현주",
+      "status": "success",
+      "temporaryPassword": "TemphD55fZ3ogXs=123"
+    },
+    {
+      "userId": "zUnDBpq7oqWH5Dsf1UswqvbNl5Y2",
+      "email": "dus25641@naver.com",
+      "name": "이지연",
+      "status": "success",
+      "temporaryPassword": "TempHkg67Jtv/Qo=123"
+    }
+  ]
+}

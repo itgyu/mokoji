@@ -2,19 +2,14 @@
 
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
-import {
-  signInWithEmailAndPassword,
-  createUserWithEmailAndPassword,
-  sendPasswordResetEmail
-} from 'firebase/auth'
-import { collection, addDoc, doc, setDoc, updateDoc, serverTimestamp, getDoc, query, where, getDocs } from 'firebase/firestore'
+import { signInWithEmail, signUp, confirmSignUp, forgotPassword } from '@/lib/cognito'
+import { usersDB } from '@/lib/dynamodb'
 import { BRAND } from '@/lib/brand'
-import { auth, db } from '@/lib/firebase'
 import { getCities, getDistricts } from '@/lib/locations'
 import { uploadToS3 } from '@/lib/s3-client'
 import { CREW_CATEGORIES } from '@/lib/constants'
 
-type AuthStep = 'email' | 'login' | 'signup' | 'forgot-password'
+type AuthStep = 'email' | 'login' | 'signup' | 'verify-email' | 'forgot-password'
 
 export default function AuthPage() {
   const router = useRouter()
@@ -34,6 +29,8 @@ export default function AuthPage() {
   const [mbti, setMbti] = useState('')
   const [avatarFile, setAvatarFile] = useState<File | null>(null)
   const [interestCategories, setInterestCategories] = useState<string[]>([])
+  const [verificationCode, setVerificationCode] = useState('')
+  const [pendingUserData, setPendingUserData] = useState<any>(null)
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -41,34 +38,16 @@ export default function AuthPage() {
     setLoading(true)
 
     try {
-      const userCredential = await signInWithEmailAndPassword(auth, email, password)
-      const user = userCredential.user
-
-      // Sync email to userProfiles
-      if (user.email) {
-        const userProfileRef = doc(db, 'userProfiles', user.uid)
-        await setDoc(userProfileRef, {
-          email: user.email
-        }, { merge: true })
-
-        // Sync email to members collection
-        const membersQuery = query(
-          collection(db, 'members'),
-          where('uid', '==', user.uid)
-        )
-        const membersSnapshot = await getDocs(membersQuery)
-        const updatePromises = membersSnapshot.docs.map(memberDoc =>
-          updateDoc(doc(db, 'members', memberDoc.id), {
-            email: user.email
-          })
-        )
-        await Promise.all(updatePromises)
-      }
-
+      const { user } = await signInWithEmail(email, password)
+      console.log('✅ Cognito 로그인 성공:', user.email)
       router.push('/dashboard')
     } catch (err: unknown) {
       if (err instanceof Error) {
-        setError('로그인에 실패했습니다. 이메일과 비밀번호를 확인해주세요.')
+        if (err.message === 'NEW_PASSWORD_REQUIRED') {
+          setError('임시 비밀번호입니다. 관리자에게 문의하여 비밀번호를 재설정해주세요.')
+        } else {
+          setError('로그인에 실패했습니다. 이메일과 비밀번호를 확인해주세요.')
+        }
       }
     } finally {
       setLoading(false)
@@ -88,45 +67,83 @@ export default function AuthPage() {
     }
 
     try {
-      const userCredential = await createUserWithEmailAndPassword(auth, email, password)
-      const user = userCredential.user
+      // 1. Cognito에 사용자 등록
+      await signUp(email, password, name)
+      console.log('✅ Cognito 회원가입 요청 완료, 이메일 인증 필요')
 
-      let avatarUrl = ''
-      if (avatarFile) {
-        // S3에 아바타 업로드
-        avatarUrl = await uploadToS3(avatarFile, `avatars/${user.uid}`)
-      }
-
-      // 1. members 컬렉션에 기본 정보 저장
-      await addDoc(collection(db, 'members'), {
-        uid: user.uid,
-        email,
-        name,
-        avatar: avatarUrl,
-        joinDate: new Date().toLocaleDateString('ko-KR'),
-        isStaff: false,
-        isCaptain: false,
-        role: '멤버',
-        createdAt: serverTimestamp()
-      })
-
-      // 2. userProfiles 컬렉션에 상세 프로필 저장
-      await setDoc(doc(db, 'userProfiles', user.uid), {
+      // 2. 프로필 데이터를 임시 저장
+      setPendingUserData({
         email,
         name,
         gender,
         birthdate,
         location,
         mbti: mbti.toUpperCase(),
-        avatar: avatarUrl,
-        interestCategories: interestCategories,
-        createdAt: serverTimestamp()
+        avatarFile,
+        interestCategories,
       })
 
+      // 3. 이메일 인증 화면으로 전환
+      setStep('verify-email')
+    } catch (err: unknown) {
+      if (err instanceof Error) {
+        if (err.message.includes('UsernameExistsException')) {
+          setError('이미 가입된 이메일입니다.')
+        } else {
+          setError('회원가입에 실패했습니다.')
+        }
+      }
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const handleVerifyEmail = async (e: React.FormEvent) => {
+    e.preventDefault()
+    setError('')
+    setLoading(true)
+
+    try {
+      // 1. 이메일 인증 코드 확인
+      await confirmSignUp(email, verificationCode)
+      console.log('✅ 이메일 인증 완료')
+
+      // 2. 로그인하여 Cognito User ID 가져오기
+      const { user } = await signInWithEmail(email, password)
+      console.log('✅ 로그인 완료, userId:', user.sub)
+
+      // 3. 아바타 업로드
+      let avatarUrl = ''
+      if (pendingUserData?.avatarFile) {
+        avatarUrl = await uploadToS3(pendingUserData.avatarFile, `avatars/${user.sub}`)
+        console.log('✅ 아바타 업로드 완료:', avatarUrl)
+      }
+
+      // 4. DynamoDB에 사용자 프로필 저장
+      await usersDB.create({
+        userId: user.sub,
+        email: pendingUserData.email,
+        name: pendingUserData.name,
+        gender: pendingUserData.gender,
+        birthdate: pendingUserData.birthdate,
+        location: pendingUserData.location,
+        mbti: pendingUserData.mbti,
+        avatar: avatarUrl,
+        interestCategories: pendingUserData.interestCategories,
+      })
+      console.log('✅ DynamoDB에 프로필 저장 완료')
+
+      // 5. 대시보드로 이동
       router.push('/dashboard')
     } catch (err: unknown) {
       if (err instanceof Error) {
-        setError('회원가입에 실패했습니다.')
+        if (err.message.includes('CodeMismatchException')) {
+          setError('인증 코드가 올바르지 않습니다.')
+        } else if (err.message.includes('ExpiredCodeException')) {
+          setError('인증 코드가 만료되었습니다.')
+        } else {
+          setError('이메일 인증에 실패했습니다.')
+        }
       }
     } finally {
       setLoading(false)
@@ -139,8 +156,8 @@ export default function AuthPage() {
     setLoading(true)
 
     try {
-      await sendPasswordResetEmail(auth, email)
-      alert(`${email}로 비밀번호 재설정 링크를 보냈습니다.\n메일함을 확인해주세요.`)
+      await forgotPassword(email)
+      alert(`${email}로 비밀번호 재설정 코드를 보냈습니다.\n메일함을 확인해주세요.`)
       setStep('login')
       setEmail('')
     } catch (err: unknown) {
@@ -482,6 +499,50 @@ export default function AuthPage() {
                 className="w-full text-gray-600 text-sm hover:text-gray-900"
               >
                 ← 로그인으로 돌아가기
+              </button>
+            </form>
+          </div>
+        )}
+
+        {step === 'verify-email' && (
+          <div className="bg-white rounded-2xl shadow-xl p-8">
+            <div className="text-center mb-8">
+              <div className="text-5xl mb-4">📧</div>
+              <h1 className="text-2xl font-bold text-gray-900 mb-2">이메일 인증</h1>
+              <p className="text-gray-600 mb-2">{email}로 인증 코드를 보냈습니다.</p>
+              <p className="text-sm text-gray-500">메일함을 확인하고 6자리 코드를 입력해주세요.</p>
+            </div>
+
+            <form onSubmit={handleVerifyEmail} className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">인증 코드 *</label>
+                <input
+                  type="text"
+                  value={verificationCode}
+                  onChange={(e) => setVerificationCode(e.target.value)}
+                  placeholder="6자리 인증 코드"
+                  required
+                  maxLength={6}
+                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#FF9B50] focus:border-transparent text-center text-2xl tracking-widest"
+                />
+              </div>
+
+              {error && <p className="text-red-500 text-sm">{error}</p>}
+
+              <button
+                type="submit"
+                disabled={loading}
+                className="w-full bg-[#FF9B50] text-white font-semibold py-3 rounded-lg hover:bg-[#FF8A3D] active:scale-95 transition-all"
+              >
+                {loading ? '인증 중...' : '인증 완료'}
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setStep('signup')}
+                className="w-full text-gray-600 text-sm hover:text-gray-900"
+              >
+                ← 회원가입으로 돌아가기
               </button>
             </form>
           </div>

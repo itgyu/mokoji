@@ -1,8 +1,8 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { doc, getDoc, setDoc } from 'firebase/firestore';
-import { db } from '@/lib/firebase';
+import { docClient, TABLES } from '@/lib/dynamodb';
+import { GetCommand, PutCommand } from '@aws-sdk/lib-dynamodb';
 import { MessageCircle } from 'lucide-react';
 import {
   BottomSheet,
@@ -49,18 +49,19 @@ export function ChatSettingsSheet({
           scheduleId,
         });
 
-        const stateRef = doc(
-          db,
-          'users',
-          currentUserId,
-          'schedule_chat_states',
-          scheduleId
+        // DynamoDB에서 사용자의 채팅 상태 조회
+        // Key는 userId#scheduleId 형식으로 구성되거나 별도 테이블 사용
+        const stateResult = await docClient.send(
+          new GetCommand({
+            TableName: TABLES.USERS,
+            Key: {
+              userId: `${currentUserId}#chat_state#${scheduleId}`
+            },
+          })
         );
 
-        const stateDoc = await getDoc(stateRef);
-
-        if (stateDoc.exists()) {
-          const data = stateDoc.data();
+        if (stateResult.Item) {
+          const data = stateResult.Item;
           setMute(data?.mute || false);
           console.log('[ChatSettingsSheet] 설정 불러오기 완료:', data);
         } else {
@@ -95,23 +96,20 @@ export function ChatSettingsSheet({
         newValue,
       });
 
-      const stateRef = doc(
-        db,
-        'users',
-        currentUserId,
-        'schedule_chat_states',
-        scheduleId
-      );
+      // DynamoDB에 사용자의 채팅 상태 저장
+      const stateId = `${currentUserId}#chat_state#${scheduleId}`;
 
-      await setDoc(
-        stateRef,
-        {
-          scheduleId,
-          userId: currentUserId,
-          mute: newValue,
-          updatedAt: new Date(),
-        },
-        { merge: true }
+      await docClient.send(
+        new PutCommand({
+          TableName: TABLES.USERS,
+          Item: {
+            userId: stateId,
+            scheduleId,
+            userIdPrimary: currentUserId,
+            mute: newValue,
+            updatedAt: Date.now(),
+          },
+        })
       );
 
       console.log('[ChatSettingsSheet] 알림 설정 저장 완료');

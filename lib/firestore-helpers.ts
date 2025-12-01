@@ -1,21 +1,4 @@
-import {
-  collection,
-  doc,
-  getDoc,
-  getDocs,
-  setDoc,
-  updateDoc,
-  deleteDoc,
-  query,
-  where,
-  orderBy,
-  limit,
-  startAfter,
-  Timestamp,
-  DocumentSnapshot,
-  QueryConstraint,
-} from 'firebase/firestore';
-import { db } from './firebase';
+import { usersAPI, organizationsAPI, membersAPI, schedulesAPI } from './api-client';
 import type {
   UserProfile,
   Organization,
@@ -27,47 +10,121 @@ import type {
 } from '@/types';
 
 // ============================================
-// Generic CRUD Operations
+// Generic CRUD Operations (DynamoDB-based)
 // ============================================
 
 export async function getDocument<T>(
   collectionName: string,
   docId: string
 ): Promise<T | null> {
-  const docRef = doc(db, collectionName, docId);
-  const docSnap = await getDoc(docRef);
+  try {
+    let result: any = null;
 
-  if (!docSnap.exists()) {
+    switch (collectionName) {
+      case 'userProfiles':
+      case 'users':
+        result = await usersAPI.get(docId);
+        if (result) {
+          result = { id: result.userId, ...result };
+        }
+        break;
+      case 'organizations':
+        result = await organizationsAPI.get(docId);
+        if (result) {
+          result = { id: result.organizationId, ...result };
+        }
+        break;
+      case 'organizationMembers':
+        result = await membersAPI.get(docId);
+        if (result) {
+          result = { id: result.memberId, ...result };
+        }
+        break;
+      case 'schedules':
+      case 'events':
+        result = await schedulesAPI.get(docId);
+        if (result) {
+          result = { id: result.scheduleId, ...result };
+        }
+        break;
+      default:
+        console.warn(`⚠️ Unsupported collection: ${collectionName}`);
+        return null;
+    }
+
+    return result as T | null;
+  } catch (error) {
+    console.error(`❌ Error getting document from ${collectionName}:`, error);
     return null;
   }
-
-  return { id: docSnap.id, ...docSnap.data() } as T;
 }
 
 export async function getDocuments<T>(
   collectionName: string,
-  constraints: QueryConstraint[] = []
+  constraints: any[] = []
 ): Promise<T[]> {
-  const q = query(collection(db, collectionName), ...constraints);
-  const snapshot = await getDocs(q);
-
-  return snapshot.docs.map(doc => ({
-    id: doc.id,
-    ...doc.data()
-  })) as T[];
+  try {
+    // Note: DynamoDB doesn't support arbitrary queries like Firestore
+    // This is a simplified implementation
+    console.warn('⚠️ getDocuments with constraints is not fully implemented for DynamoDB');
+    return [];
+  } catch (error) {
+    console.error(`❌ Error getting documents from ${collectionName}:`, error);
+    return [];
+  }
 }
 
 export async function createDocument<T>(
   collectionName: string,
   data: Omit<T, 'id'>
 ): Promise<string> {
-  const docRef = doc(collection(db, collectionName));
-  await setDoc(docRef, {
-    ...data,
-    createdAt: Timestamp.now(),
-    updatedAt: Timestamp.now(),
-  });
-  return docRef.id;
+  try {
+    const timestamp = Date.now();
+    const id = `${collectionName.slice(0, 3)}_${timestamp}_${Math.random().toString(36).substr(2, 9)}`;
+
+    switch (collectionName) {
+      case 'userProfiles':
+      case 'users':
+        await usersAPI.create({
+          userId: id,
+          ...data,
+          createdAt: timestamp,
+          updatedAt: timestamp,
+        } as any);
+        break;
+      case 'organizations':
+        await organizationsAPI.create({
+          organizationId: id,
+          ...data,
+          createdAt: timestamp,
+          updatedAt: timestamp,
+        } as any);
+        break;
+      case 'organizationMembers':
+        await membersAPI.create({
+          memberId: id,
+          ...data,
+          joinedAt: timestamp,
+        } as any);
+        break;
+      case 'schedules':
+      case 'events':
+        await schedulesAPI.create({
+          scheduleId: id,
+          ...data,
+          createdAt: timestamp,
+          updatedAt: timestamp,
+        } as any);
+        break;
+      default:
+        console.warn(`⚠️ Unsupported collection: ${collectionName}`);
+    }
+
+    return id;
+  } catch (error) {
+    console.error(`❌ Error creating document in ${collectionName}:`, error);
+    throw error;
+  }
 }
 
 export async function updateDocument(
@@ -75,23 +132,49 @@ export async function updateDocument(
   docId: string,
   data: any
 ): Promise<void> {
-  const docRef = doc(db, collectionName, docId);
-  await updateDoc(docRef, {
-    ...data,
-    updatedAt: Timestamp.now(),
-  });
+  try {
+    const updates = {
+      ...data,
+      updatedAt: Date.now(),
+    };
+
+    switch (collectionName) {
+      case 'userProfiles':
+      case 'users':
+        await usersAPI.update(docId, updates);
+        break;
+      case 'organizations':
+        await organizationsAPI.update(docId, updates);
+        break;
+      case 'organizationMembers':
+        await membersAPI.update(docId, updates);
+        break;
+      case 'schedules':
+      case 'events':
+        await schedulesAPI.update(docId, updates);
+        break;
+      default:
+        console.warn(`⚠️ Unsupported collection: ${collectionName}`);
+    }
+  } catch (error) {
+    console.error(`❌ Error updating document in ${collectionName}:`, error);
+    throw error;
+  }
 }
 
 export async function softDeleteDocument(
   collectionName: string,
   docId: string
 ): Promise<void> {
-  const docRef = doc(db, collectionName, docId);
-  await updateDoc(docRef, {
-    deletedAt: Timestamp.now(),
-    isActive: false,
-    updatedAt: Timestamp.now(),
-  });
+  try {
+    await updateDocument(collectionName, docId, {
+      deletedAt: Date.now(),
+      isActive: false,
+    });
+  } catch (error) {
+    console.error(`❌ Error soft deleting document in ${collectionName}:`, error);
+    throw error;
+  }
 }
 
 // ============================================
@@ -99,14 +182,42 @@ export async function softDeleteDocument(
 // ============================================
 
 export async function getUserProfile(userId: string): Promise<UserProfile | null> {
-  return getDocument<UserProfile>('userProfiles', userId);
+  try {
+    const user = await usersAPI.get(userId);
+    if (!user) return null;
+
+    return {
+      uid: user.userId,
+      email: user.email,
+      name: user.name,
+      gender: user.gender,
+      birthdate: user.birthdate,
+      location: user.location,
+      mbti: user.mbti,
+      avatar: user.avatar,
+      joinDate: user.createdAt ? new Date(user.createdAt).toLocaleDateString('ko-KR') : '',
+      interestCategories: user.interestCategories || [],
+      organizations: user.organizations || [],
+      joinedOrganizations: user.joinedOrganizations || [],
+      locations: user.locations || [],
+      selectedLocationId: user.selectedLocationId || '',
+    } as UserProfile;
+  } catch (error) {
+    console.error('❌ Error getting user profile:', error);
+    return null;
+  }
 }
 
 export async function updateUserProfile(
   userId: string,
   data: Partial<UserProfile>
 ): Promise<void> {
-  return updateDocument('userProfiles', userId, data);
+  try {
+    await usersAPI.update(userId, data);
+  } catch (error) {
+    console.error('❌ Error updating user profile:', error);
+    throw error;
+  }
 }
 
 // ============================================
@@ -114,29 +225,65 @@ export async function updateUserProfile(
 // ============================================
 
 export async function getOrganization(orgId: string): Promise<Organization | null> {
-  return getDocument<Organization>('organizations', orgId);
+  try {
+    const org = await organizationsAPI.get(orgId);
+    if (!org) return null;
+
+    return {
+      id: org.organizationId,
+      ...org,
+    } as Organization;
+  } catch (error) {
+    console.error('❌ Error getting organization:', error);
+    return null;
+  }
 }
 
 export async function getOrganizations(
-  constraints: QueryConstraint[] = []
+  constraints: any[] = []
 ): Promise<Organization[]> {
-  return getDocuments<Organization>('organizations', [
-    where('isActive', '==', true),
-    ...constraints,
-  ]);
+  try {
+    // DynamoDB doesn't support arbitrary queries
+    // This would need to be implemented based on specific use cases
+    console.warn('⚠️ getOrganizations with constraints is not fully implemented');
+    return [];
+  } catch (error) {
+    console.error('❌ Error getting organizations:', error);
+    return [];
+  }
 }
 
 export async function createOrganization(
   data: Omit<Organization, 'id'>
 ): Promise<string> {
-  return createDocument<Organization>('organizations', data);
+  try {
+    const timestamp = Date.now();
+    const orgId = `org_${timestamp}_${Math.random().toString(36).substr(2, 9)}`;
+
+    await organizationsAPI.create({
+      organizationId: orgId,
+      ...data,
+      createdAt: timestamp,
+      updatedAt: timestamp,
+    } as any);
+
+    return orgId;
+  } catch (error) {
+    console.error('❌ Error creating organization:', error);
+    throw error;
+  }
 }
 
 export async function updateOrganization(
   orgId: string,
   data: Partial<Organization>
 ): Promise<void> {
-  return updateDocument('organizations', orgId, data);
+  try {
+    await organizationsAPI.update(orgId, data);
+  } catch (error) {
+    console.error('❌ Error updating organization:', error);
+    throw error;
+  }
 }
 
 // ============================================
@@ -148,23 +295,39 @@ export async function getOrganizationMembers(
 ): Promise<OrganizationMember[]> {
   console.log('🔍 [getOrganizationMembers] 조회 시작 - orgId:', orgId);
 
-  // status 필터와 orderBy 제거하고 메모리에서 처리 (인덱스 불필요)
-  const result = await getDocuments<OrganizationMember>('organizationMembers', [
-    where('organizationId', '==', orgId),
-  ]);
+  try {
+    const members = await membersAPI.getByOrganization(orgId);
 
-  // 메모리에서 active 상태만 필터링 & 정렬
-  const activeMembers = result
-    .filter(m => m.status === 'active')
-    .sort((a, b) => {
-      // joinedAt이 Timestamp인 경우 처리
-      const aTime = a.joinedAt?.seconds || 0;
-      const bTime = b.joinedAt?.seconds || 0;
-      return bTime - aTime; // 최신순
-    });
+    // active 상태만 필터링 & 정렬
+    const activeMembers = members
+      .filter((m: any) => m.status === 'active')
+      .sort((a: any, b: any) => {
+        const aTime = a.joinedAt || 0;
+        const bTime = b.joinedAt || 0;
+        return bTime - aTime; // 최신순
+      })
+      .map((m: any) => ({
+        id: m.memberId,
+        userId: m.userId,
+        organizationId: m.organizationId,
+        role: m.role || 'member',
+        permissions: m.permissions || [],
+        status: m.status || 'active',
+        stats: m.stats || {
+          eventsAttended: 0,
+          postsCreated: 0,
+          lastActivityAt: { seconds: Math.floor(Date.now() / 1000) },
+        },
+        joinedAt: m.joinedAt ? { seconds: Math.floor(m.joinedAt / 1000) } : null,
+        organizationId_userId: m.organizationId_userId || `${m.organizationId}_${m.userId}`,
+      })) as OrganizationMember[];
 
-  console.log('✅ [getOrganizationMembers] 전체:', result.length, '개, active:', activeMembers.length, '개');
-  return activeMembers;
+    console.log('✅ [getOrganizationMembers] active:', activeMembers.length, '개');
+    return activeMembers;
+  } catch (error) {
+    console.error('❌ Error getting organization members:', error);
+    return [];
+  }
 }
 
 export async function getUserMemberships(
@@ -172,16 +335,34 @@ export async function getUserMemberships(
 ): Promise<OrganizationMember[]> {
   console.log('🔍 [getUserMemberships] 조회 시작 - userId:', userId);
 
-  // status 필터 제거하고 메모리에서 필터링 (인덱스 불필요)
-  const result = await getDocuments<OrganizationMember>('organizationMembers', [
-    where('userId', '==', userId),
-  ]);
+  try {
+    const members = await membersAPI.getByUser(userId);
 
-  // 메모리에서 active 상태만 필터링
-  const activeMembers = result.filter(m => m.status === 'active');
+    // active 상태만 필터링
+    const activeMembers = members
+      .filter((m: any) => m.status === 'active')
+      .map((m: any) => ({
+        id: m.memberId,
+        userId: m.userId,
+        organizationId: m.organizationId,
+        role: m.role || 'member',
+        permissions: m.permissions || [],
+        status: m.status || 'active',
+        stats: m.stats || {
+          eventsAttended: 0,
+          postsCreated: 0,
+          lastActivityAt: { seconds: Math.floor(Date.now() / 1000) },
+        },
+        joinedAt: m.joinedAt ? { seconds: Math.floor(m.joinedAt / 1000) } : null,
+        organizationId_userId: m.organizationId_userId || `${m.organizationId}_${m.userId}`,
+      })) as OrganizationMember[];
 
-  console.log('✅ [getUserMemberships] 전체:', result.length, '개, active:', activeMembers.length, '개');
-  return activeMembers;
+    console.log('✅ [getUserMemberships] active:', activeMembers.length, '개');
+    return activeMembers;
+  } catch (error) {
+    console.error('❌ Error getting user memberships:', error);
+    return [];
+  }
 }
 
 export async function addOrganizationMember(
@@ -189,22 +370,32 @@ export async function addOrganizationMember(
   userId: string,
   role: 'owner' | 'admin' | 'member' = 'member'
 ): Promise<string> {
-  const memberData: Omit<OrganizationMember, 'id'> = {
-    organizationId: orgId,
-    userId: userId,
-    role: role,
-    permissions: [],
-    status: 'active',
-    stats: {
-      eventsAttended: 0,
-      postsCreated: 0,
-      lastActivityAt: Timestamp.now(),
-    },
-    joinedAt: Timestamp.now(),
-    organizationId_userId: `${orgId}_${userId}`,
-  };
+  try {
+    const timestamp = Date.now();
+    const memberId = `mem_${timestamp}_${Math.random().toString(36).substr(2, 9)}`;
 
-  return createDocument<OrganizationMember>('organizationMembers', memberData);
+    const memberData = {
+      memberId,
+      organizationId: orgId,
+      userId: userId,
+      role: role,
+      permissions: [],
+      status: 'active',
+      stats: {
+        eventsAttended: 0,
+        postsCreated: 0,
+        lastActivityAt: timestamp,
+      },
+      joinedAt: timestamp,
+      organizationId_userId: `${orgId}_${userId}`,
+    };
+
+    await membersAPI.create(memberData);
+    return memberId;
+  } catch (error) {
+    console.error('❌ Error adding organization member:', error);
+    throw error;
+  }
 }
 
 // ============================================
@@ -215,17 +406,31 @@ export async function getOrganizationEvents(
   orgId: string,
   statusFilter?: 'scheduled' | 'ongoing' | 'completed'
 ): Promise<Event[]> {
-  const constraints: QueryConstraint[] = [
-    where('organizationId', '==', orgId),
-  ];
+  try {
+    // Get all schedules for the organization
+    const schedules = await schedulesAPI.getByOrganization(orgId);
 
-  if (statusFilter) {
-    constraints.push(where('status', '==', statusFilter));
+    // Filter by status if provided
+    let filtered = schedules;
+    if (statusFilter) {
+      filtered = schedules.filter((s: any) => s.status === statusFilter);
+    }
+
+    // Sort by start date
+    filtered.sort((a: any, b: any) => {
+      const aDate = a.date || a.startDate || 0;
+      const bDate = b.date || b.startDate || 0;
+      return new Date(aDate).getTime() - new Date(bDate).getTime();
+    });
+
+    return filtered.map((s: any) => ({
+      id: s.scheduleId,
+      ...s,
+    })) as Event[];
+  } catch (error) {
+    console.error('❌ Error getting organization events:', error);
+    return [];
   }
-
-  constraints.push(orderBy('startDate', 'asc'));
-
-  return getDocuments<Event>('events', constraints);
 }
 
 // ============================================
@@ -237,21 +442,15 @@ export async function searchOrganizationsByLocation(
   longitude: number,
   radiusKm: number = 10
 ): Promise<Organization[]> {
-  // Note: Firestore doesn't support native geo queries
-  // You'll need to use a library like geofirestore or implement bounding box query
-
-  // Simplified version: get all orgs and filter in memory
-  const allOrgs = await getOrganizations();
-
-  return allOrgs.filter(org => {
-    const distance = calculateDistance(
-      latitude,
-      longitude,
-      org.location.latitude,
-      org.location.longitude
-    );
-    return distance <= radiusKm;
-  });
+  try {
+    // DynamoDB doesn't support native geo queries
+    // This would need to be implemented using a geo-hashing library or ElasticSearch
+    console.warn('⚠️ searchOrganizationsByLocation is not implemented for DynamoDB');
+    return [];
+  } catch (error) {
+    console.error('❌ Error searching organizations by location:', error);
+    return [];
+  }
 }
 
 function calculateDistance(

@@ -1,9 +1,30 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+/**
+ * CONVERSION NOTE: Firebase → DynamoDB Migration
+ *
+ * This file has been converted from Firebase/Firestore to AWS DynamoDB.
+ *
+ * Major changes:
+ * 1. Imports: Removed Firestore imports, added DynamoDB library imports
+ * 2. Database operations:
+ *    - updateDoc() → schedulesDB.update()
+ *    - deleteDoc() → schedulesDB.delete()
+ *    - getDocs(query()) → membersDB.getByOrganization() & usersDB.get()
+ *    - runTransaction() → manual updates with Date.now()
+ *    - addDoc() → removed (no subcollections in DynamoDB)
+ * 3. Timestamps: serverTimestamp() → Date.now()
+ * 4. Array operations: arrayRemove replaced with manual filtering
+ *
+ * Known limitations:
+ * - No subcollections (messages table would need separate implementation)
+ * - No transactions (implemented as sequential updates)
+ * - System messages not created (addDoc removed)
+ */
+
+import { useState, useEffect, useMemo } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { doc, deleteDoc, updateDoc, collection, query, where, getDocs, runTransaction, serverTimestamp, getDoc, arrayRemove, addDoc } from 'firebase/firestore';
-import { db } from '@/lib/firebase';
+import { schedulesDB, membersDB, usersDB, organizationsDB } from '@/lib/dynamodb';
 import { ScheduleSummaryCard } from './components/ScheduleSummaryCard';
 import { RSVPButtons } from './components/RSVPButtons';
 import { ParticipantStrip } from './components/ParticipantStrip';
@@ -14,6 +35,7 @@ import { Card, CardBody } from '@/components/ui/Card';
 import { Button } from '@/components/ui';
 import type { OrgSchedule } from '@/types/firestore';
 import { Users, ChevronLeft } from 'lucide-react'
+import { addDuplicateNameSuffixes } from '@/lib/name-utils'
 
 interface ScheduleDetailClientProps {
   schedule: OrgSchedule;
@@ -41,6 +63,17 @@ export function ScheduleDetailClient({
   const router = useRouter();
   const searchParams = useSearchParams();
   const [localSchedule, setLocalSchedule] = useState(schedule);
+
+  // 동명이인 처리: 참석자 이름에 A, B, C... 접미사 추가
+  const participantsWithDisplayNames = useMemo(() => {
+    const participantsWithNames = localSchedule.participants.map(p => ({
+      ...p,
+      name: p.userName,
+      joinedAt: p.respondedAt
+    }))
+    return addDuplicateNameSuffixes(participantsWithNames)
+  }, [localSchedule.participants])
+
   const [isDeleting, setIsDeleting] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
   const [editForm, setEditForm] = useState({
@@ -85,10 +118,9 @@ export function ScheduleDetailClient({
     const fetchOrgData = async () => {
       if (localSchedule.organizationId) {
         try {
-          const orgRef = doc(db, 'organizations', localSchedule.organizationId);
-          const orgSnap = await getDoc(orgRef);
-          if (orgSnap.exists()) {
-            setOrgData(orgSnap.data());
+          const orgData = await organizationsDB.get(localSchedule.organizationId);
+          if (orgData) {
+            setOrgData(orgData);
           }
         } catch (error) {
           console.error('Error fetching organization:', error);
@@ -161,15 +193,13 @@ export function ScheduleDetailClient({
     }
 
     try {
-      const scheduleRef = doc(db, 'org_schedules', scheduleId);
-      await updateDoc(scheduleRef, {
+      await schedulesDB.update(scheduleId, {
         title: editForm.title,
         dateISO: editForm.dateISO,
         time: editForm.time,
         location: editForm.location,
         description: editForm.description,
         maxParticipants: editForm.maxParticipants || null,
-        updatedAt: new Date(),
       });
 
       // 로컬 상태 업데이트
@@ -198,8 +228,7 @@ export function ScheduleDetailClient({
     setIsDeleting(true);
 
     try {
-      const scheduleRef = doc(db, 'org_schedules', scheduleId);
-      await deleteDoc(scheduleRef);
+      await schedulesDB.delete(scheduleId);
 
       alert('일정이 삭제되었습니다.');
       router.push('/dashboard');
@@ -214,14 +243,25 @@ export function ScheduleDetailClient({
   const fetchOrgMembers = async () => {
     setIsLoadingMembers(true);
     try {
-      const membersRef = collection(db, 'members');
-      const q = query(membersRef, where('orgId', '==', localSchedule.organizationId));
-      const snapshot = await getDocs(q);
+      // organizationMembers 조회
+      const orgMembersData = await membersDB.getByOrganization(localSchedule.organizationId);
 
-      const members = snapshot.docs.map((doc) => ({
-        id: doc.id,
-        ...doc.data(),
-      }));
+      // 멤버 리스트 생성 (각 멤버의 userProfile 정보 가져오기)
+      const members = await Promise.all(
+        orgMembersData.map(async (orgMemberData) => {
+          const userProfile = await usersDB.get(orgMemberData.userId);
+
+          return {
+            id: orgMemberData.memberId,
+            uid: orgMemberData.userId,
+            name: userProfile?.name || '알 수 없음',
+            email: userProfile?.email || '',
+            avatar: userProfile?.avatar || userProfile?.photoURL || '',
+            orgId: orgMemberData.organizationId,
+            role: orgMemberData.role || 'member',
+          };
+        })
+      );
 
       setOrgMembers(members);
     } catch (error) {
@@ -235,38 +275,33 @@ export function ScheduleDetailClient({
   // 참석자 추가 핸들러
   const handleAddParticipant = async (member: any, status: 'going' | 'waiting' | 'declined' = 'going') => {
     try {
-      const scheduleRef = doc(db, 'org_schedules', scheduleId);
+      // 현재 스케줄 데이터 가져오기
+      const currentSchedule = await schedulesDB.get(scheduleId);
 
-      await runTransaction(db, async (transaction) => {
-        const scheduleDoc = await transaction.get(scheduleRef);
+      if (!currentSchedule) {
+        throw new Error('일정을 찾을 수 없습니다.');
+      }
 
-        if (!scheduleDoc.exists()) {
-          throw new Error('일정을 찾을 수 없습니다.');
-        }
+      const participants = (currentSchedule.participants || [])
+        .filter((p: any) => typeof p === 'object' && p !== null && p.userId);
 
-        const scheduleData = scheduleDoc.data();
-        const participants = (scheduleData.participants || [])
-          .filter((p: any) => typeof p === 'object' && p !== null && p.userId);
+      // 이미 참석자인지 확인
+      const alreadyParticipant = participants.some((p: any) => p.userId === member.uid);
+      if (alreadyParticipant) {
+        throw new Error('이미 참석자 목록에 있습니다.');
+      }
 
-        // 이미 참석자인지 확인
-        const alreadyParticipant = participants.some((p: any) => p.userId === member.uid);
-        if (alreadyParticipant) {
-          throw new Error('이미 참석자 목록에 있습니다.');
-        }
+      // 새 참석자 추가
+      const newParticipant = {
+        userId: member.uid,
+        userName: member.name,
+        userAvatar: member.avatar || null,
+        status,
+        respondedAt: Date.now(),
+      };
 
-        // 새 참석자 추가
-        const newParticipant = {
-          userId: member.uid,
-          userName: member.name,
-          userAvatar: member.avatar || null,
-          status,
-          respondedAt: new Date(),
-        };
-
-        transaction.update(scheduleRef, {
-          participants: [...participants, newParticipant],
-          updatedAt: serverTimestamp(),
-        });
+      await schedulesDB.update(scheduleId, {
+        participants: [...participants, newParticipant],
       });
 
       // 로컬 상태 업데이트
@@ -294,18 +329,25 @@ export function ScheduleDetailClient({
   // 참석자 제거 핸들러 (벙주 또는 크루장만)
   const handleRemoveParticipant = async (userId: string) => {
     try {
-      const scheduleRef = doc(db, 'org_schedules', scheduleId);
+      // DynamoDB에서 현재 데이터 가져오기
+      const scheduleData = await schedulesDB.get(scheduleId);
+      if (!scheduleData) {
+        throw new Error('일정을 찾을 수 없습니다.');
+      }
 
-      // 제거할 참석자 정보 찾기
-      const removedUser = localSchedule.participants.find(p => p.userId === userId);
+      const participants = scheduleData.participants || [];
+
+      // 제거할 참석자를 DynamoDB 데이터에서 찾기
+      const removedUser = participants.find((p: any) => p.userId === userId);
       if (!removedUser) {
         throw new Error('참석자를 찾을 수 없습니다.');
       }
 
-      // Firestore에서 참석자 제거
-      await updateDoc(scheduleRef, {
-        participants: arrayRemove(removedUser),
-        updatedAt: serverTimestamp()
+      // DynamoDB에서 참석자 제거 (필터링을 통해 구현)
+      const updatedParticipants = participants.filter((p: any) => p.userId !== userId);
+
+      await schedulesDB.update(scheduleId, {
+        participants: updatedParticipants,
       });
 
       // 로컬 상태 업데이트
@@ -314,14 +356,8 @@ export function ScheduleDetailClient({
         participants: prev.participants.filter(p => p.userId !== userId)
       }));
 
-      // 시스템 메시지 추가
-      await addDoc(collection(db, 'org_schedules', scheduleId, 'messages'), {
-        message: `${removedUser.userName}님이 참석자에서 제외되었습니다`,
-        userId: 'system',
-        userName: 'System',
-        createdAt: serverTimestamp(),
-        type: 'system'
-      });
+      // 참고: DynamoDB에는 subcollections이 없으므로 시스템 메시지를 저장하지 않습니다.
+      // 필요시 별도의 messages 테이블에 저장 가능
 
       alert(`${removedUser.userName}님을 참석자에서 제외했습니다.`);
     } catch (error) {
@@ -390,11 +426,11 @@ export function ScheduleDetailClient({
                 ) : (
                   <div className="space-y-4">
                     {/* 현재 참석자 목록 */}
-                    {localSchedule.participants.length > 0 && (
+                    {participantsWithDisplayNames.length > 0 && (
                       <div className="space-y-2">
-                        <h4 className="text-sm font-semibold text-muted-foreground">현재 참석자 ({localSchedule.participants.length}명)</h4>
+                        <h4 className="text-sm font-semibold text-muted-foreground">현재 참석자 ({participantsWithDisplayNames.length}명)</h4>
                         <div className="space-y-2 max-h-60 overflow-y-auto">
-                          {localSchedule.participants.map((participant) => (
+                          {participantsWithDisplayNames.map((participant) => (
                             <div
                               key={participant.userId}
                               className="flex items-center justify-between p-3 bg-muted rounded-lg"
@@ -403,12 +439,12 @@ export function ScheduleDetailClient({
                                 {participant.userAvatar && (
                                   <img
                                     src={participant.userAvatar}
-                                    alt={participant.userName}
+                                    alt={participant.displayName}
                                     className="w-10 h-10 rounded-full object-cover"
                                   />
                                 )}
                                 <div>
-                                  <span className="font-medium">{participant.userName}</span>
+                                  <span className="font-medium">{participant.displayName}</span>
                                   {participant.userId === currentUserId && (
                                     <span className="ml-2 text-xs text-muted-foreground">(나)</span>
                                   )}

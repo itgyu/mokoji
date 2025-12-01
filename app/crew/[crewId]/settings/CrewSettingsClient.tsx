@@ -1,12 +1,31 @@
 'use client';
 
-import { useState } from 'react';
+/**
+ * CONVERSION NOTE: Firebase → DynamoDB Migration
+ *
+ * This file has been converted from Firebase/Firestore to AWS DynamoDB.
+ *
+ * Major changes:
+ * 1. Imports: Removed Firebase imports, added DynamoDB library imports
+ * 2. Database operations:
+ *    - handleSaveCrew: Uses organizationsDB.update() instead of updateDoc
+ *    - handleSaveRole: Uses membersDB.update() instead of updateDoc
+ *    - handleRemoveMember: Uses membersDB.delete() and usersDB.update()
+ *    - handleDeleteCrew: Uses schedulesDB and membersDB queries, then delete operations
+ * 3. Timestamps: new Date() → Date.now()
+ * 4. All Firestore references removed
+ *
+ * Known limitations:
+ * - No real-time updates (client needs to refresh to see changes)
+ */
+
+import { useState, useEffect, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
-import { doc, updateDoc, deleteDoc, collection, query, where, getDocs, getDoc } from 'firebase/firestore';
-import { db } from '@/lib/firebase';
+import { organizationsDB, membersDB, usersDB, schedulesDB } from '@/lib/dynamodb';
 import { Button, Card, CardBody, Avatar } from '@/components/ui';
 import { ChevronLeft, Users, Trash2, Settings, Camera, X, Shield } from 'lucide-react';
 import { uploadToS3 } from '@/lib/s3-client';
+import { addDuplicateNameSuffixes } from '@/lib/name-utils';
 
 interface CrewSettingsClientProps {
   crewId: string;
@@ -28,6 +47,18 @@ export function CrewSettingsClient({
   const [isSaving, setIsSaving] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
   const [members, setMembers] = useState(initialMembers);
+
+  // initialMembers가 업데이트되면 members 상태도 업데이트
+  useEffect(() => {
+    console.log('🔄 CrewSettingsClient - initialMembers 업데이트:', initialMembers.length, '명');
+    setMembers(initialMembers);
+  }, [initialMembers]);
+
+  // 동명이인 처리: 같은 이름에 A, B, C... 접미사 추가
+  const membersWithDisplayNames = useMemo(() => {
+    return addDuplicateNameSuffixes(members)
+  }, [members]);
+
   const [imageFile, setImageFile] = useState<File | null>(null);
   const [imagePreview, setImagePreview] = useState<string | null>(null);
   const [editingRole, setEditingRole] = useState<{ member: any; newRole: string } | null>(null);
@@ -58,11 +89,10 @@ export function CrewSettingsClient({
 
     setIsSaving(true);
     try {
-      const crewRef = doc(db, 'organizations', crewId);
       const updateData: any = {
         name: editForm.name.trim(),
         description: editForm.description.trim(),
-        updatedAt: new Date(),
+        updatedAt: Date.now(),
       };
 
       // 서브타이틀 업데이트
@@ -79,7 +109,7 @@ export function CrewSettingsClient({
         updateData.imageUrl = avatarUrl; // 기존 필드 호환성
       }
 
-      await updateDoc(crewRef, updateData);
+      await organizationsDB.update(crewId, updateData);
 
       alert('크루 정보가 수정되었습니다.');
       setIsEditing(false);
@@ -123,9 +153,9 @@ export function CrewSettingsClient({
     }
 
     try {
-      await updateDoc(doc(db, 'members', member.id), {
+      await membersDB.update(member.id, {
         role: newRole,
-        updatedAt: new Date(),
+        updatedAt: Date.now(),
       });
 
       // 로컬 상태 업데이트
@@ -150,17 +180,16 @@ export function CrewSettingsClient({
     }
 
     try {
-      // members 컬렉션에서 삭제
-      await deleteDoc(doc(db, 'members', memberId));
+      // members 테이블에서 삭제
+      await membersDB.delete(memberId);
 
-      // userProfiles의 organizations 배열에서 제거
-      const userProfileRef = doc(db, 'userProfiles', memberUid);
-      const userProfileDoc = await getDoc(userProfileRef);
+      // users의 organizations 배열에서 제거
+      const userProfile = await usersDB.get(memberUid);
 
-      if (userProfileDoc.exists()) {
-        const currentOrgs = userProfileDoc.data().organizations || [];
+      if (userProfile) {
+        const currentOrgs = userProfile.organizations || [];
         const updatedOrgs = currentOrgs.filter((orgId: string) => orgId !== crewId);
-        await updateDoc(userProfileRef, {
+        await usersDB.update(memberUid, {
           organizations: updatedOrgs,
         });
       }
@@ -191,21 +220,19 @@ export function CrewSettingsClient({
     setIsDeleting(true);
     try {
       // 크루의 모든 일정 삭제
-      const schedulesSnapshot = await getDocs(
-        query(collection(db, 'org_schedules'), where('organizationId', '==', crewId))
-      );
+      const schedules = await schedulesDB.getByOrganization(crewId);
 
-      for (const scheduleDoc of schedulesSnapshot.docs) {
-        await deleteDoc(scheduleDoc.ref);
+      for (const schedule of schedules) {
+        await schedulesDB.delete(schedule.scheduleId);
       }
 
       // 크루의 모든 멤버 삭제
       for (const member of members) {
-        await deleteDoc(doc(db, 'members', member.id));
+        await membersDB.delete(member.id);
       }
 
       // 크루 삭제
-      await deleteDoc(doc(db, 'organizations', crewId));
+      await organizationsDB.delete(crewId);
 
       alert('크루가 삭제되었습니다.');
       router.push('/dashboard');
@@ -411,7 +438,7 @@ export function CrewSettingsClient({
             </h2>
 
             <div className="space-y-2">
-              {members
+              {membersWithDisplayNames
                 .sort((a, b) => {
                   // 크루장이 맨 위
                   if (a.uid === currentUserId) return -1;
@@ -420,7 +447,7 @@ export function CrewSettingsClient({
                   if (a.role === 'admin' && b.role !== 'admin') return -1;
                   if (a.role !== 'admin' && b.role === 'admin') return 1;
                   // 나머지는 이름순
-                  return a.name.localeCompare(b.name);
+                  return a.displayName.localeCompare(b.displayName);
                 })
                 .map((member) => {
                   const isOwner = member.uid === currentUserId;
@@ -434,12 +461,12 @@ export function CrewSettingsClient({
                       <div className="flex items-center gap-3">
                         <Avatar
                           src={member.avatar}
-                          alt={member.name}
+                          alt={member.displayName}
                           size="md"
                         />
                         <div className="flex-1 min-w-0">
                           <div className="flex items-center gap-2 flex-wrap">
-                            <p className="font-medium whitespace-nowrap">{member.name}</p>
+                            <p className="font-medium whitespace-nowrap">{member.displayName}</p>
                             {role === 'owner' && (
                               <span className="text-xs bg-orange-500 text-white px-2 py-0.5 rounded-full whitespace-nowrap flex-shrink-0">
                                 크루장
@@ -453,8 +480,15 @@ export function CrewSettingsClient({
                           </div>
                           {member.joinedAt && (
                             <p className="text-xs text-muted-foreground mt-1">
-                              가입: {new Date(member.joinedAt).toLocaleDateString('ko-KR')}
+                              가입: {
+                                member.joinedAt.seconds
+                                  ? new Date(member.joinedAt.seconds * 1000).toLocaleDateString('ko-KR')
+                                  : new Date(member.joinedAt).toLocaleDateString('ko-KR')
+                              }
                             </p>
+                          )}
+                          {member.birthdate && (
+                            <p className="text-xs text-muted-foreground mt-0.5">생년월일: {member.birthdate}</p>
                           )}
                         </div>
                       </div>

@@ -1,10 +1,26 @@
 'use client';
 
+/**
+ * CONVERSION NOTE: Firebase → DynamoDB Migration
+ *
+ * This file has been converted from Firebase/Firestore to AWS DynamoDB.
+ *
+ * Major changes:
+ * 1. Imports: Removed Firebase imports, added DynamoDB library imports
+ * 2. Auth: Uses Cognito context instead of Firebase Auth
+ * 3. Database operations: getDoc() → schedulesDB.get()
+ * 4. Timestamps: Firestore Timestamp → milliseconds (Date.now())
+ * 5. Real-time listeners: Removed onAuthStateChanged listener (not applicable to DynamoDB)
+ *
+ * Known limitations:
+ * - No real-time auth state changes (needs manual refresh if auth state changes)
+ * - userProfiles now read from DynamoDB users table
+ */
+
 import { use, useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { doc, getDoc } from 'firebase/firestore';
-import { db, auth } from '@/lib/firebase';
-import { onAuthStateChanged } from 'firebase/auth';
+import { useAuth } from '@/contexts/AuthContext';
+import { schedulesDB, usersDB } from '@/lib/dynamodb';
 import { ScheduleDetailClient } from './ScheduleDetailClient';
 import type { OrgSchedule } from '@/types/firestore';
 
@@ -25,49 +41,42 @@ interface ScheduleDetailPageProps {
 export default function ScheduleDetailPage({ params }: ScheduleDetailPageProps) {
   const { scheduleId } = use(params);
   const router = useRouter();
+  const { user: currentUser } = useAuth();
   const [schedule, setSchedule] = useState<OrgSchedule | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [currentUser, setCurrentUser] = useState<any>(null);
   const [userProfile, setUserProfile] = useState<any>(null);
 
-  // Firebase Auth 리스너
+  // 사용자 프로필 가져오기 (Cognito 사용)
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, async (user) => {
-      setCurrentUser(user);
-
-      // 사용자 프로필 가져오기
-      if (user) {
+    const fetchUserProfile = async () => {
+      if (currentUser?.userId) {
         try {
-          const profileRef = doc(db, 'userProfiles', user.uid);
-          const profileSnap = await getDoc(profileRef);
-          if (profileSnap.exists()) {
-            setUserProfile(profileSnap.data());
+          const profile = await usersDB.get(currentUser.userId);
+          if (profile) {
+            setUserProfile(profile);
           }
         } catch (error) {
           console.error('[ScheduleDetailPage] 프로필 가져오기 실패:', error);
         }
       }
-    });
+    };
 
-    return () => unsubscribe();
-  }, []);
+    fetchUserProfile();
+  }, [currentUser?.userId]);
 
   useEffect(() => {
     const fetchSchedule = async () => {
       try {
         console.log('[ScheduleDetailPage] 일정 데이터 가져오기:', scheduleId);
 
-        const scheduleRef = doc(db, 'org_schedules', scheduleId);
-        const scheduleSnap = await getDoc(scheduleRef);
+        const scheduleData = await schedulesDB.get(scheduleId);
 
-        if (!scheduleSnap.exists()) {
+        if (!scheduleData) {
           console.error('[ScheduleDetailPage] 일정을 찾을 수 없음');
           setError('일정을 찾을 수 없습니다.');
           return;
         }
-
-        const scheduleData = scheduleSnap.data();
 
         // isDeleted 확인
         if (scheduleData.isDeleted) {
@@ -76,7 +85,7 @@ export default function ScheduleDetailPage({ params }: ScheduleDetailPageProps) 
           return;
         }
 
-        // schedules 컬렉션 데이터를 OrgSchedule 형식으로 변환
+        // DynamoDB 데이터를 OrgSchedule 형식으로 변환
         // date + time을 조합하여 startDate 생성
         const dateISO = scheduleData.dateISO || scheduleData.date;
         const time = scheduleData.time || '00:00';
@@ -86,7 +95,7 @@ export default function ScheduleDetailPage({ params }: ScheduleDetailPageProps) 
 
         const scheduleWithDates = {
           ...scheduleData,
-          id: scheduleSnap.id,
+          id: scheduleId,
           organizationId: scheduleData.orgId,
           startDate: { toDate: () => startDateTime }, // Firestore Timestamp 형식 모방
           endDate: { toDate: () => startDateTime },
@@ -97,7 +106,7 @@ export default function ScheduleDetailPage({ params }: ScheduleDetailPageProps) 
             .map((p: any) => {
               // respondedAt을 Timestamp 형식으로 변환
               const respondedDate = p.respondedAt
-                ? (typeof p.respondedAt === 'string' ? new Date(p.respondedAt) : p.respondedAt)
+                ? (typeof p.respondedAt === 'number' ? new Date(p.respondedAt) : new Date(p.respondedAt))
                 : new Date();
 
               return {
@@ -154,9 +163,9 @@ export default function ScheduleDetailPage({ params }: ScheduleDetailPageProps) 
       <ScheduleDetailClient
         schedule={schedule}
         scheduleId={scheduleId}
-        currentUserId={currentUser.uid}
-        currentUserName={userProfile?.name || currentUser.displayName || '익명'}
-        currentUserAvatar={userProfile?.avatar || currentUser.photoURL}
+        currentUserId={currentUser.userId}
+        currentUserName={userProfile?.name || currentUser.userName || '익명'}
+        currentUserAvatar={userProfile?.avatar || userProfile?.photoURL}
       />
     </div>
   );
