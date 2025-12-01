@@ -17,20 +17,37 @@ let verifier: ReturnType<typeof CognitoJwtVerifier.create> | null = null;
 
 function getVerifier() {
   if (!verifier) {
-    const userPoolId = process.env.AWS_COGNITO_USER_POOL_ID;
-    const clientId = process.env.AWS_COGNITO_CLIENT_ID;
+    // Trim whitespace and newlines from environment variables (fix for Vercel env var issue)
+    const userPoolId = process.env.AWS_COGNITO_USER_POOL_ID?.trim();
+    const clientId = process.env.AWS_COGNITO_CLIENT_ID?.trim();
 
+    // 빌드 타임에는 환경 변수가 없을 수 있으므로, 런타임에만 에러 throw
     if (!userPoolId || !clientId) {
+      // 빌드 타임 (next build 중) 체크
+      if (process.env.NEXT_PHASE === 'phase-production-build') {
+        // 빌드 중에는 더미 verifier 반환 (실제로 호출되지 않음)
+        console.warn('⚠️ Cognito config not available during build - this is expected');
+        return null as any;
+      }
       throw new Error(
         'Missing Cognito configuration. Please set AWS_COGNITO_USER_POOL_ID and AWS_COGNITO_CLIENT_ID environment variables.'
       );
     }
 
-    verifier = CognitoJwtVerifier.create({
-      userPoolId,
-      tokenUse: 'id',
-      clientId,
-    });
+    try {
+      verifier = CognitoJwtVerifier.create({
+        userPoolId,
+        tokenUse: 'id',
+        clientId,
+      });
+    } catch (error: any) {
+      // 빌드 중에는 에러를 무시
+      if (process.env.NEXT_PHASE === 'phase-production-build') {
+        console.warn('⚠️ Failed to create verifier during build - this is expected');
+        return null as any;
+      }
+      throw error;
+    }
   }
   return verifier;
 }
