@@ -8,6 +8,11 @@ import { NextResponse } from 'next/server';
 import { withAuth, successResponse, unauthorizedResponse, serverErrorResponse } from '@/lib/api-auth';
 import { usersDB } from '@/lib/dynamodb-server';
 
+// Force dynamic rendering (prevent static generation during build)
+export const dynamic = 'force-dynamic';
+export const runtime = 'nodejs';
+
+
 /**
  * GET /api/users/email/[email]
  * Fetch user by email

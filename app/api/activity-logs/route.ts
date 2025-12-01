@@ -9,6 +9,11 @@ import { activityLogsDB } from '@/lib/dynamodb-server';
 import { withAuth, unauthorizedResponse, serverErrorResponse, successResponse } from '@/lib/api-auth';
 import { randomUUID } from 'crypto';
 
+// Force dynamic rendering (prevent static generation during build)
+export const dynamic = 'force-dynamic';
+export const runtime = 'nodejs';
+
+
 export async function POST(request: Request) {
   try {
     console.log('[POST /api/activity-logs] Starting activity log creation');

@@ -9,6 +9,11 @@ import { withAuth, unauthorizedResponse, serverErrorResponse, successResponse } 
 import { membersDB } from '@/lib/dynamodb-server';
 import { randomUUID } from 'crypto';
 
+// Force dynamic rendering (prevent static generation during build)
+export const dynamic = 'force-dynamic';
+export const runtime = 'nodejs';
+
+
 /**
  * POST /api/members
  * Create new member (add member to organization)

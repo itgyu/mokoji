@@ -8,6 +8,11 @@ import { NextResponse } from 'next/server';
 import { photosDB } from '@/lib/dynamodb-server';
 import { withAuth, unauthorizedResponse, serverErrorResponse, successResponse } from '@/lib/api-auth';
 
+// Force dynamic rendering (prevent static generation during build)
+export const dynamic = 'force-dynamic';
+export const runtime = 'nodejs';
+
+
 export async function DELETE(
   request: Request,
   { params }: { params: { photoId: string } }

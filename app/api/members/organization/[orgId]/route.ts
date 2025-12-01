@@ -8,6 +8,11 @@ import { NextRequest, NextResponse } from 'next/server';
 import { withAuth, unauthorizedResponse, serverErrorResponse, successResponse } from '@/lib/api-auth';
 import { membersDB } from '@/lib/dynamodb-server';
 
+// Force dynamic rendering (prevent static generation during build)
+export const dynamic = 'force-dynamic';
+export const runtime = 'nodejs';
+
+
 /**
  * GET /api/members/organization/[orgId]
  * Fetch all members of an organization

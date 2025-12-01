@@ -8,6 +8,11 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { S3Client, PutObjectCommand } from '@aws-sdk/client-s3';
 
+// Force dynamic rendering (prevent static generation during build)
+export const dynamic = 'force-dynamic';
+export const runtime = 'nodejs';
+
+
 // S3 클라이언트 초기화 (서버 사이드에서만 실행)
 const s3Client = new S3Client({
   region: process.env.NEXT_PUBLIC_AWS_REGION!,

@@ -16,6 +16,11 @@ import {
   serverErrorResponse,
 } from '@/lib/api-auth';
 
+// Force dynamic rendering (prevent static generation during build)
+export const dynamic = 'force-dynamic';
+export const runtime = 'nodejs';
+
+
 interface RouteContext {
   params: Promise<{
     orgId: string;

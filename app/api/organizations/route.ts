@@ -15,6 +15,11 @@ import {
 } from '@/lib/api-auth';
 import { randomUUID } from 'crypto';
 
+// Force dynamic rendering (prevent static generation during build)
+export const dynamic = 'force-dynamic';
+export const runtime = 'nodejs';
+
+
 /**
  * GET /api/organizations
  * Fetch all organizations (with limit)
