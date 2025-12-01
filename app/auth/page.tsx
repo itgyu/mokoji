@@ -8,11 +8,13 @@ import { BRAND } from '@/lib/brand'
 import { getCities, getDistricts } from '@/lib/locations'
 import { uploadToS3 } from '@/lib/s3-client'
 import { CREW_CATEGORIES } from '@/lib/constants'
+import { useAuth } from '@/contexts/AuthContext'
 
 type AuthStep = 'email' | 'login' | 'signup' | 'verify-email' | 'forgot-password'
 
 export default function AuthPage() {
   const router = useRouter()
+  const { refreshAuth } = useAuth()
   const [step, setStep] = useState<AuthStep>('login')
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
@@ -40,6 +42,11 @@ export default function AuthPage() {
     try {
       const { user } = await signInWithEmail(email, password)
       console.log('✅ Cognito 로그인 성공:', user.email)
+
+      // AuthContext 상태 갱신
+      await refreshAuth()
+      console.log('✅ AuthContext 상태 갱신 완료')
+
       router.push('/dashboard')
     } catch (err: unknown) {
       if (err instanceof Error) {
@@ -133,7 +140,11 @@ export default function AuthPage() {
       })
       console.log('✅ DynamoDB에 프로필 저장 완료')
 
-      // 5. 대시보드로 이동
+      // 5. AuthContext 상태 갱신
+      await refreshAuth()
+      console.log('✅ AuthContext 상태 갱신 완료')
+
+      // 6. 대시보드로 이동
       router.push('/dashboard')
     } catch (err: unknown) {
       if (err instanceof Error) {

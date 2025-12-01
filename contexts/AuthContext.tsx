@@ -51,6 +51,7 @@ interface AuthContextType {
   memberships: OrganizationMember[]
   loading: boolean
   refreshUserProfile: () => Promise<void>
+  refreshAuth: () => Promise<void>
   signOut: () => Promise<void>
 }
 
@@ -60,6 +61,7 @@ const AuthContext = createContext<AuthContextType>({
   memberships: [],
   loading: true,
   refreshUserProfile: async () => {},
+  refreshAuth: async () => {},
   signOut: async () => {},
 })
 
@@ -222,10 +224,36 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   }
 
+  const checkAuth = async () => {
+    try {
+      const cognitoUser = await getCurrentUser()
+      setUser(cognitoUser)
+
+      if (cognitoUser) {
+        await fetchUserProfile(cognitoUser)
+      } else {
+        setUserProfile(null)
+        setMemberships([])
+      }
+    } catch (error) {
+      console.error('❌ 인증 확인 실패:', error)
+      setUser(null)
+      setUserProfile(null)
+      setMemberships([])
+    } finally {
+      setLoading(false)
+    }
+  }
+
   const refreshUserProfile = async () => {
     if (user) {
       await fetchUserProfile(user)
     }
+  }
+
+  const refreshAuth = async () => {
+    setLoading(true)
+    await checkAuth()
   }
 
   const signOut = async () => {
@@ -242,27 +270,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }
 
   useEffect(() => {
-    const checkAuth = async () => {
-      try {
-        const cognitoUser = await getCurrentUser()
-        setUser(cognitoUser)
-
-        if (cognitoUser) {
-          await fetchUserProfile(cognitoUser)
-        } else {
-          setUserProfile(null)
-          setMemberships([])
-        }
-      } catch (error) {
-        console.error('❌ 인증 확인 실패:', error)
-        setUser(null)
-        setUserProfile(null)
-        setMemberships([])
-      } finally {
-        setLoading(false)
-      }
-    }
-
     checkAuth()
 
     // 5분마다 세션 확인
@@ -279,6 +286,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         memberships,
         loading,
         refreshUserProfile,
+        refreshAuth,
         signOut
       }}
     >
