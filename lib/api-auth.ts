@@ -14,42 +14,44 @@ export interface AuthUser {
 
 // Lazy initialization - 빌드 타임이 아닌 런타임에 생성
 let verifier: ReturnType<typeof CognitoJwtVerifier.create> | null = null;
+let verifierError: Error | null = null;
 
 function getVerifier() {
-  if (!verifier) {
-    // Trim whitespace and newlines from environment variables (fix for Vercel env var issue)
-    const userPoolId = process.env.AWS_COGNITO_USER_POOL_ID?.trim();
-    const clientId = process.env.AWS_COGNITO_CLIENT_ID?.trim();
-
-    // 빌드 타임에는 환경 변수가 없을 수 있으므로, 런타임에만 에러 throw
-    if (!userPoolId || !clientId) {
-      // 빌드 타임 (next build 중) 체크
-      if (process.env.NEXT_PHASE === 'phase-production-build') {
-        // 빌드 중에는 더미 verifier 반환 (실제로 호출되지 않음)
-        console.warn('⚠️ Cognito config not available during build - this is expected');
-        return null as any;
-      }
-      throw new Error(
-        'Missing Cognito configuration. Please set AWS_COGNITO_USER_POOL_ID and AWS_COGNITO_CLIENT_ID environment variables.'
-      );
-    }
-
-    try {
-      verifier = CognitoJwtVerifier.create({
-        userPoolId,
-        tokenUse: 'id',
-        clientId,
-      });
-    } catch (error: any) {
-      // 빌드 중에는 에러를 무시
-      if (process.env.NEXT_PHASE === 'phase-production-build') {
-        console.warn('⚠️ Failed to create verifier during build - this is expected');
-        return null as any;
-      }
-      throw error;
-    }
+  // 이미 verifier가 생성되었으면 반환
+  if (verifier) {
+    return verifier;
   }
-  return verifier;
+
+  // 이전에 verifier 생성 실패했으면 에러 throw
+  if (verifierError) {
+    throw verifierError;
+  }
+
+  // Trim whitespace and newlines from environment variables (fix for Vercel env var issue)
+  const userPoolId = process.env.AWS_COGNITO_USER_POOL_ID?.trim();
+  const clientId = process.env.AWS_COGNITO_CLIENT_ID?.trim();
+
+  // 환경 변수가 없으면 에러
+  if (!userPoolId || !clientId) {
+    verifierError = new Error(
+      `Missing Cognito configuration. ` +
+      `AWS_COGNITO_USER_POOL_ID=${userPoolId ? 'set' : 'missing'}, ` +
+      `AWS_COGNITO_CLIENT_ID=${clientId ? 'set' : 'missing'}`
+    );
+    throw verifierError;
+  }
+
+  try {
+    verifier = CognitoJwtVerifier.create({
+      userPoolId,
+      tokenUse: 'id',
+      clientId,
+    });
+    return verifier;
+  } catch (error: any) {
+    verifierError = new Error(`Failed to create Cognito JWT verifier: ${error.message}`);
+    throw verifierError;
+  }
 }
 
 /**
