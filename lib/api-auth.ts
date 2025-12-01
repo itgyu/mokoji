@@ -1,10 +1,12 @@
 /**
  * API 인증 미들웨어
  *
- * API Routes에서 사용하는 Cognito JWT 토큰 검증
+ * Cognito JWT 토큰 검증 (jose 라이브러리 사용)
  *
- * ⚠️ Dynamic import를 사용하여 빌드 시 모듈 평가를 방지합니다
+ * ✅ jose는 빌드 시점에 아무것도 검증하지 않아 Vercel 배포 문제 해결
  */
+
+import { createRemoteJWKSet, jwtVerify } from 'jose';
 
 export interface AuthUser {
   sub: string;        // User ID (Cognito sub)
@@ -12,49 +14,67 @@ export interface AuthUser {
   name?: string;
 }
 
-// Lazy initialization - 빌드 타임이 아닌 런타임에 생성
-let verifier: any | null = null;
-let verifierError: Error | null = null;
+// JWKS URL 생성
+function getJwksUrl(): URL {
+  const userPoolId = process.env.AWS_COGNITO_USER_POOL_ID?.trim();
+  const region = process.env.AWS_REGION?.trim() || 'ap-northeast-2';
 
-async function getVerifier() {
-  // 이미 verifier가 생성되었으면 반환
-  if (verifier) {
-    return verifier;
+  if (!userPoolId) {
+    throw new Error('AWS_COGNITO_USER_POOL_ID 환경 변수가 설정되지 않았습니다');
   }
 
-  // 이전에 verifier 생성 실패했으면 에러 throw
-  if (verifierError) {
-    throw verifierError;
+  return new URL(`https://cognito-idp.${region}.amazonaws.com/${userPoolId}/.well-known/jwks.json`);
+}
+
+// JWKS 캐시 (런타임에만 생성)
+let jwks: ReturnType<typeof createRemoteJWKSet> | null = null;
+
+function getJwks() {
+  if (!jwks) {
+    jwks = createRemoteJWKSet(getJwksUrl());
   }
+  return jwks;
+}
+
+/**
+ * JWT 토큰 검증
+ */
+async function verifyToken(token: string) {
+  const userPoolId = process.env.AWS_COGNITO_USER_POOL_ID?.trim();
+  const clientId = process.env.AWS_COGNITO_CLIENT_ID?.trim();
+  const region = process.env.AWS_REGION?.trim() || 'ap-northeast-2';
+
+  if (!userPoolId || !clientId) {
+    throw new Error('Cognito 환경 변수가 설정되지 않았습니다');
+  }
+
+  const issuer = `https://cognito-idp.${region}.amazonaws.com/${userPoolId}`;
 
   try {
-    // Dynamic import를 사용하여 런타임에만 aws-jwt-verify 로드
-    const { CognitoJwtVerifier } = await import('aws-jwt-verify');
-
-    // Trim whitespace and newlines from environment variables (fix for Vercel env var issue)
-    const userPoolId = process.env.AWS_COGNITO_USER_POOL_ID?.trim();
-    const clientId = process.env.AWS_COGNITO_CLIENT_ID?.trim();
-
-    // 환경 변수가 없으면 에러
-    if (!userPoolId || !clientId) {
-      verifierError = new Error(
-        `Missing Cognito configuration. ` +
-        `AWS_COGNITO_USER_POOL_ID=${userPoolId ? 'set' : 'missing'}, ` +
-        `AWS_COGNITO_CLIENT_ID=${clientId ? 'set' : 'missing'}`
-      );
-      throw verifierError;
-    }
-
-    verifier = CognitoJwtVerifier.create({
-      userPoolId,
-      tokenUse: 'id',
-      clientId,
+    // ID 토큰 검증 (audience 포함)
+    const { payload } = await jwtVerify(token, getJwks(), {
+      issuer,
+      audience: clientId,
     });
 
-    return verifier;
-  } catch (error: any) {
-    verifierError = new Error(`Failed to create Cognito JWT verifier: ${error.message}`);
-    throw verifierError;
+    return payload;
+  } catch (error) {
+    // Access 토큰 검증 (audience 없이 재시도)
+    try {
+      const { payload } = await jwtVerify(token, getJwks(), {
+        issuer,
+      });
+
+      // client_id 수동 검증 (access token)
+      if (payload.client_id && payload.client_id !== clientId) {
+        throw new Error('Invalid client_id');
+      }
+
+      return payload;
+    } catch (retryError) {
+      console.error('❌ JWT 검증 실패:', retryError);
+      throw new Error('유효하지 않은 토큰입니다');
+    }
   }
 }
 
@@ -79,14 +99,14 @@ export async function withAuth(request: Request): Promise<AuthUser> {
       throw new Error('No token provided');
     }
 
-    // Cognito JWT 토큰 검증
-    const payload = await getVerifier().verify(token);
+    // JWT 토큰 검증
+    const payload = await verifyToken(token);
 
     // 사용자 정보 반환
     return {
-      sub: payload.sub,
-      email: payload.email || '',
-      name: payload.name,
+      sub: payload.sub as string,
+      email: (payload.email as string) || (payload['cognito:username'] as string) || '',
+      name: payload.name as string | undefined,
     };
   } catch (error: any) {
     console.error('❌ Auth verification failed:', error.message);
