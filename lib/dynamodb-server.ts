@@ -20,11 +20,12 @@ import {
 } from '@aws-sdk/lib-dynamodb';
 
 // 서버 전용 환경 변수 (NEXT_PUBLIC_ 제거)
+// trim()을 사용하여 개행 문자 제거
 const client = new DynamoDBClient({
-  region: process.env.AWS_REGION || 'ap-northeast-2',
+  region: (process.env.AWS_REGION || 'ap-northeast-2').trim(),
   credentials: {
-    accessKeyId: process.env.AWS_ACCESS_KEY_ID || '',
-    secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY || '',
+    accessKeyId: (process.env.AWS_ACCESS_KEY_ID || '').trim(),
+    secretAccessKey: (process.env.AWS_SECRET_ACCESS_KEY || '').trim(),
   },
 });
 
