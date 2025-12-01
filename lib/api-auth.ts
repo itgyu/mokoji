@@ -4,6 +4,7 @@
  * Cognito JWT 토큰 검증 (jose 라이브러리 사용)
  *
  * ✅ jose는 빌드 시점에 아무것도 검증하지 않아 Vercel 배포 문제 해결
+ * ✅ 빌드 캐시 무효화를 위한 변경 (2025-12-01)
  */
 
 import { createRemoteJWKSet, jwtVerify } from 'jose';
