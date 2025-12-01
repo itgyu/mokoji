@@ -2,9 +2,9 @@
  * API 인증 미들웨어
  *
  * API Routes에서 사용하는 Cognito JWT 토큰 검증
+ *
+ * ⚠️ Dynamic import를 사용하여 빌드 시 모듈 평가를 방지합니다
  */
-
-import { CognitoJwtVerifier } from 'aws-jwt-verify';
 
 export interface AuthUser {
   sub: string;        // User ID (Cognito sub)
@@ -13,10 +13,10 @@ export interface AuthUser {
 }
 
 // Lazy initialization - 빌드 타임이 아닌 런타임에 생성
-let verifier: ReturnType<typeof CognitoJwtVerifier.create> | null = null;
+let verifier: any | null = null;
 let verifierError: Error | null = null;
 
-function getVerifier() {
+async function getVerifier() {
   // 이미 verifier가 생성되었으면 반환
   if (verifier) {
     return verifier;
@@ -27,26 +27,30 @@ function getVerifier() {
     throw verifierError;
   }
 
-  // Trim whitespace and newlines from environment variables (fix for Vercel env var issue)
-  const userPoolId = process.env.AWS_COGNITO_USER_POOL_ID?.trim();
-  const clientId = process.env.AWS_COGNITO_CLIENT_ID?.trim();
-
-  // 환경 변수가 없으면 에러
-  if (!userPoolId || !clientId) {
-    verifierError = new Error(
-      `Missing Cognito configuration. ` +
-      `AWS_COGNITO_USER_POOL_ID=${userPoolId ? 'set' : 'missing'}, ` +
-      `AWS_COGNITO_CLIENT_ID=${clientId ? 'set' : 'missing'}`
-    );
-    throw verifierError;
-  }
-
   try {
+    // Dynamic import를 사용하여 런타임에만 aws-jwt-verify 로드
+    const { CognitoJwtVerifier } = await import('aws-jwt-verify');
+
+    // Trim whitespace and newlines from environment variables (fix for Vercel env var issue)
+    const userPoolId = process.env.AWS_COGNITO_USER_POOL_ID?.trim();
+    const clientId = process.env.AWS_COGNITO_CLIENT_ID?.trim();
+
+    // 환경 변수가 없으면 에러
+    if (!userPoolId || !clientId) {
+      verifierError = new Error(
+        `Missing Cognito configuration. ` +
+        `AWS_COGNITO_USER_POOL_ID=${userPoolId ? 'set' : 'missing'}, ` +
+        `AWS_COGNITO_CLIENT_ID=${clientId ? 'set' : 'missing'}`
+      );
+      throw verifierError;
+    }
+
     verifier = CognitoJwtVerifier.create({
       userPoolId,
       tokenUse: 'id',
       clientId,
     });
+
     return verifier;
   } catch (error: any) {
     verifierError = new Error(`Failed to create Cognito JWT verifier: ${error.message}`);
