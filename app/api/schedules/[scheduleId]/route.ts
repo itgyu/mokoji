@@ -31,7 +31,7 @@ export async function GET(request: Request, { params }: RouteParams) {
     const user = await withAuth(request);
     console.log('[GET /api/schedules/[scheduleId]] Authenticated user:', user.sub);
 
-    const { scheduleId } = params;
+    const { scheduleId } = await params;
     console.log('[GET /api/schedules/[scheduleId]] Fetching schedule:', scheduleId);
 
     // Fetch schedule from DynamoDB
@@ -66,7 +66,7 @@ export async function PUT(request: Request, { params }: RouteParams) {
     const user = await withAuth(request);
     console.log('[PUT /api/schedules/[scheduleId]] Authenticated user:', user.sub);
 
-    const { scheduleId } = params;
+    const { scheduleId } = await params;
     console.log('[PUT /api/schedules/[scheduleId]] Updating schedule:', scheduleId);
 
     // Check if schedule exists
@@ -128,7 +128,7 @@ export async function DELETE(request: Request, { params }: RouteParams) {
     const user = await withAuth(request);
     console.log('[DELETE /api/schedules/[scheduleId]] Authenticated user:', user.sub);
 
-    const { scheduleId } = params;
+    const { scheduleId } = await params;
     console.log('[DELETE /api/schedules/[scheduleId]] Deleting schedule:', scheduleId);
 
     // Check if schedule exists

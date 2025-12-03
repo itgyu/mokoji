@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { schedulesDB } from '@/lib/dynamodb';
+import { getIdToken } from '@/lib/cognito';
 import type { ScheduleChatMessage } from '@/types/firestore';
 import { uploadChatMedia } from '@/lib/chat-helpers';
 
@@ -7,10 +7,14 @@ import { uploadChatMedia } from '@/lib/chat-helpers';
  * 일정 채팅을 위한 실시간 Hook
  *
  * 주요 기능:
- * 1. 실시간 메시지 수신 (onSnapshot)
+ * 1. 실시간 메시지 수신 (API 폴링)
  * 2. Optimistic UI를 통한 즉각적인 메시지 전송
  * 3. 실패한 메시지 재전송
  * 4. 자동 메모리 정리 (unsubscribe)
+ *
+ * 변경 사항:
+ * - DynamoDB 직접 호출 → API 라우트 호출로 변경
+ * - 보안 개선: AWS 자격 증명이 클라이언트에 노출되지 않음
  */
 export function useScheduleChat(
   scheduleId: string,
@@ -27,31 +31,88 @@ export function useScheduleChat(
   const tempMessageIds = useRef(new Set<string>());
 
   /**
-   * 메시지 폴링 설정 (DynamoDB는 실시간 리스너를 지원하지 않으므로 폴링 사용)
+   * API 호출을 위한 헬퍼 함수
+   */
+  const fetchWithAuth = useCallback(async (url: string, options: RequestInit = {}) => {
+    const token = await getIdToken();
+    if (!token) {
+      throw new Error('인증이 필요합니다. 다시 로그인해주세요.');
+    }
+
+    const response = await fetch(url, {
+      ...options,
+      headers: {
+        ...options.headers,
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/json',
+      },
+    });
+
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}));
+      throw new Error(errorData.error || `API 오류: ${response.status}`);
+    }
+
+    return response.json();
+  }, []);
+
+  /**
+   * 읽음 처리 API 호출
+   */
+  const markMessagesAsRead = useCallback(async (messageIds: string[]) => {
+    if (messageIds.length === 0) return;
+
+    try {
+      await fetchWithAuth(`/api/schedules/${scheduleId}/messages`, {
+        method: 'PATCH',
+        body: JSON.stringify({ messageIds }),
+      });
+    } catch (err) {
+      // 읽음 처리 실패는 무시 (사용자 경험에 영향 없음)
+      console.warn('[useScheduleChat] 읽음 처리 실패:', err);
+    }
+  }, [scheduleId, fetchWithAuth]);
+
+  /**
+   * 메시지 폴링 설정 (API 라우트 사용)
    */
   useEffect(() => {
     console.log('[useScheduleChat] 메시지 폴링 시작:', scheduleId);
 
     let pollingInterval: NodeJS.Timeout;
     let isMounted = true;
+    const markedMessageIds = new Set<string>(); // 이미 읽음 처리한 메시지 ID 추적
 
     const fetchMessages = async () => {
       try {
-        // DynamoDB에서 일정 정보 및 메시지 조회
-        const scheduleData = await schedulesDB.get(scheduleId);
+        // API 라우트를 통해 메시지 조회
+        const data = await fetchWithAuth(`/api/schedules/${scheduleId}/messages`);
 
-        if (!scheduleData || !isMounted) return;
+        if (!isMounted) return;
 
         // 기존 메시지 ID 추적 (중복 방지)
         const existingIds = new Set<string>();
+        const unreadMessageIds: string[] = []; // 읽음 처리할 메시지 ID
 
-        // 메시지 배열 처리 (DynamoDB에 저장된 메시지 배열)
-        const newMessages = (scheduleData.messages || [])
+        // 메시지 배열 처리
+        const newMessages = (data.messages || [])
           .map((msg: any) => {
-            existingIds.add(msg.id);
+            // messageId 또는 id 사용 (별도 테이블은 messageId 사용)
+            const msgId = msg.messageId || msg.id;
+            existingIds.add(msgId);
+
+            // 아직 읽음 처리하지 않은 메시지이고, 내가 아닌 사람이 보낸 메시지인 경우
+            if (!markedMessageIds.has(msgId) &&
+                msg.senderId !== currentUserId &&
+                (!msg.readBy || !msg.readBy.includes(currentUserId))) {
+              unreadMessageIds.push(msgId);
+              markedMessageIds.add(msgId);
+            }
+
             // createdAt을 타임스탬프로 정규화
             return {
               ...msg,
+              id: msgId, // 일관된 id 필드 사용
               createdAt: typeof msg.createdAt === 'number'
                 ? { toDate: () => new Date(msg.createdAt) }
                 : msg.createdAt,
@@ -59,13 +120,6 @@ export function useScheduleChat(
                 ? { toDate: () => new Date(msg.updatedAt) }
                 : msg.updatedAt,
             };
-          })
-          .filter((msg: any) => !msg.isDeleted) // 삭제된 메시지 제외
-          .sort((a: any, b: any) => {
-            // createdAt으로 정렬 (오름차순)
-            const timeA = a.createdAt?.toDate?.()?.getTime() || 0;
-            const timeB = b.createdAt?.toDate?.()?.getTime() || 0;
-            return timeA - timeB;
           });
 
         // 임시 메시지 중 실제로 저장된 메시지 제거
@@ -79,6 +133,11 @@ export function useScheduleChat(
         setMessages(newMessages);
         setIsLoading(false);
         setError(null);
+
+        // 읽음 처리 (백그라운드에서 실행)
+        if (unreadMessageIds.length > 0) {
+          markMessagesAsRead(unreadMessageIds);
+        }
       } catch (err) {
         console.error('[useScheduleChat] 폴링 에러:', err);
         setError(err as Error);
@@ -98,7 +157,7 @@ export function useScheduleChat(
       isMounted = false;
       clearInterval(pollingInterval);
     };
-  }, [scheduleId]);
+  }, [scheduleId, currentUserId, fetchWithAuth, markMessagesAsRead]);
 
   /**
    * 메시지 전송 (Optimistic UI)
@@ -134,37 +193,18 @@ export function useScheduleChat(
       try {
         console.log('[useScheduleChat] 메시지 전송 시작:', content.substring(0, 20));
 
-        // DynamoDB에 메시지 저장
-        const messageId = `msg_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-        const now = Date.now();
-
-        // 기존 메시지 배열을 가져와서 새 메시지 추가
-        const scheduleData = await schedulesDB.get(scheduleId);
-        const existingMessages = scheduleData?.messages || [];
-
-        const newMessage = {
-          id: messageId,
-          scheduleId,
-          senderId: currentUserId,
-          senderName: currentUserName,
-          senderAvatar: currentUserAvatar || null,
-          content: content.trim(),
-          type: 'text',
-          createdAt: now,
-          updatedAt: now,
-          isDeleted: false,
-          readBy: [currentUserId],
-        };
-
-        // 새 메시지를 배열에 추가
-        const updatedMessages = [...existingMessages, newMessage];
-
-        // DynamoDB에 업데이트
-        await schedulesDB.update(scheduleId, {
-          messages: updatedMessages,
-          updatedAt: now,
+        // API 라우트를 통해 메시지 저장
+        const data = await fetchWithAuth(`/api/schedules/${scheduleId}/messages`, {
+          method: 'POST',
+          body: JSON.stringify({
+            content: content.trim(),
+            type: 'text',
+            senderName: currentUserName,
+            senderAvatar: currentUserAvatar,
+          }),
         });
 
+        const messageId = data.message.messageId || data.message.id;
         console.log('[useScheduleChat] 메시지 전송 성공:', messageId);
 
         // Optimistic 메시지를 실제 메시지로 교체
@@ -177,10 +217,6 @@ export function useScheduleChat(
         );
 
         tempMessageIds.current.delete(tempId);
-
-        // 일정의 lastMessage 업데이트
-        await updateScheduleLastMessage(scheduleId, content, currentUserName);
-
         setIsSending(false);
       } catch (err) {
         console.error('[useScheduleChat] 메시지 전송 실패:', err);
@@ -198,7 +234,7 @@ export function useScheduleChat(
         // 에러는 던지지 않고 상태로만 표시
       }
     },
-    [scheduleId, currentUserId, currentUserName, currentUserAvatar, isSending]
+    [scheduleId, currentUserId, currentUserName, currentUserAvatar, isSending, fetchWithAuth]
   );
 
   /**
@@ -248,38 +284,19 @@ export function useScheduleChat(
         // 파일 업로드 및 첨부파일 정보 생성
         const attachment = await uploadChatMedia(file, scheduleId, tempId);
 
-        // DynamoDB에 메시지 저장
-        const messageId = `msg_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-        const now = Date.now();
-
-        // 기존 메시지 배열을 가져와서 새 메시지 추가
-        const scheduleData = await schedulesDB.get(scheduleId);
-        const existingMessages = scheduleData?.messages || [];
-
-        const newMessage = {
-          id: messageId,
-          scheduleId,
-          senderId: currentUserId,
-          senderName: currentUserName,
-          senderAvatar: currentUserAvatar || null,
-          content: caption || '',
-          type: file.type.startsWith('image/') ? 'image' : 'file',
-          attachments: [attachment],
-          createdAt: now,
-          updatedAt: now,
-          isDeleted: false,
-          readBy: [currentUserId],
-        };
-
-        // 새 메시지를 배열에 추가
-        const updatedMessages = [...existingMessages, newMessage];
-
-        // DynamoDB에 업데이트
-        await schedulesDB.update(scheduleId, {
-          messages: updatedMessages,
-          updatedAt: now,
+        // API 라우트를 통해 메시지 저장
+        const data = await fetchWithAuth(`/api/schedules/${scheduleId}/messages`, {
+          method: 'POST',
+          body: JSON.stringify({
+            content: caption || '',
+            type: file.type.startsWith('image/') ? 'image' : 'file',
+            senderName: currentUserName,
+            senderAvatar: currentUserAvatar,
+            attachments: [attachment],
+          }),
         });
 
+        const messageId = data.message.messageId || data.message.id;
         console.log('[useScheduleChat] 미디어 전송 성공:', messageId);
 
         // Optimistic 메시지를 실제 메시지로 교체
@@ -318,7 +335,7 @@ export function useScheduleChat(
         setIsSending(false);
       }
     },
-    [scheduleId, currentUserId, currentUserName, currentUserAvatar, isSending]
+    [scheduleId, currentUserId, currentUserName, currentUserAvatar, isSending, fetchWithAuth]
   );
 
   /**
@@ -346,28 +363,4 @@ export function useScheduleChat(
     sendMedia,
     retryFailedMessage,
   };
-}
-
-/**
- * 일정의 lastMessage 업데이트 (헬퍼 함수)
- */
-async function updateScheduleLastMessage(
-  scheduleId: string,
-  content: string,
-  senderName: string
-): Promise<void> {
-  try {
-    const now = Date.now();
-    await schedulesDB.update(scheduleId, {
-      lastMessage: {
-        content: content.substring(0, 100), // 최대 100자
-        senderName,
-        sentAt: now,
-      },
-      updatedAt: now,
-    });
-  } catch (err) {
-    console.error('[updateScheduleLastMessage] 실패:', err);
-    // lastMessage 업데이트 실패는 치명적이지 않으므로 무시
-  }
 }

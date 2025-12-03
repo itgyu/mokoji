@@ -201,10 +201,10 @@ export default function MigrateChatPage() {
     <div className="min-h-screen bg-background p-4 md:p-8">
       <div className="max-w-4xl mx-auto space-y-6">
         {/* 헤더 */}
-        <Card variant="elevated">
+        <Card>
           <CardHeader>
             <CardTitle>채팅 기능 마이그레이션 관리</CardTitle>
-            <p className="text-body-2 text-muted-foreground mt-2">
+            <p className="text-sm text-muted-foreground mt-2">
               기존 일정에 채팅 기능을 안전하게 추가합니다
             </p>
           </CardHeader>
@@ -215,17 +215,17 @@ export default function MigrateChatPage() {
           <CardBody>
             <div className="space-y-4 p-6">
               <div className="flex items-center justify-between">
-                <span className="text-body-2 text-muted-foreground">상태</span>
+                <span className="text-sm text-muted-foreground">상태</span>
                 <StatusBadge phase={status.phase} />
               </div>
 
               {status.total > 0 && (
                 <>
                   <div className="flex items-center justify-between">
-                    <span className="text-body-2 text-muted-foreground">
+                    <span className="text-sm text-muted-foreground">
                       마이그레이션 대상
                     </span>
-                    <span className="text-body-1 font-semibold">
+                    <span className="text-sm font-semibold">
                       {status.total}개
                     </span>
                   </div>
@@ -233,10 +233,10 @@ export default function MigrateChatPage() {
                   {status.phase === 'migrating' && (
                     <div className="space-y-2">
                       <div className="flex items-center justify-between">
-                        <span className="text-body-2 text-muted-foreground">
+                        <span className="text-sm text-muted-foreground">
                           진행률
                         </span>
-                        <span className="text-body-1 font-semibold">
+                        <span className="text-sm font-semibold">
                           {status.current} / {status.total}
                         </span>
                       </div>
@@ -313,7 +313,7 @@ export default function MigrateChatPage() {
 
         {/* 에러 */}
         {status.errors.length > 0 && (
-          <Card variant="elevated">
+          <Card>
             <CardHeader>
               <CardTitle className="text-destructive">⚠️ 에러</CardTitle>
             </CardHeader>

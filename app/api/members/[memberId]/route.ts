@@ -20,14 +20,14 @@ export const runtime = 'nodejs';
  */
 export async function PUT(
   request: NextRequest,
-  { params }: { params: { memberId: string } }
+  { params }: { params: Promise<{ memberId: string }> }
 ) {
   try {
     // Authentication
     const user = await withAuth(request);
     console.log('[PUT /api/members/[memberId]] Authenticated user:', user.sub);
 
-    const { memberId } = params;
+    const { memberId } = await params;
     console.log('[PUT /api/members/[memberId]] memberId:', memberId);
 
     // Parse request body
@@ -82,14 +82,14 @@ export async function PUT(
  */
 export async function DELETE(
   request: NextRequest,
-  { params }: { params: { memberId: string } }
+  { params }: { params: Promise<{ memberId: string }> }
 ) {
   try {
     // Authentication
     const user = await withAuth(request);
     console.log('[DELETE /api/members/[memberId]] Authenticated user:', user.sub);
 
-    const { memberId } = params;
+    const { memberId } = await params;
     console.log('[DELETE /api/members/[memberId]] memberId:', memberId);
 
     // Check if member exists

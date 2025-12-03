@@ -27,14 +27,25 @@ function getJwksUrl(): URL {
   return new URL(`https://cognito-idp.${region}.amazonaws.com/${userPoolId}/.well-known/jwks.json`);
 }
 
-// JWKS 캐시 (런타임에만 생성)
+// JWKS 캐시 (런타임에만 생성) + 자동 갱신
 let jwks: ReturnType<typeof createRemoteJWKSet> | null = null;
+let jwksCreatedAt: number | null = null;
+const JWKS_CACHE_TTL = 3600000; // 1시간 (밀리초)
 
 function getJwks() {
-  if (!jwks) {
+  const now = Date.now();
+  // JWKS가 없거나 1시간 이상 지났으면 새로 생성
+  if (!jwks || !jwksCreatedAt || (now - jwksCreatedAt) > JWKS_CACHE_TTL) {
     jwks = createRemoteJWKSet(getJwksUrl());
+    jwksCreatedAt = now;
   }
   return jwks;
+}
+
+// JWKS 캐시 강제 리셋 (키 로테이션 시)
+function resetJwks() {
+  jwks = null;
+  jwksCreatedAt = null;
 }
 
 /**
@@ -59,7 +70,24 @@ async function verifyToken(token: string) {
     });
 
     return payload;
-  } catch (error) {
+  } catch (error: any) {
+    // JWKSNoMatchingKey 에러: 키 로테이션으로 인한 오류 → JWKS 캐시 리셋 후 재시도
+    if (error?.code === 'ERR_JWKS_NO_MATCHING_KEY' || error?.message?.includes('JWKSNoMatchingKey')) {
+      console.log('🔄 JWKS 키 불일치 감지 - 캐시 리셋 후 재시도');
+      resetJwks(); // 캐시 강제 리셋
+
+      try {
+        // 새 JWKS로 재시도
+        const { payload } = await jwtVerify(token, getJwks(), {
+          issuer,
+          audience: clientId,
+        });
+        return payload;
+      } catch (retryError) {
+        // 재시도 실패 - Access 토큰으로 시도
+      }
+    }
+
     // Access 토큰 검증 (audience 없이 재시도)
     try {
       const { payload } = await jwtVerify(token, getJwks(), {
@@ -72,7 +100,28 @@ async function verifyToken(token: string) {
       }
 
       return payload;
-    } catch (retryError) {
+    } catch (retryError: any) {
+      // Access 토큰도 JWKSNoMatchingKey 에러면 한 번 더 재시도
+      if (retryError?.code === 'ERR_JWKS_NO_MATCHING_KEY' || retryError?.message?.includes('JWKSNoMatchingKey')) {
+        console.log('🔄 Access 토큰도 JWKS 키 불일치 - 캐시 리셋 후 재시도');
+        resetJwks();
+
+        try {
+          const { payload } = await jwtVerify(token, getJwks(), {
+            issuer,
+          });
+
+          if (payload.client_id && payload.client_id !== clientId) {
+            throw new Error('Invalid client_id');
+          }
+
+          return payload;
+        } catch (finalError) {
+          console.error('❌ JWT 검증 최종 실패:', finalError);
+          throw new Error('유효하지 않은 토큰입니다');
+        }
+      }
+
       console.error('❌ JWT 검증 실패:', retryError);
       throw new Error('유효하지 않은 토큰입니다');
     }

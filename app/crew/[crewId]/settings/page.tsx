@@ -19,7 +19,7 @@
 
 import { useEffect, useState, use } from 'react';
 import { useRouter } from 'next/navigation';
-import { organizationsDB, membersDB, usersDB } from '@/lib/dynamodb';
+import { organizationsAPI, membersAPI, usersAPI } from '@/lib/api-client';
 import { useAuth } from '@/contexts/AuthContext';
 import { CrewSettingsClient } from './CrewSettingsClient';
 import LoadingScreen from '@/components/LoadingScreen';
@@ -50,8 +50,9 @@ export default function CrewSettingsPage({
 
   const loadCrewData = async () => {
     try {
-      // 크루 정보 가져오기
-      const crewDoc = await organizationsDB.get(unwrappedParams.crewId);
+      // 크루 정보 가져오기 (API를 통해)
+      const response = await organizationsAPI.get(unwrappedParams.crewId);
+      const crewDoc = response?.organization || response;
 
       if (!crewDoc) {
         alert('크루를 찾을 수 없습니다.');
@@ -74,7 +75,7 @@ export default function CrewSettingsPage({
       };
 
       // 크루장 권한 확인
-      if (crew.ownerUid !== user!.uid) {
+      if (crew.ownerUid !== user!.sub) {
         alert('크루장만 접근할 수 있습니다.');
         router.push('/dashboard');
         return;
@@ -82,29 +83,46 @@ export default function CrewSettingsPage({
 
       setCrewData(crew);
 
-      // 크루 멤버 목록 가져오기
+      // 크루 멤버 목록 가져오기 (API를 통해)
       console.log('🔍 멤버 조회 시작:', unwrappedParams.crewId);
 
-      const orgMembers = await membersDB.getByOrganization(unwrappedParams.crewId);
+      const membersResponse: any = await membersAPI.getByOrganization(unwrappedParams.crewId);
+      const orgMembers = membersResponse?.members || membersResponse || [];
 
       console.log('📊 organizationMembers 조회 결과:', orgMembers.length, '명');
 
       // 멤버 리스트 생성
       const membersList = await Promise.all(
-        orgMembers.map(async (orgMemberData) => {
-          const userProfile = await usersDB.get(orgMemberData.userId);
+        orgMembers.map(async (orgMemberData: any) => {
+          try {
+            const userResponse = await usersAPI.get(orgMemberData.userId);
+            const userProfile = userResponse?.user || userResponse;
 
-          return {
-            id: orgMemberData.memberId,
-            uid: orgMemberData.userId,
-            name: userProfile?.name || orgMemberData.userId,
-            email: userProfile?.email || '',
-            avatar: userProfile?.avatar || userProfile?.photoURL || '',
-            birthdate: userProfile?.birthdate || undefined,
-            orgId: orgMemberData.organizationId,
-            role: orgMemberData.role || 'member',
-            joinedAt: orgMemberData.joinedAt || null,
-          };
+            return {
+              id: orgMemberData.memberId,
+              uid: orgMemberData.userId,
+              name: userProfile?.name || orgMemberData.userId,
+              email: userProfile?.email || '',
+              avatar: userProfile?.avatar || userProfile?.photoURL || '',
+              birthdate: userProfile?.birthdate || undefined,
+              orgId: orgMemberData.organizationId,
+              role: orgMemberData.role || 'member',
+              joinedAt: orgMemberData.joinedAt || null,
+            };
+          } catch (error) {
+            console.error(`Error fetching user ${orgMemberData.userId}:`, error);
+            return {
+              id: orgMemberData.memberId,
+              uid: orgMemberData.userId,
+              name: orgMemberData.userId,
+              email: '',
+              avatar: '',
+              birthdate: undefined,
+              orgId: orgMemberData.organizationId,
+              role: orgMemberData.role || 'member',
+              joinedAt: orgMemberData.joinedAt || null,
+            };
+          }
         })
       );
 
@@ -131,7 +149,7 @@ export default function CrewSettingsPage({
       crewId={unwrappedParams.crewId}
       crewData={crewData}
       members={members}
-      currentUserId={user.uid}
+      currentUserId={user.sub}
       currentUserName={userProfile.name || '사용자'}
     />
   );

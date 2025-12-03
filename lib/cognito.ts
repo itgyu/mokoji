@@ -249,4 +249,36 @@ export const confirmSignUp = (
   });
 };
 
+/**
+ * 비밀번호 변경 (로그인된 사용자)
+ */
+export const changePassword = (
+  oldPassword: string,
+  newPassword: string
+): Promise<void> => {
+  return new Promise((resolve, reject) => {
+    const cognitoUser = userPool.getCurrentUser();
+
+    if (!cognitoUser) {
+      reject(new Error('로그인이 필요합니다.'));
+      return;
+    }
+
+    cognitoUser.getSession((err: Error | null, session: CognitoUserSession | null) => {
+      if (err || !session) {
+        reject(new Error('세션을 가져올 수 없습니다.'));
+        return;
+      }
+
+      cognitoUser.changePassword(oldPassword, newPassword, (err, result) => {
+        if (err) {
+          reject(err);
+          return;
+        }
+        resolve();
+      });
+    });
+  });
+};
+
 export { userPool };

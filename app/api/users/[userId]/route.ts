@@ -20,7 +20,7 @@ export const runtime = 'nodejs';
  */
 export async function GET(
   request: Request,
-  { params }: { params: { userId: string } }
+  { params }: { params: Promise<{ userId: string }> }
 ) {
   try {
     console.log('🔍 [GET /api/users/:userId] Starting request');
@@ -29,7 +29,7 @@ export async function GET(
     const authUser = await withAuth(request);
     console.log('✅ [GET /api/users/:userId] Authenticated user:', authUser.sub);
 
-    const { userId } = params;
+    const { userId } = await params;
     console.log('🔍 [GET /api/users/:userId] Fetching user:', userId);
 
     // Fetch user from DynamoDB
@@ -63,7 +63,7 @@ export async function GET(
  */
 export async function PUT(
   request: Request,
-  { params }: { params: { userId: string } }
+  { params }: { params: Promise<{ userId: string }> }
 ) {
   try {
     console.log('🔄 [PUT /api/users/:userId] Starting request');
@@ -72,7 +72,7 @@ export async function PUT(
     const authUser = await withAuth(request);
     console.log('✅ [PUT /api/users/:userId] Authenticated user:', authUser.sub);
 
-    const { userId } = params;
+    const { userId } = await params;
     console.log('🔄 [PUT /api/users/:userId] Updating user:', userId);
 
     // Authorization check: User can only update their own profile

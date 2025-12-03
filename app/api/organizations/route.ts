@@ -6,7 +6,7 @@
  */
 
 import { NextRequest } from 'next/server';
-import { organizationsDB } from '@/lib/dynamodb-server';
+import { organizationsDB, membersDB } from '@/lib/dynamodb-server';
 import {
   withAuth,
   successResponse,
@@ -33,8 +33,31 @@ export async function GET(request: NextRequest) {
     console.log('Authenticated user:', user.sub);
 
     // Fetch all organizations
-    const organizations = await organizationsDB.getAll(100);
-    console.log(`Fetched ${organizations.length} organizations`);
+    const rawOrganizations = await organizationsDB.getAll(100);
+    console.log(`Fetched ${rawOrganizations.length} organizations`);
+
+    // Normalize: add 'id' field and real-time member count
+    const organizations = await Promise.all(
+      rawOrganizations.map(async (org: any) => {
+        const orgId = org.id || org.organizationId;
+
+        // Get actual member count from members table
+        let actualMemberCount = org.memberCount || 0;
+        try {
+          const members = await membersDB.getByOrganization(orgId);
+          // Count only active members
+          actualMemberCount = members.filter((m: any) => m.status === 'active').length;
+        } catch (err) {
+          console.warn(`Failed to get member count for ${orgId}:`, err);
+        }
+
+        return {
+          ...org,
+          id: orgId, // ensure 'id' field exists
+          memberCount: actualMemberCount, // real-time member count
+        };
+      })
+    );
 
     return successResponse({ organizations });
   } catch (error: any) {

@@ -1,27 +1,20 @@
 'use client';
 
 /**
- * CONVERSION NOTE: Firebase → DynamoDB Migration
+ * 일정 상세 페이지 (최적화 버전)
  *
- * This file has been converted from Firebase/Firestore to AWS DynamoDB.
- *
- * Major changes:
- * 1. Imports: Removed Firebase imports, added DynamoDB library imports
- * 2. Auth: Uses Cognito context instead of Firebase Auth
- * 3. Database operations: getDoc() → schedulesDB.get()
- * 4. Timestamps: Firestore Timestamp → milliseconds (Date.now())
- * 5. Real-time listeners: Removed onAuthStateChanged listener (not applicable to DynamoDB)
- *
- * Known limitations:
- * - No real-time auth state changes (needs manual refresh if auth state changes)
- * - userProfiles now read from DynamoDB users table
+ * 최적화:
+ * 1. 캐시에서 즉시 데이터 로드 (로딩 없음!)
+ * 2. 백그라운드에서 최신 데이터 갱신
+ * 3. AuthContext의 캐시된 프로필 사용
  */
 
 import { use, useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/contexts/AuthContext';
-import { schedulesDB, usersDB } from '@/lib/dynamodb';
+import { schedulesAPI } from '@/lib/api-client';
 import { ScheduleDetailClient } from './ScheduleDetailClient';
+import { getCachedSchedule } from '@/lib/schedule-cache';
 import type { OrgSchedule } from '@/types/firestore';
 
 interface ScheduleDetailPageProps {
@@ -30,123 +23,149 @@ interface ScheduleDetailPageProps {
   }>;
 }
 
-/**
- * 일정 상세 페이지 (Client Component)
- *
- * 책임:
- * - 일정 데이터 fetch
- * - 권한 체크
- * - 클라이언트 컴포넌트에 데이터 전달
- */
+// DynamoDB 데이터를 OrgSchedule 형식으로 변환하는 함수
+function convertToOrgSchedule(scheduleData: any, scheduleId: string): OrgSchedule {
+  const dateISO = scheduleData.dateISO || scheduleData.date;
+  const time = scheduleData.time || '00:00';
+  const startDateTime = new Date(`${dateISO}T${time}`);
+
+  return {
+    ...scheduleData,
+    id: scheduleId,
+    organizationId: scheduleData.organizationId || scheduleData.orgId,
+    startDate: { toDate: () => startDateTime },
+    endDate: { toDate: () => startDateTime },
+    createdAt: scheduleData.createdAt,
+    updatedAt: scheduleData.updatedAt || scheduleData.createdAt,
+    participants: (scheduleData.participants || [])
+      .filter((p: any) => typeof p === 'object' && p !== null && p.userId)
+      .map((p: any) => {
+        const respondedDate = p.respondedAt
+          ? (typeof p.respondedAt === 'number' ? new Date(p.respondedAt) : new Date(p.respondedAt))
+          : new Date();
+        return {
+          ...p,
+          respondedAt: { toDate: () => respondedDate },
+        };
+      }),
+  } as OrgSchedule;
+}
+
+// 스켈레톤 UI 컴포넌트
+function ScheduleSkeleton() {
+  return (
+    <div className="min-h-screen bg-gray-50">
+      {/* 헤더 스켈레톤 */}
+      <div className="bg-white border-b border-gray-200 px-4 py-3 flex items-center gap-3">
+        <div className="w-8 h-8 bg-gray-200 rounded-full animate-pulse" />
+        <div className="h-5 bg-gray-200 rounded w-32 animate-pulse" />
+      </div>
+
+      {/* 콘텐츠 스켈레톤 */}
+      <div className="p-4 space-y-4">
+        {/* 제목 */}
+        <div className="bg-white rounded-xl p-4 space-y-3">
+          <div className="h-6 bg-gray-200 rounded w-3/4 animate-pulse" />
+          <div className="h-4 bg-gray-200 rounded w-1/2 animate-pulse" />
+          <div className="h-4 bg-gray-200 rounded w-2/3 animate-pulse" />
+        </div>
+
+        {/* RSVP 버튼 */}
+        <div className="bg-white rounded-xl p-4">
+          <div className="h-4 bg-gray-200 rounded w-20 mb-3 animate-pulse" />
+          <div className="flex gap-2">
+            <div className="flex-1 h-10 bg-gray-200 rounded-lg animate-pulse" />
+            <div className="flex-1 h-10 bg-gray-200 rounded-lg animate-pulse" />
+            <div className="flex-1 h-10 bg-gray-200 rounded-lg animate-pulse" />
+          </div>
+        </div>
+
+        {/* 참석자 */}
+        <div className="bg-white rounded-xl p-4">
+          <div className="h-4 bg-gray-200 rounded w-24 mb-3 animate-pulse" />
+          <div className="flex gap-2">
+            <div className="w-10 h-10 bg-gray-200 rounded-full animate-pulse" />
+            <div className="w-10 h-10 bg-gray-200 rounded-full animate-pulse" />
+            <div className="w-10 h-10 bg-gray-200 rounded-full animate-pulse" />
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export default function ScheduleDetailPage({ params }: ScheduleDetailPageProps) {
   const { scheduleId } = use(params);
   const router = useRouter();
-  const { user: currentUser } = useAuth();
-  const [schedule, setSchedule] = useState<OrgSchedule | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
+  const { user: currentUser, userProfile: authUserProfile } = useAuth();
+
+  // 캐시에서 즉시 데이터 로드 시도
+  const cachedData = getCachedSchedule(scheduleId);
+  const initialSchedule = cachedData ? convertToOrgSchedule(cachedData, scheduleId) : null;
+
+  const [schedule, setSchedule] = useState<OrgSchedule | null>(initialSchedule);
+  const [isLoading, setIsLoading] = useState(!initialSchedule); // 캐시 있으면 로딩 false
   const [error, setError] = useState<string | null>(null);
-  const [userProfile, setUserProfile] = useState<any>(null);
 
-  // 사용자 프로필 가져오기 (Cognito 사용)
+  // 백그라운드에서 최신 데이터 갱신 (캐시 유무 상관없이)
   useEffect(() => {
-    const fetchUserProfile = async () => {
-      if (currentUser?.userId) {
-        try {
-          const profile = await usersDB.get(currentUser.userId);
-          if (profile) {
-            setUserProfile(profile);
-          }
-        } catch (error) {
-          console.error('[ScheduleDetailPage] 프로필 가져오기 실패:', error);
-        }
-      }
-    };
-
-    fetchUserProfile();
-  }, [currentUser?.userId]);
-
-  useEffect(() => {
-    const fetchSchedule = async () => {
+    const fetchData = async () => {
       try {
-        console.log('[ScheduleDetailPage] 일정 데이터 가져오기:', scheduleId);
-
-        const scheduleData = await schedulesDB.get(scheduleId);
+        const response = await schedulesAPI.get(scheduleId);
+        const scheduleData = response?.schedule || response;
 
         if (!scheduleData) {
-          console.error('[ScheduleDetailPage] 일정을 찾을 수 없음');
-          setError('일정을 찾을 수 없습니다.');
+          // 캐시 데이터가 없을 때만 에러 표시
+          if (!schedule) {
+            setError('일정을 찾을 수 없습니다.');
+          }
           return;
         }
 
-        // isDeleted 확인
         if (scheduleData.isDeleted) {
-          console.error('[ScheduleDetailPage] 삭제된 일정');
           setError('삭제된 일정입니다.');
+          setSchedule(null);
           return;
         }
 
-        // DynamoDB 데이터를 OrgSchedule 형식으로 변환
-        // date + time을 조합하여 startDate 생성
-        const dateISO = scheduleData.dateISO || scheduleData.date;
-        const time = scheduleData.time || '00:00';
-        const startDateTime = new Date(`${dateISO}T${time}`);
-
-        console.log('[ScheduleDetailPage] 원본 participants:', scheduleData.participants);
-
-        const scheduleWithDates = {
-          ...scheduleData,
-          id: scheduleId,
-          organizationId: scheduleData.orgId,
-          startDate: { toDate: () => startDateTime }, // Firestore Timestamp 형식 모방
-          endDate: { toDate: () => startDateTime },
-          createdAt: scheduleData.createdAt,
-          updatedAt: scheduleData.updatedAt || scheduleData.createdAt,
-          participants: (scheduleData.participants || [])
-            .filter((p: any) => typeof p === 'object' && p !== null && p.userId) // 객체만 필터링
-            .map((p: any) => {
-              // respondedAt을 Timestamp 형식으로 변환
-              const respondedDate = p.respondedAt
-                ? (typeof p.respondedAt === 'number' ? new Date(p.respondedAt) : new Date(p.respondedAt))
-                : new Date();
-
-              return {
-                ...p,
-                respondedAt: { toDate: () => respondedDate },
-              };
-            }),
-        } as OrgSchedule;
-
-        console.log('[ScheduleDetailPage] 변환된 participants:', scheduleWithDates.participants);
-        console.log('[ScheduleDetailPage] 일정 데이터 로드 완료');
+        const scheduleWithDates = convertToOrgSchedule(scheduleData, scheduleId);
         setSchedule(scheduleWithDates);
       } catch (err: any) {
         console.error('[ScheduleDetailPage] 데이터 가져오기 실패:', err);
-        setError(err.message || '데이터를 불러오는데 실패했습니다.');
+        // 캐시 데이터가 없을 때만 에러 표시
+        if (!schedule) {
+          setError(err.message || '데이터를 불러오는데 실패했습니다.');
+        }
       } finally {
         setIsLoading(false);
       }
     };
 
-    fetchSchedule();
-  }, [scheduleId]);
+    if (currentUser?.sub) {
+      fetchData();
+    }
+  }, [scheduleId, currentUser?.sub]);
 
-  if (isLoading || !currentUser) {
-    return (
-      <div className="min-h-screen bg-background flex items-center justify-center">
-        <div className="text-center space-y-4">
-          <div className="animate-spin w-12 h-12 border-4 border-primary border-t-transparent rounded-full mx-auto" />
-          <p className="text-muted-foreground">일정을 불러오는 중...</p>
-        </div>
-      </div>
-    );
+  // 유저 없으면 스켈레톤 표시
+  if (!currentUser) {
+    return <ScheduleSkeleton />;
+  }
+
+  // 캐시 없고 로딩 중이면 스켈레톤 표시
+  if (isLoading && !schedule) {
+    return <ScheduleSkeleton />;
   }
 
   if (error || !schedule) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center">
         <div className="text-center space-y-4 max-w-md p-8">
-          <div className="text-6xl">😕</div>
-          <h1 className="text-2xl font-bold text-foreground">{error || '오류 발생'}</h1>
+          <div className="w-12 h-12 mx-auto bg-gray-100 rounded-full flex items-center justify-center text-gray-400">
+            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={1.5}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m9-.75a9 9 0 11-18 0 9 9 0 0118 0zm-9 3.75h.008v.008H12v-.008z" />
+            </svg>
+          </div>
+          <h1 className="text-lg font-bold text-foreground">{error || '오류 발생'}</h1>
           <button
             onClick={() => router.back()}
             className="text-primary hover:underline"
@@ -163,9 +182,9 @@ export default function ScheduleDetailPage({ params }: ScheduleDetailPageProps) 
       <ScheduleDetailClient
         schedule={schedule}
         scheduleId={scheduleId}
-        currentUserId={currentUser.userId}
-        currentUserName={userProfile?.name || currentUser.userName || '익명'}
-        currentUserAvatar={userProfile?.avatar || userProfile?.photoURL}
+        currentUserId={currentUser.sub}
+        currentUserName={authUserProfile?.name || currentUser.name || '익명'}
+        currentUserAvatar={authUserProfile?.avatar || authUserProfile?.photoURL}
       />
     </div>
   );

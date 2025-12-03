@@ -36,14 +36,15 @@ const docClient = DynamoDBDocumentClient.from(client, {
   },
 });
 
-// 테이블 이름
+// 테이블 이름 (trim()으로 newline 제거)
 const TABLES = {
-  USERS: process.env.DYNAMODB_USERS_TABLE || 'mokoji-users',
-  ORGANIZATIONS: process.env.DYNAMODB_ORGANIZATIONS_TABLE || 'mokoji-organizations',
-  MEMBERS: process.env.DYNAMODB_MEMBERS_TABLE || 'mokoji-organization-members',
-  SCHEDULES: process.env.DYNAMODB_SCHEDULES_TABLE || 'mokoji-schedules',
-  ACTIVITY_LOGS: process.env.DYNAMODB_ACTIVITY_LOGS_TABLE || 'mokoji-activity-logs',
-  PHOTOS: process.env.DYNAMODB_PHOTOS_TABLE || 'mokoji-photos',
+  USERS: (process.env.DYNAMODB_USERS_TABLE || 'mokoji-users').trim(),
+  ORGANIZATIONS: (process.env.DYNAMODB_ORGANIZATIONS_TABLE || 'mokoji-organizations').trim(),
+  MEMBERS: (process.env.DYNAMODB_MEMBERS_TABLE || 'mokoji-organization-members').trim(),
+  SCHEDULES: (process.env.DYNAMODB_SCHEDULES_TABLE || 'mokoji-schedules').trim(),
+  ACTIVITY_LOGS: (process.env.DYNAMODB_ACTIVITY_LOGS_TABLE || 'mokoji-activity-logs').trim(),
+  PHOTOS: (process.env.DYNAMODB_PHOTOS_TABLE || 'mokoji-photos').trim(),
+  MESSAGES: (process.env.DYNAMODB_MESSAGES_TABLE || 'mokoji-messages').trim(),
 };
 
 /**
@@ -310,24 +311,27 @@ export const schedulesDB = {
   },
 
   async getByOrganization(organizationId: string, startDate?: string, endDate?: string) {
-    const params: any = {
-      TableName: TABLES.SCHEDULES,
-      IndexName: 'organizationId-date-index',
-      KeyConditionExpression: 'organizationId = :organizationId',
-      ExpressionAttributeValues: {
-        ':organizationId': organizationId,
-      },
-    };
+    // GSI Query 사용 - Scan보다 훨씬 빠름
+    const allItems: any[] = [];
+    let lastEvaluatedKey: any = undefined;
 
-    if (startDate && endDate) {
-      params.KeyConditionExpression += ' AND #date BETWEEN :startDate AND :endDate';
-      params.ExpressionAttributeNames = { '#date': 'date' };
-      params.ExpressionAttributeValues[':startDate'] = startDate;
-      params.ExpressionAttributeValues[':endDate'] = endDate;
-    }
+    do {
+      const params: any = {
+        TableName: TABLES.SCHEDULES,
+        IndexName: 'organizationId-date-index',
+        KeyConditionExpression: 'organizationId = :organizationId',
+        ExpressionAttributeValues: {
+          ':organizationId': organizationId,
+        },
+        ExclusiveStartKey: lastEvaluatedKey,
+      };
 
-    const result = await docClient.send(new QueryCommand(params));
-    return result.Items || [];
+      const result = await docClient.send(new QueryCommand(params));
+      allItems.push(...(result.Items || []));
+      lastEvaluatedKey = result.LastEvaluatedKey;
+    } while (lastEvaluatedKey);
+
+    return allItems;
   },
 
   async create(schedule: any) {
@@ -461,6 +465,100 @@ export const photosDB = {
         Key: { photoId },
       })
     );
+  },
+};
+
+/**
+ * Messages 테이블
+ */
+export const messagesDB = {
+  async get(messageId: string) {
+    const result = await docClient.send(
+      new GetCommand({
+        TableName: TABLES.MESSAGES,
+        Key: { messageId },
+      })
+    );
+    return result.Item;
+  },
+
+  async getBySchedule(scheduleId: string, limit = 100) {
+    const result = await docClient.send(
+      new QueryCommand({
+        TableName: TABLES.MESSAGES,
+        IndexName: 'scheduleId-createdAt-index',
+        KeyConditionExpression: 'scheduleId = :scheduleId',
+        ExpressionAttributeValues: {
+          ':scheduleId': scheduleId,
+        },
+        ScanIndexForward: true, // 오래된 순 (채팅 표시용)
+        Limit: limit,
+      })
+    );
+    return result.Items || [];
+  },
+
+  async create(message: any) {
+    await docClient.send(
+      new PutCommand({
+        TableName: TABLES.MESSAGES,
+        Item: {
+          ...message,
+          createdAt: message.createdAt || Date.now(),
+        },
+      })
+    );
+  },
+
+  async delete(messageId: string) {
+    await docClient.send(
+      new DeleteCommand({
+        TableName: TABLES.MESSAGES,
+        Key: { messageId },
+      })
+    );
+  },
+
+  async softDelete(messageId: string) {
+    await docClient.send(
+      new UpdateCommand({
+        TableName: TABLES.MESSAGES,
+        Key: { messageId },
+        UpdateExpression: 'SET isDeleted = :isDeleted, updatedAt = :updatedAt',
+        ExpressionAttributeValues: {
+          ':isDeleted': true,
+          ':updatedAt': Date.now(),
+        },
+      })
+    );
+  },
+
+  async markAsRead(messageId: string, userId: string) {
+    // readBy 배열에 userId 추가 (중복 방지)
+    await docClient.send(
+      new UpdateCommand({
+        TableName: TABLES.MESSAGES,
+        Key: { messageId },
+        UpdateExpression: 'SET readBy = list_append(if_not_exists(readBy, :empty), :userId)',
+        ConditionExpression: 'NOT contains(readBy, :userIdStr)',
+        ExpressionAttributeValues: {
+          ':empty': [],
+          ':userId': [userId],
+          ':userIdStr': userId,
+        },
+      })
+    ).catch((err) => {
+      // ConditionalCheckFailedException은 이미 읽음 표시된 경우 - 무시
+      if (err.name !== 'ConditionalCheckFailedException') {
+        throw err;
+      }
+    });
+  },
+
+  async markManyAsRead(messageIds: string[], userId: string) {
+    // 여러 메시지를 한번에 읽음 처리
+    const promises = messageIds.map(messageId => this.markAsRead(messageId, userId));
+    await Promise.all(promises);
   },
 };
 

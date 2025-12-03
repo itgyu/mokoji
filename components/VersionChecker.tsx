@@ -1,18 +1,26 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useRef } from 'react'
 
 export default function VersionChecker() {
   const [showUpdateModal, setShowUpdateModal] = useState(false)
-  const [currentVersion, setCurrentVersion] = useState<string | null>(null)
   const [countdown, setCountdown] = useState(10)
   const [autoReloadEnabled, setAutoReloadEnabled] = useState(true)
 
+  // ref로 버전 관리 (re-render 방지)
+  const currentVersionRef = useRef<string | null>(null)
+  const hasShownModalRef = useRef(false)
+  const isCheckingRef = useRef(false)
+
   useEffect(() => {
-    // 초기 버전 저장
     const checkVersion = async () => {
+      // 이미 체크 중이거나 모달이 표시되었으면 스킵
+      if (isCheckingRef.current || hasShownModalRef.current) return
+
+      isCheckingRef.current = true
+
       try {
-        const response = await fetch('/version.json', {
+        const response = await fetch('/version.json?' + Date.now(), {
           cache: 'no-store',
           headers: {
             'Cache-Control': 'no-cache',
@@ -20,36 +28,42 @@ export default function VersionChecker() {
           },
         })
         const data = await response.json()
+        const serverVersion = data.version
 
-        if (!currentVersion) {
+        if (!currentVersionRef.current) {
           // 처음 접속 시 현재 버전 저장
-          setCurrentVersion(data.version)
-          localStorage.setItem('app-version', data.version)
-        } else if (data.version !== currentVersion) {
-          // 버전이 다르면 업데이트 모달 표시
+          currentVersionRef.current = serverVersion
+          localStorage.setItem('app-version', serverVersion)
+        } else if (serverVersion !== currentVersionRef.current && !hasShownModalRef.current) {
+          // 버전이 다르고 아직 모달을 안 보여줬으면 업데이트 모달 표시
+          hasShownModalRef.current = true
           setShowUpdateModal(true)
           setCountdown(10)
           setAutoReloadEnabled(true)
         }
       } catch (error) {
         console.error('버전 체크 실패:', error)
+      } finally {
+        isCheckingRef.current = false
       }
     }
 
-    // localStorage에서 저장된 버전 가져오기
-    const savedVersion = localStorage.getItem('app-version')
-    if (savedVersion) {
-      setCurrentVersion(savedVersion)
+    // localStorage에서 저장된 버전 가져오기 (처음 한 번만)
+    if (!currentVersionRef.current) {
+      const savedVersion = localStorage.getItem('app-version')
+      if (savedVersion) {
+        currentVersionRef.current = savedVersion
+      }
     }
 
     // 초기 체크
     checkVersion()
 
-    // 10초마다 버전 체크 (더 빠른 업데이트 감지)
+    // 10초마다 버전 체크
     const interval = setInterval(checkVersion, 10 * 1000)
 
     return () => clearInterval(interval)
-  }, [currentVersion])
+  }, []) // dependency 없음 - 한 번만 실행
 
   // 자동 새로고침 카운트다운
   useEffect(() => {
@@ -64,19 +78,29 @@ export default function VersionChecker() {
   }, [showUpdateModal, countdown, autoReloadEnabled])
 
   const handleReload = () => {
-    // 캐시 완전 삭제 후 새로고침
-    if ('caches' in window) {
-      caches.keys().then(names => {
-        names.forEach(name => caches.delete(name))
+    // 새 버전으로 localStorage 업데이트 (새로고침 후 또 모달 뜨는 것 방지)
+    fetch('/version.json?' + Date.now(), { cache: 'no-store' })
+      .then(res => res.json())
+      .then(data => {
+        localStorage.setItem('app-version', data.version)
       })
-    }
-    // 하드 리로드 (캐시 무시)
-    window.location.reload()
+      .finally(() => {
+        // 캐시 완전 삭제 후 새로고침
+        if ('caches' in window) {
+          caches.keys().then(names => {
+            names.forEach(name => caches.delete(name))
+          })
+        }
+        // 하드 리로드 (캐시 무시)
+        window.location.reload()
+      })
   }
 
   const handleCancel = () => {
     setAutoReloadEnabled(false)
     setShowUpdateModal(false)
+    // 취소해도 다시 안 뜨도록
+    hasShownModalRef.current = true
   }
 
   if (!showUpdateModal) return null
@@ -84,60 +108,53 @@ export default function VersionChecker() {
   return (
     <>
       {/* 배경 오버레이 */}
-      <div className="fixed inset-0 bg-black/50 z-[100] backdrop-blur-sm" />
+      <div className="fixed inset-0 bg-black/50 z-[100]" />
 
       {/* 업데이트 모달 */}
       <div className="fixed inset-0 z-[101] flex items-center justify-center p-4">
-        <div className="bg-white rounded-3xl shadow-2xl max-w-md w-full p-8 animate-slideUp">
-          {/* 아이콘 */}
-          <div className="flex justify-center mb-6">
-            <div className="w-20 h-20 rounded-full bg-gradient-to-br from-[#FF9B50] to-[#FF8A3D] flex items-center justify-center shadow-lg">
-              <svg className="w-10 h-10 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
-              </svg>
-            </div>
+        <div className="bg-white rounded-2xl shadow-xl max-w-sm w-full overflow-hidden animate-slideUp">
+          {/* 헤더 */}
+          <div className="bg-[#5f0080] px-5 py-4">
+            <h2 className="text-lg font-semibold text-white">새로운 버전이 있어요!</h2>
           </div>
 
-          {/* 제목 */}
-          <h2 className="text-subtitle text-center mb-3">
-            새로운 버전이 있어요!
-          </h2>
+          {/* 컨텐츠 */}
+          <div className="p-5">
+            <p className="text-sm text-gray-600 leading-relaxed mb-4">
+              모꼬지가 업데이트되었습니다.<br />
+              최신 기능을 사용하려면 새로고침이 필요해요.
+            </p>
 
-          {/* 설명 */}
-          <p className="text-body text-center text-[#78716C] mb-6">
-            모꼬지가 업데이트되었습니다.<br />
-            최신 기능을 사용하려면 새로고침이 필요해요.
-          </p>
-
-          {/* 카운트다운 */}
-          {autoReloadEnabled && (
-            <div className="bg-[#FFF5ED] rounded-2xl p-4 mb-6 text-center">
-              <p className="text-body text-[#CC5A18] font-semibold">
-                {countdown}초 후 자동으로 새로고침됩니다
-              </p>
-              <div className="mt-3 h-2 bg-[#FFE8D5] rounded-full overflow-hidden">
-                <div
-                  className="h-full bg-gradient-to-r from-[#FF9B50] to-[#FF8A3D] transition-all duration-1000"
-                  style={{ width: `${(10 - countdown) * 10}%` }}
-                />
+            {/* 카운트다운 */}
+            {autoReloadEnabled && (
+              <div className="bg-[#f3e8f7] rounded-xl p-4 mb-4">
+                <p className="text-sm text-[#5f0080] font-medium text-center mb-2">
+                  {countdown}초 후 자동으로 새로고침됩니다
+                </p>
+                <div className="h-1.5 bg-white rounded-full overflow-hidden">
+                  <div
+                    className="h-full bg-[#5f0080] transition-all duration-1000 ease-linear"
+                    style={{ width: `${(10 - countdown) * 10}%` }}
+                  />
+                </div>
               </div>
-            </div>
-          )}
+            )}
 
-          {/* 버튼 */}
-          <div className="flex gap-3">
-            <button
-              onClick={handleCancel}
-              className="flex-1 text-body px-6 py-3 rounded-xl border-2 border-[#E7E5E4] text-[#78716C] font-semibold hover:bg-[#F5F5F4] transition-colors"
-            >
-              나중에
-            </button>
-            <button
-              onClick={handleReload}
-              className="flex-1 text-body px-6 py-3 rounded-xl bg-gradient-to-r from-[#FF9B50] to-[#FF8A3D] text-white font-semibold hover:shadow-lg transition-all active:scale-95"
-            >
-              지금 새로고침
-            </button>
+            {/* 버튼 */}
+            <div className="flex gap-3">
+              <button
+                onClick={handleCancel}
+                className="flex-1 h-12 rounded-xl border border-gray-200 text-sm font-medium text-gray-600 hover:bg-gray-50 active:scale-[0.98] transition-all"
+              >
+                나중에
+              </button>
+              <button
+                onClick={handleReload}
+                className="flex-1 h-12 rounded-xl bg-[#5f0080] text-sm font-medium text-white hover:bg-[#4a0066] active:scale-[0.98] transition-all"
+              >
+                지금 새로고침
+              </button>
+            </div>
           </div>
         </div>
       </div>

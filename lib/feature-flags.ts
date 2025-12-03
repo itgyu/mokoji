@@ -52,13 +52,18 @@ export const FEATURE_FLAGS: FeatureFlags = {
  * @returns 채팅 기능 사용 가능 여부
  */
 export function canUseScheduleChat(
-  userId: string,
+  userId: string | undefined | null,
   organizationId?: string
 ): boolean {
   const config = FEATURE_FLAGS.SCHEDULE_CHAT;
 
   // Feature flag가 비활성화면 false
   if (!config.enabled) {
+    return false;
+  }
+
+  // userId가 없으면 false
+  if (!userId) {
     return false;
   }
 

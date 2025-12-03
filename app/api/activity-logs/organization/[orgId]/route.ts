@@ -15,7 +15,7 @@ export const runtime = 'nodejs';
 
 export async function GET(
   request: Request,
-  { params }: { params: { orgId: string } }
+  { params }: { params: Promise<{ orgId: string }> }
 ) {
   try {
     console.log('[GET /api/activity-logs/organization/[orgId]] Starting activity logs fetch');
@@ -24,7 +24,7 @@ export async function GET(
     const user = await withAuth(request);
     console.log('[GET /api/activity-logs/organization/[orgId]] Authenticated user:', user.sub);
 
-    const { orgId } = params;
+    const { orgId } = await params;
 
     // Validate orgId
     if (!orgId) {

@@ -7,7 +7,7 @@
  */
 
 import { NextRequest } from 'next/server';
-import { organizationsDB } from '@/lib/dynamodb-server';
+import { organizationsDB, membersDB } from '@/lib/dynamodb-server';
 import {
   withAuth,
   successResponse,
@@ -53,7 +53,23 @@ export async function GET(request: NextRequest, context: RouteContext) {
     }
 
     console.log('Organization fetched successfully:', orgId);
-    return successResponse({ organization });
+
+    // Get actual member count from members table
+    let actualMemberCount = organization.memberCount || 0;
+    try {
+      const members = await membersDB.getByOrganization(orgId);
+      actualMemberCount = members.filter((m: any) => m.status === 'active').length;
+    } catch (err) {
+      console.warn(`Failed to get member count for ${orgId}:`, err);
+    }
+
+    // Normalize: add 'id' field and real-time member count
+    const normalizedOrg = {
+      ...organization,
+      id: organization.id || organization.organizationId,
+      memberCount: actualMemberCount,
+    };
+    return successResponse({ organization: normalizedOrg });
   } catch (error: any) {
     console.error('GET /api/organizations/[orgId] - Error:', error);
 
@@ -110,8 +126,13 @@ export async function PUT(request: NextRequest, context: RouteContext) {
 
     // Fetch updated organization
     const updatedOrganization = await organizationsDB.get(orgId);
+    // Normalize: add 'id' field for frontend compatibility
+    const normalizedOrg = {
+      ...updatedOrganization,
+      id: updatedOrganization?.id || updatedOrganization?.organizationId,
+    };
 
-    return successResponse({ organization: updatedOrganization });
+    return successResponse({ organization: normalizedOrg });
   } catch (error: any) {
     console.error('PUT /api/organizations/[orgId] - Error:', error);
 

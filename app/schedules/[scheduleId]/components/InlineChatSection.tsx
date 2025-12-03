@@ -9,7 +9,8 @@ import { ChatInputBar } from './ChatInputBar';
 import { EmptyChatState } from './EmptyChatState';
 import { ChatSettingsSheet } from './ChatSettingsSheet';
 import type { ScheduleChatMessage } from '@/types/firestore';
-import { format, isSameDay } from 'date-fns';
+import { isSameDay } from 'date-fns';
+import { Bell } from 'lucide-react';
 
 interface InlineChatSectionProps {
   scheduleId: string;
@@ -25,15 +26,7 @@ interface InlineChatSectionProps {
 }
 
 /**
- * 인라인 채팅 섹션
- *
- * 일정 상세 페이지의 하단 40~50%를 차지하는 채팅 UI
- *
- * 기능:
- * - 메시지 리스트 (날짜별 구분)
- * - 자동 스크롤
- * - 새 메시지 인디케이터
- * - 메시지 입력
+ * 인라인 채팅 섹션 (Kurly-inspired 디자인)
  */
 export function InlineChatSection({
   scheduleId,
@@ -50,34 +43,45 @@ export function InlineChatSection({
   const [showNewMessageIndicator, setShowNewMessageIndicator] = useState(false);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [hasInitiallyScrolled, setHasInitiallyScrolled] = useState(false);
+  const [lastMessageCount, setLastMessageCount] = useState(0);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
 
-  // 초기 로드 시 맨 아래로 스크롤
+  // 초기 로드 시 맨 아래로 스크롤 (딱 한 번만)
   useEffect(() => {
     if (messages.length > 0 && !hasInitiallyScrolled && !isLoading) {
       setTimeout(() => {
         scrollToBottom(false);
         setHasInitiallyScrolled(true);
+        setLastMessageCount(messages.length);
       }, 100);
     }
   }, [messages.length, isLoading, hasInitiallyScrolled]);
 
-  // 새 메시지 추가 시 자동 스크롤 (맨 아래에 있을 때만)
+  // 새 메시지 추가 시 (내가 보낸 메시지거나 맨 아래에 있을 때만 자동 스크롤)
   useEffect(() => {
     if (!containerRef.current || !hasInitiallyScrolled) return;
+
+    if (messages.length <= lastMessageCount) {
+      setLastMessageCount(messages.length);
+      return;
+    }
+
+    setLastMessageCount(messages.length);
+
+    const lastMessage = messages[messages.length - 1];
+    const isMyNewMessage = lastMessage?.senderId === currentUserId;
 
     const container = containerRef.current;
     const isAtBottom =
       container.scrollHeight - container.scrollTop - container.clientHeight < 100;
 
-    if (isAtBottom) {
+    if (isMyNewMessage || isAtBottom) {
       scrollToBottom();
     } else {
-      // 스크롤이 위에 있으면 새 메시지 인디케이터 표시
       setShowNewMessageIndicator(true);
     }
-  }, [messages, hasInitiallyScrolled]);
+  }, [messages.length, hasInitiallyScrolled, currentUserId]);
 
   const scrollToBottom = (smooth = true) => {
     messagesEndRef.current?.scrollIntoView({
@@ -86,7 +90,6 @@ export function InlineChatSection({
     setShowNewMessageIndicator(false);
   };
 
-  // 스크롤 이벤트 핸들러
   const handleScroll = () => {
     if (!containerRef.current) return;
 
@@ -99,26 +102,20 @@ export function InlineChatSection({
     }
   };
 
-  // 날짜별로 메시지 그룹화
   const groupedMessages = groupMessagesByDate(messages);
 
-  // 퀵 액션 핸들러
   const handleQuickAction = async (action: string) => {
     await onSendMessage(action);
   };
 
-  // 메시지 삭제 핸들러
   const handleDeleteMessage = async (messageId: string) => {
     try {
-      // DynamoDB에서 메시지 삭제
       await docClient.send(
         new DeleteCommand({
           TableName: TABLES.SCHEDULES,
           Key: { scheduleId, messageId },
         })
       );
-
-      // UI 업데이트는 컴포넌트 부모에서 처리됨
     } catch (error) {
       console.error('메시지 삭제 실패:', error);
       alert('메시지를 삭제하는 중에 문제가 생겼어요');
@@ -127,112 +124,84 @@ export function InlineChatSection({
 
   return (
     <>
-      <div className="flex flex-col h-[65vh] bg-card rounded-2xl overflow-hidden shadow-sm border border-border">
-      {/* 헤더 */}
-      <div className="flex items-center justify-between p-3 border-b border-border bg-card/50 backdrop-blur-sm">
-        <div className="flex items-center gap-2">
-          <span className="text-base font-semibold text-foreground">채팅</span>
-          {messages.length > 0 && (
-            <span className="text-sm text-muted-foreground">
-              {messages.length}
-            </span>
-          )}
-        </div>
-
-        <div className="flex items-center gap-2">
-          {onViewAll && (
-            <button
-              onClick={onViewAll}
-              className="text-sm text-primary hover:underline font-medium"
-            >
-              전체 보기
-            </button>
-          )}
-
-          {/* 알림 설정 버튼 */}
+      <div className="flex flex-col bg-white">
+        {/* 헤더 */}
+        <div className="flex items-center justify-between px-4 py-3 border-b border-gray-200">
+          <span className="text-sm font-medium text-gray-900">채팅</span>
           <button
             onClick={() => setIsSettingsOpen(true)}
-            className="p-2 hover:bg-muted rounded-lg transition-colors"
+            className="p-1"
             aria-label="채팅 알림 설정"
-            title="채팅 알림 설정"
           >
-            <span className="text-lg">🔔</span>
+            <Bell className="w-5 h-5 text-gray-400" strokeWidth={1.5} />
           </button>
         </div>
-      </div>
 
-      {/* 메시지 리스트 */}
-      <div
-        ref={containerRef}
-        onScroll={handleScroll}
-        className="flex-1 overflow-y-auto p-3 space-y-2 scroll-smooth"
-      >
-        {isLoading ? (
-          // 로딩 스켈레톤
-          <div className="space-y-3">
-            {[1, 2, 3].map((i) => (
-              <SkeletonChatMessage key={i} isMyMessage={i % 2 === 0} />
-            ))}
-          </div>
-        ) : messages.length === 0 ? (
-          // 빈 상태
-          <EmptyChatState
-            scheduleTitle={scheduleTitle}
-            onQuickAction={handleQuickAction}
-          />
-        ) : (
-          // 메시지 리스트
-          <>
-            {groupedMessages.map((group, groupIndex) => (
-              <div key={groupIndex}>
-                {/* 날짜 구분선 */}
-                <DateDivider date={group.date} />
-
-                {/* 해당 날짜의 메시지들 */}
-                <div className="space-y-2">
-                  {group.messages.map((message, messageIndex) => {
-                    const isMyMessage = message.senderId === currentUserId;
-                    const prevMessage = messageIndex > 0 ? group.messages[messageIndex - 1] : null;
-                    const showAvatar = !prevMessage || prevMessage.senderId !== message.senderId;
-                    const showSenderName = !isMyMessage && showAvatar;
-
-                    return (
-                      <ChatMessageBubble
-                        key={message.id}
-                        message={message}
-                        isMyMessage={isMyMessage}
-                        showAvatar={showAvatar}
-                        showSenderName={showSenderName}
-                        onRetry={onRetryMessage}
-                        onDelete={isMyMessage ? handleDeleteMessage : undefined}
-                      />
-                    );
-                  })}
-                </div>
-              </div>
-            ))}
-
-            <div ref={messagesEndRef} />
-          </>
-        )}
-      </div>
-
-      {/* 새 메시지 인디케이터 */}
-      {showNewMessageIndicator && !isLoading && (
-        <button
-          onClick={() => scrollToBottom()}
-          className="absolute bottom-24 right-6 px-4 py-2 bg-primary text-primary-foreground rounded-full shadow-lg hover:shadow-xl transition-all animate-slideUp"
+        {/* 메시지 리스트 */}
+        <div
+          ref={containerRef}
+          onScroll={handleScroll}
+          className="flex-1 overflow-y-auto px-4 py-3 min-h-[300px] max-h-[50vh]"
         >
-          <span className="text-sm font-medium">새 메시지 ↓</span>
-        </button>
-      )}
+          {isLoading ? (
+            <div className="space-y-3">
+              {[1, 2, 3].map((i) => (
+                <SkeletonChatMessage key={i} isMyMessage={i % 2 === 0} />
+              ))}
+            </div>
+          ) : messages.length === 0 ? (
+            <EmptyChatState
+              scheduleTitle={scheduleTitle}
+              onQuickAction={handleQuickAction}
+            />
+          ) : (
+            <>
+              {groupedMessages.map((group, groupIndex) => (
+                <div key={groupIndex}>
+                  <DateDivider date={group.date} />
+                  <div className="space-y-2">
+                    {group.messages.map((message, messageIndex) => {
+                      const isMyMessage = message.senderId === currentUserId;
+                      const prevMessage = messageIndex > 0 ? group.messages[messageIndex - 1] : null;
+                      const showAvatar = !prevMessage || prevMessage.senderId !== message.senderId;
+                      const showSenderName = !isMyMessage && showAvatar;
 
-      {/* 입력 바 */}
-      <ChatInputBar
-        onSend={onSendMessage}
-        onSendMedia={onSendMedia}
-        disabled={isLoading}
-      />
+                      return (
+                        <ChatMessageBubble
+                          key={message.id}
+                          message={message}
+                          isMyMessage={isMyMessage}
+                          showAvatar={showAvatar}
+                          showSenderName={showSenderName}
+                          onRetry={onRetryMessage}
+                          onDelete={isMyMessage ? handleDeleteMessage : undefined}
+                        />
+                      );
+                    })}
+                  </div>
+                </div>
+              ))}
+              <div ref={messagesEndRef} />
+            </>
+          )}
+        </div>
+
+        {/* 새 메시지 인디케이터 */}
+        {showNewMessageIndicator && !isLoading && (
+          <button
+            onClick={() => scrollToBottom()}
+            className="absolute bottom-24 left-1/2 -translate-x-1/2 px-4 py-2 bg-[#5f0080] text-white rounded-full shadow-lg text-sm font-medium"
+          >
+            새 메시지
+          </button>
+        )}
+
+        {/* 입력 바 */}
+        <ChatInputBar
+          onSend={onSendMessage}
+          onSendMedia={onSendMedia}
+          disabled={isLoading}
+        />
       </div>
 
       {/* 채팅 알림 설정 바텀시트 */}
@@ -256,25 +225,30 @@ function groupMessagesByDate(messages: ScheduleChatMessage[]): Array<{
   const groups: Array<{ date: Date; messages: ScheduleChatMessage[] }> = [];
 
   messages.forEach((message) => {
-    // createdAt이 null이거나 유효하지 않은 경우 처리
     if (!message.createdAt) {
-      console.warn('[groupMessagesByDate] Invalid createdAt for message:', message.id);
-      return; // 이 메시지는 건너뛰기
+      return;
     }
 
-    // DynamoDB에서는 timestamp가 number (Unix timestamp in milliseconds)
-    const messageDate = typeof message.createdAt === 'number'
-      ? new Date(message.createdAt)
-      : (message.createdAt instanceof Date ? message.createdAt : new Date(message.createdAt));
+    let messageDate: Date;
+    if (typeof message.createdAt === 'number') {
+      messageDate = new Date(message.createdAt);
+    } else if (message.createdAt instanceof Date) {
+      messageDate = message.createdAt;
+    } else if (typeof (message.createdAt as any).toDate === 'function') {
+      messageDate = (message.createdAt as any).toDate();
+    } else {
+      messageDate = new Date(message.createdAt as any);
+    }
 
-    // 마지막 그룹과 같은 날짜인지 확인
+    if (isNaN(messageDate.getTime())) {
+      return;
+    }
+
     const lastGroup = groups[groups.length - 1];
 
     if (lastGroup && isSameDay(lastGroup.date, messageDate)) {
-      // 같은 날짜면 기존 그룹에 추가
       lastGroup.messages.push(message);
     } else {
-      // 다른 날짜면 새 그룹 생성
       groups.push({
         date: messageDate,
         messages: [message],

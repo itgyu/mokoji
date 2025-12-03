@@ -3,6 +3,7 @@
 import { useState, useRef, KeyboardEvent, ChangeEvent } from 'react';
 import { Button } from '@/components/ui';
 import { clsx } from 'clsx';
+import { X } from 'lucide-react';
 
 interface ChatInputBarProps {
   onSend: (content: string) => Promise<void>;
@@ -63,11 +64,14 @@ export function ChatInputBar({
         setValue('');
         setSelectedFile(null);
         setPreviewUrl(null);
-        textareaRef.current?.focus();
       } catch (error) {
         console.error('미디어 전송 실패:', error);
       } finally {
         setIsSending(false);
+        // 전송 완료 후 입력창에 포커스 유지
+        setTimeout(() => {
+          textareaRef.current?.focus();
+        }, 0);
       }
       return;
     }
@@ -83,11 +87,14 @@ export function ChatInputBar({
       if (textareaRef.current) {
         textareaRef.current.style.height = 'auto';
       }
-      textareaRef.current?.focus();
     } catch (error) {
       console.error('메시지 전송 실패:', error);
     } finally {
       setIsSending(false);
+      // 전송 완료 후 입력창에 포커스 유지 (setTimeout으로 상태 업데이트 후 실행)
+      setTimeout(() => {
+        textareaRef.current?.focus();
+      }, 0);
     }
   };
 
@@ -157,7 +164,7 @@ export function ChatInputBar({
               className="absolute -top-2 -right-2 w-6 h-6 bg-destructive text-white rounded-full flex items-center justify-center hover:bg-destructive/90"
               aria-label="파일 제거"
             >
-              ✕
+              <X className="w-4 h-4" strokeWidth={2} />
             </button>
           </div>
         </div>
@@ -230,8 +237,7 @@ export function ChatInputBar({
           onClick={handleSend}
           disabled={!canSend}
           isLoading={isSending}
-          iconOnly
-          className="flex-shrink-0"
+          className="flex-shrink-0 px-3"
           aria-label="메시지 전송"
         >
           {!isSending && (

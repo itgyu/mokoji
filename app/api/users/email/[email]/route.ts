@@ -19,7 +19,7 @@ export const runtime = 'nodejs';
  */
 export async function GET(
   request: Request,
-  { params }: { params: { email: string } }
+  { params }: { params: Promise<{ email: string }> }
 ) {
   try {
     console.log('🔍 [GET /api/users/email/:email] Starting request');
@@ -28,7 +28,7 @@ export async function GET(
     const authUser = await withAuth(request);
     console.log('✅ [GET /api/users/email/:email] Authenticated user:', authUser.sub);
 
-    const { email } = params;
+    const { email } = await params;
     // Decode email in case it's URL-encoded
     const decodedEmail = decodeURIComponent(email);
     console.log('🔍 [GET /api/users/email/:email] Fetching user with email:', decodedEmail);

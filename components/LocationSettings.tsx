@@ -258,7 +258,7 @@ export default function LocationSettings({
           {address && (
             <div className="p-3 bg-gray-50 rounded-lg">
               <p className="text-sm text-gray-600">선택한 위치</p>
-              <p className="font-bold text-base mt-1">{dong}</p>
+              <p className="font-bold text-sm mt-1">{dong}</p>
               <p className="text-xs text-gray-500 mt-1">{address}</p>
             </div>
           )}

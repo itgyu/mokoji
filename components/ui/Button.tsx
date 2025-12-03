@@ -5,155 +5,83 @@ import { cva, type VariantProps } from 'class-variance-authority';
 import { clsx } from 'clsx';
 
 /**
- * 모꼬지 Button 스타일 정의
- * 프리미엄 디자인 시스템 적용
+ * MOKKOJI Button - Kurly-inspired Design System
+ *
+ * Font sizes: text-sm (14px) only
+ * Colors: Primary purple (#5f0080), Gray scale
  */
 const buttonVariants = cva(
   [
     'inline-flex items-center justify-center gap-2',
-    'font-medium rounded-xl',
-    'transition-all duration-300',
+    'text-sm font-medium rounded-lg',
+    'transition-colors',
     'focus-visible:outline-none focus-visible:ring-2',
-    'focus-visible:ring-primary focus-visible:ring-offset-2',
+    'focus-visible:ring-[#5f0080] focus-visible:ring-offset-2',
     'disabled:opacity-50 disabled:cursor-not-allowed',
-    'active:scale-95',
-    'min-h-[44px] min-w-[44px]', // Touch target optimization
+    'min-h-[44px]', // Touch target
   ].join(' '),
   {
-  variants: {
-    variant: {
-      primary: [
-        'text-primary-foreground',
-        'hover:opacity-90',
-        'active:opacity-80',
-      ].join(' '),
+    variants: {
+      variant: {
+        // Primary - Purple
+        primary: [
+          'bg-[#5f0080] text-white',
+          'hover:bg-[#4a0066]',
+        ].join(' '),
 
-      secondary: [
-        'text-secondary-foreground',
-        'hover:opacity-90',
-        'active:brightness-90',
-      ].join(' '),
+        // Secondary - White with border
+        secondary: [
+          'bg-white text-gray-700',
+          'border border-gray-200',
+          'hover:bg-gray-50',
+        ].join(' '),
 
-      outline: [
-        'border-2 bg-transparent',
-        'text-foreground',
-        'hover:bg-muted',
-        'active:bg-muted-hover',
-      ].join(' '),
+        // Ghost - Transparent
+        ghost: [
+          'bg-transparent text-gray-700',
+          'hover:bg-gray-100',
+        ].join(' '),
 
-      ghost: [
-        'bg-transparent text-foreground',
-        'hover:bg-muted',
-        'active:bg-muted-hover',
-      ].join(' '),
+        // Danger - Red
+        danger: [
+          'bg-red-500 text-white',
+          'hover:bg-red-600',
+        ].join(' '),
 
-      danger: [
-        'text-destructive-foreground',
-        'hover:opacity-90',
-        'active:opacity-80',
-      ].join(' '),
+        // Text - Purple text only
+        text: [
+          'bg-transparent text-[#5f0080]',
+          'hover:text-[#4a0066]',
+          'min-h-0 p-0',
+        ].join(' '),
+      },
 
-      // Premium variants
-      'premium-black': [
-        'bg-mokkoji-black text-white',
-        'hover:bg-mokkoji-black-hover',
-        'tracking-wider uppercase text-xs md:text-sm',
-      ].join(' '),
+      size: {
+        sm: 'h-9 px-3',
+        md: 'h-11 px-4',
+        lg: 'h-12 px-6',
+      },
 
-      'premium-primary': [
-        'bg-mokkoji-primary text-white',
-        'hover:bg-mokkoji-primary-hover',
-        'tracking-wider uppercase text-xs md:text-sm',
-      ].join(' '),
-
-      'premium-accent': [
-        'bg-mokkoji-accent text-white',
-        'hover:bg-mokkoji-accent-hover',
-        'tracking-wider uppercase text-xs md:text-sm',
-      ].join(' '),
-
-      'premium-outline': [
-        'border-2 border-mokkoji-primary bg-transparent',
-        'text-mokkoji-primary',
-        'hover:bg-mokkoji-primary-light',
-        'tracking-wider uppercase text-xs md:text-sm',
-      ].join(' '),
+      fullWidth: {
+        true: 'w-full',
+      },
     },
 
-    size: {
-      xs: 'h-8 px-3 text-xs',
-      sm: 'h-9 px-4 text-sm',
-      md: 'h-11 px-6 text-base',
-      lg: 'h-13 px-8 text-lg',
-      xl: 'h-16 px-10 text-xl',
-    },
-
-    fullWidth: {
-      true: 'w-full',
-    },
-  },
-
-  defaultVariants: {
-    variant: 'primary',
-    size: 'md',
-  },
-
-  // Compound variants for special color combinations
-  compoundVariants: [
-    {
+    defaultVariants: {
       variant: 'primary',
-      className: 'bg-primary shadow-[var(--shadow-primary)]',
+      size: 'md',
     },
-    {
-      variant: 'secondary',
-      className: 'bg-secondary',
-    },
-    {
-      variant: 'outline',
-      className: 'border-border-strong',
-    },
-    {
-      variant: 'danger',
-      className: 'bg-destructive shadow-[var(--shadow-error)]',
-    },
-  ],
-});
+  }
+);
 
 export interface ButtonProps
   extends React.ButtonHTMLAttributes<HTMLButtonElement>,
     VariantProps<typeof buttonVariants> {
-  /**
-   * 로딩 상태 표시
-   */
   isLoading?: boolean;
-  /**
-   * 왼쪽 아이콘
-   */
   leftIcon?: React.ReactNode;
-  /**
-   * 오른쪽 아이콘
-   */
   rightIcon?: React.ReactNode;
-  /**
-   * 아이콘만 표시하는 버튼 (텍스트 없음)
-   */
-  iconOnly?: boolean;
 }
 
-/**
- * 모꼬지 Button 컴포넌트
- *
- * 당근마켓 + 토스 스타일의 부드러운 인터랙션
- * 완벽한 접근성과 모바일 터치 최적화
- *
- * @example
- * ```tsx
- * <Button variant="primary" size="md">확인</Button>
- * <Button variant="secondary" isLoading>저장 중...</Button>
- * <Button variant="ghost" leftIcon={<Icon />}>취소</Button>
- * <Button variant="danger">삭제</Button>
- * ```
- */
 export const Button = forwardRef<HTMLButtonElement, ButtonProps>(
   (
     {
@@ -167,7 +95,6 @@ export const Button = forwardRef<HTMLButtonElement, ButtonProps>(
       children,
       disabled,
       type = 'button',
-      iconOnly,
       ...props
     },
     ref
@@ -179,12 +106,11 @@ export const Button = forwardRef<HTMLButtonElement, ButtonProps>(
         className={clsx(buttonVariants({ variant, size, fullWidth }), className)}
         disabled={disabled || isLoading}
         aria-busy={isLoading}
-        aria-disabled={disabled || isLoading}
         {...props}
       >
         {isLoading ? (
           <>
-            <LoadingSpinner size={size === 'xs' ? 'sm' : size === 'lg' || size === 'xl' ? 'lg' : 'md'} />
+            <LoadingSpinner />
             <span>처리 중...</span>
           </>
         ) : (
@@ -201,19 +127,10 @@ export const Button = forwardRef<HTMLButtonElement, ButtonProps>(
 
 Button.displayName = 'Button';
 
-/**
- * 로딩 스피너 컴포넌트
- */
-function LoadingSpinner({ size = 'md' }: { size?: 'sm' | 'md' | 'lg' }) {
-  const sizeClasses = {
-    sm: 'w-3 h-3',
-    md: 'w-4 h-4',
-    lg: 'w-5 h-5',
-  };
-
+function LoadingSpinner() {
   return (
     <svg
-      className={clsx('animate-spin', sizeClasses[size])}
+      className="animate-spin w-4 h-4"
       xmlns="http://www.w3.org/2000/svg"
       fill="none"
       viewBox="0 0 24 24"

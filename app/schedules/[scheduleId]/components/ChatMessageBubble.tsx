@@ -4,7 +4,7 @@ import { useState, useRef } from 'react';
 import { Avatar } from '@/components/ui';
 import { format } from 'date-fns';
 import { ko } from 'date-fns/locale';
-import { Trash2 } from 'lucide-react';
+import { Trash2, Check, FileText, AlertTriangle, PartyPopper, Info, Paperclip } from 'lucide-react';
 import type { ScheduleChatMessage } from '@/types/firestore';
 import { clsx } from 'clsx';
 
@@ -57,42 +57,42 @@ export function ChatMessageBubble({
  * 시스템 메시지
  */
 function SystemMessage({ message }: { message: ScheduleChatMessage }) {
-  // 시스템 메시지 타입별 이모지와 스타일
+  // 시스템 메시지 타입별 아이콘과 스타일
   const getSystemStyle = () => {
     switch (message.systemType) {
       case 'rsvp_change':
         return {
-          emoji: '✅',
+          icon: <Check className="w-3 h-3" strokeWidth={1.5} />,
           bgColor: 'bg-green-50 dark:bg-green-900/20',
           textColor: 'text-green-700 dark:text-green-300',
         };
       case 'schedule_update':
         return {
-          emoji: '📝',
+          icon: <FileText className="w-3 h-3" strokeWidth={1.5} />,
           bgColor: 'bg-blue-50 dark:bg-blue-900/20',
           textColor: 'text-blue-700 dark:text-blue-300',
         };
       case 'schedule_cancel':
         return {
-          emoji: '⚠️',
+          icon: <AlertTriangle className="w-3 h-3" strokeWidth={1.5} />,
           bgColor: 'bg-destructive/10',
           textColor: 'text-destructive',
         };
       case 'schedule_start':
         return {
-          emoji: '🎉',
+          icon: <PartyPopper className="w-3 h-3" strokeWidth={1.5} />,
           bgColor: 'bg-purple-50 dark:bg-purple-900/20',
           textColor: 'text-purple-700 dark:text-purple-300',
         };
       case 'schedule_complete':
         return {
-          emoji: '✅',
+          icon: <Check className="w-3 h-3" strokeWidth={1.5} />,
           bgColor: 'bg-green-50 dark:bg-green-900/20',
           textColor: 'text-green-700 dark:text-green-300',
         };
       default:
         return {
-          emoji: 'ℹ️',
+          icon: <Info className="w-3 h-3" strokeWidth={1.5} />,
           bgColor: 'bg-muted',
           textColor: 'text-muted-foreground',
         };
@@ -110,7 +110,7 @@ function SystemMessage({ message }: { message: ScheduleChatMessage }) {
         )}
       >
         <span className="text-xs" aria-hidden="true">
-          {style.emoji}
+          {style.icon}
         </span>
         <span className={clsx('text-[11px] font-medium', style.textColor)}>
           {message.content}
@@ -135,7 +135,13 @@ function MyMessage({
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [showActionMenu, setShowActionMenu] = useState(false);
   const longPressTimerRef = useRef<NodeJS.Timeout | null>(null);
-  const formattedTime = format(message.createdAt.toDate(), 'HH:mm');
+  // DynamoDB uses number timestamp, Firebase uses Timestamp object
+  const messageDate = typeof message.createdAt === 'number'
+    ? new Date(message.createdAt)
+    : (message.createdAt && typeof (message.createdAt as any).toDate === 'function'
+      ? (message.createdAt as any).toDate()
+      : new Date(message.createdAt as any));
+  const formattedTime = format(messageDate, 'HH:mm');
   const status = (message as any)._status; // 'sending' | 'sent' | 'failed'
 
   // 롱프레스 시작
@@ -215,7 +221,7 @@ function MyMessage({
                       rel="noopener noreferrer"
                       className="flex items-center gap-2 p-2 bg-background/10 rounded-lg hover:bg-background/20"
                     >
-                      <span>📎</span>
+                      <Paperclip className="w-4 h-4" strokeWidth={1.5} />
                       <span className="text-[13px] truncate">{attachment.fileName}</span>
                     </a>
                   )}
@@ -305,7 +311,7 @@ function MyMessage({
               className="w-full px-6 py-4 flex items-center gap-3 hover:bg-muted transition-colors text-left"
             >
               <Trash2 className="w-5 h-5 text-red-500" />
-              <span className="text-base font-medium text-red-500">메시지 삭제</span>
+              <span className="text-sm font-medium text-red-500">메시지 삭제</span>
             </button>
           </div>
 
@@ -331,7 +337,7 @@ function MyMessage({
           <div className="flex gap-3">
             <button
               onClick={() => setShowDeleteConfirm(false)}
-              className="flex-1 py-3 bg-muted hover:bg-muted-dark rounded-xl font-semibold text-foreground transition-colors"
+              className="flex-1 py-3 bg-gray-100 hover:bg-gray-200 rounded-xl font-semibold text-gray-900 transition-colors"
             >
               취소
             </button>
@@ -364,7 +370,13 @@ function OtherMessage({
   showAvatar: boolean;
   showSenderName: boolean;
 }) {
-  const formattedTime = format(message.createdAt.toDate(), 'HH:mm');
+  // DynamoDB uses number timestamp, Firebase uses Timestamp object
+  const messageDate = typeof message.createdAt === 'number'
+    ? new Date(message.createdAt)
+    : (message.createdAt && typeof (message.createdAt as any).toDate === 'function'
+      ? (message.createdAt as any).toDate()
+      : new Date(message.createdAt as any));
+  const formattedTime = format(messageDate, 'HH:mm');
 
   return (
     <div className="flex justify-start gap-1.5">
@@ -416,9 +428,9 @@ function OtherMessage({
                       href={attachment.url}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="flex items-center gap-2 p-2 bg-muted rounded-lg hover:bg-muted-dark"
+                      className="flex items-center gap-2 p-2 bg-gray-100 rounded-lg hover:bg-gray-200"
                     >
-                      <span>📎</span>
+                      <Paperclip className="w-4 h-4 text-gray-500" strokeWidth={1.5} />
                       <span className="text-[13px] truncate">{attachment.fileName}</span>
                     </a>
                   )}
@@ -446,6 +458,11 @@ function OtherMessage({
  * 날짜 구분선
  */
 export function DateDivider({ date }: { date: Date }) {
+  // Validate date before formatting
+  if (!date || isNaN(date.getTime())) {
+    return null;
+  }
+
   const formattedDate = format(date, 'M월 d일 (E)', { locale: ko });
 
   return (

@@ -4,6 +4,7 @@ import { useState } from 'react'
 import { getCurrentPosition, getAddressFromCoords, getDaysUntilExpiry, isLocationExpired } from '@/lib/location-utils'
 import { usersDB } from '@/lib/dynamodb'
 import { useAuth, type UserLocation } from '@/contexts/AuthContext'
+import { MapPin, Info } from 'lucide-react'
 
 export default function LocationVerification({
   onSuccess,
@@ -216,7 +217,7 @@ export default function LocationVerification({
               </svg>
             </div>
             <div className="flex-1">
-              <h3 className="text-lg sm:text-xl font-bold text-emerald-900 mb-0.5 sm:mb-1">
+              <h3 className="text-sm sm:text-lg font-bold text-emerald-900 mb-0.5 sm:mb-1">
                 {successMessage.dong} 인증완료!
               </h3>
               <p className="text-xs sm:text-sm text-emerald-700 font-medium">
@@ -361,7 +362,7 @@ export default function LocationVerification({
         <button
           onClick={onOpenMap || handleVerifyLocation}
           disabled={loading}
-          className="w-full bg-gradient-to-r from-blue-500 to-indigo-500 text-white font-semibold py-3.5 sm:py-4 px-5 sm:px-6 rounded-xl hover:from-blue-600 hover:to-indigo-600 transition-all disabled:opacity-50 disabled:cursor-not-allowed shadow-lg shadow-blue-500/30 text-sm sm:text-base"
+          className="w-full bg-[#5f0080] text-white font-semibold py-3.5 sm:py-4 px-5 sm:px-6 rounded-xl hover:bg-[#4a0066] transition-all disabled:opacity-50 disabled:cursor-not-allowed text-sm"
         >
           {loading ? (
             <div className="flex items-center justify-center gap-2">
@@ -370,7 +371,7 @@ export default function LocationVerification({
             </div>
           ) : (
             <div className="flex items-center justify-center gap-2">
-              <span className="text-lg sm:text-xl">🗺️</span>
+              <MapPin className="w-5 h-5" strokeWidth={1.5} />
               <span>{onOpenMap ? '지도에서 위치 선택하기' : `현재 위치로 ${userProfile?.locations?.length === 0 ? '첫 ' : ''}동네 인증하기`}</span>
             </div>
           )}
@@ -379,11 +380,14 @@ export default function LocationVerification({
 
       {/* 안내 문구 */}
       <div className="p-3 sm:p-4 bg-blue-50 border border-blue-200 rounded-lg sm:rounded-xl">
-        <p className="text-xs text-blue-800 leading-relaxed">
-          ℹ️ 내 동네 인증은 GPS를 통해 현재 위치를 확인하고, 카카오 맵 API로 자동으로 주소를 변환합니다.
-          실제로 해당 지역에 있어야만 인증할 수 있으며, 인증은 30일마다 갱신이 필요합니다.
-          최대 2개 지역까지 등록 가능합니다.
-        </p>
+        <div className="flex items-start gap-2">
+          <Info className="w-4 h-4 text-blue-600 flex-shrink-0 mt-0.5" strokeWidth={1.5} />
+          <p className="text-xs text-blue-800 leading-relaxed">
+            내 동네 인증은 GPS를 통해 현재 위치를 확인하고, 카카오 맵 API로 자동으로 주소를 변환합니다.
+            실제로 해당 지역에 있어야만 인증할 수 있으며, 인증은 30일마다 갱신이 필요합니다.
+            최대 2개 지역까지 등록 가능합니다.
+          </p>
+        </div>
       </div>
     </div>
   )

@@ -32,14 +32,21 @@ export async function POST(request: Request) {
       time,
       location,
       organizationId,
+      orgId,  // Alternative field name used by client
       description,
       participants,
       maxParticipants,
+      type,
+      createdBy,
+      createdByUid,
     } = body;
 
+    // Support both organizationId and orgId (client uses orgId)
+    const resolvedOrgId = organizationId || orgId;
+
     // Validate required fields
-    if (!title || !date || !organizationId) {
-      console.log('[POST /api/schedules] Missing required fields');
+    if (!title || !date || !resolvedOrgId) {
+      console.log('[POST /api/schedules] Missing required fields:', { title: !!title, date: !!date, organizationId: !!resolvedOrgId });
       return NextResponse.json(
         { error: 'Missing required fields: title, date, organizationId' },
         { status: 400 }
@@ -50,18 +57,42 @@ export async function POST(request: Request) {
     const scheduleId = crypto.randomUUID();
     console.log('[POST /api/schedules] Generated scheduleId:', scheduleId);
 
+    // Parse dateISO from body or generate from date
+    let dateISO = body.dateISO;
+    if (!dateISO && date) {
+      // Try to parse date in various formats (e.g., "12/20(토)" or "2025-12-20")
+      if (/^\d{4}-\d{2}-\d{2}$/.test(date)) {
+        dateISO = date;
+      } else {
+        // Try to extract date from format like "12/20(토)"
+        const match = date.match(/(\d{1,2})\/(\d{1,2})/);
+        if (match) {
+          const month = match[1].padStart(2, '0');
+          const day = match[2].padStart(2, '0');
+          const year = new Date().getFullYear();
+          // If the month is less than current month, assume next year
+          const currentMonth = new Date().getMonth() + 1;
+          const targetYear = parseInt(month) < currentMonth ? year + 1 : year;
+          dateISO = `${targetYear}-${month}-${day}`;
+        }
+      }
+    }
+
     // Create schedule object
     const schedule = {
       scheduleId,
       title,
       date,
+      dateISO: dateISO || null,
       time: time || null,
       location: location || null,
-      organizationId,
+      organizationId: resolvedOrgId,
+      type: type || null,
       description: description || null,
       participants: participants || [],
       maxParticipants: maxParticipants || null,
-      createdBy: user.sub,
+      createdBy: createdBy || user.sub,
+      createdByUid: createdByUid || user.sub,
     };
 
     // Save to DynamoDB

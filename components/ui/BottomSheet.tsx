@@ -106,7 +106,7 @@ export const BottomSheet: React.FC<BottomSheetProps> = ({
           {(title || description) && (
             <div className="px-6 pb-4 space-y-2">
               {title && (
-                <Drawer.Title className="text-xl font-semibold text-foreground">
+                <Drawer.Title className="text-lg font-semibold text-foreground">
                   {title}
                 </Drawer.Title>
               )}

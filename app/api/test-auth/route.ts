@@ -15,12 +15,16 @@ export async function GET(request: Request) {
       timestamp: new Date().toISOString(),
       hasAuthHeader: !!authHeader,
       authHeaderPreview: authHeader ? authHeader.substring(0, 20) + '...' : null,
+      authHeaderLength: authHeader?.length,
+      authHeaderStartsWith: authHeader?.startsWith('Bearer '),
       env: {
         userPoolId: process.env.AWS_COGNITO_USER_POOL_ID ? 'SET' : 'NOT SET',
         clientId: process.env.AWS_COGNITO_CLIENT_ID ? 'SET' : 'NOT SET',
         region: process.env.AWS_REGION ? 'SET' : 'NOT SET',
       }
     };
+
+    console.log('🔍 [test-auth] authHeader:', authHeader);
 
     if (authHeader && authHeader.startsWith('Bearer ')) {
       const token = authHeader.substring(7);

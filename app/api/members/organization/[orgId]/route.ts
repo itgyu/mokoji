@@ -19,14 +19,14 @@ export const runtime = 'nodejs';
  */
 export async function GET(
   request: NextRequest,
-  { params }: { params: { orgId: string } }
+  { params }: { params: Promise<{ orgId: string }> }
 ) {
   try {
     // Authentication
     const user = await withAuth(request);
     console.log('[GET /api/members/organization/[orgId]] Authenticated user:', user.sub);
 
-    const { orgId } = params;
+    const { orgId } = await params;
     console.log('[GET /api/members/organization/[orgId]] organizationId:', orgId);
 
     // Fetch members by organization

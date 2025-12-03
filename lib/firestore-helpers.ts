@@ -296,10 +296,12 @@ export async function getOrganizationMembers(
   console.log('🔍 [getOrganizationMembers] 조회 시작 - orgId:', orgId);
 
   try {
-    const members = await membersAPI.getByOrganization(orgId);
+    const response = await membersAPI.getByOrganization(orgId);
+    // API returns {members: [...]} format
+    const members = response?.members || response || [];
 
     // active 상태만 필터링 & 정렬
-    const activeMembers = members
+    const activeMembers = (Array.isArray(members) ? members : [])
       .filter((m: any) => m.status === 'active')
       .sort((a: any, b: any) => {
         const aTime = a.joinedAt || 0;

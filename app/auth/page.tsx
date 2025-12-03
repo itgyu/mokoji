@@ -9,6 +9,7 @@ import { getCities, getDistricts } from '@/lib/locations'
 import { uploadToS3 } from '@/lib/s3-client'
 import { CREW_CATEGORIES } from '@/lib/constants'
 import { useAuth } from '@/contexts/AuthContext'
+import { Logo } from '@/components/Logo'
 
 type AuthStep = 'email' | 'login' | 'signup' | 'verify-email' | 'forgot-password'
 
@@ -181,92 +182,16 @@ export default function AuthPage() {
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-orange-50 to-amber-50 p-4">
+    <div className="min-h-screen flex items-center justify-center bg-[#FAFAFA] p-4">
       <div className="w-full max-w-md">
         {step === 'login' && (
-          <div className="bg-white rounded-2xl shadow-xl p-8">
+          <div className="bg-white rounded-2xl shadow-lg p-8">
             <div className="text-center mb-8">
-              {/* 브랜드 로고 - icon.tsx와 동일한 구조 (배경 없음) */}
-              <div className="flex justify-center mb-6">
-                <div className="relative w-[140px] h-[140px] flex items-center justify-center">
-                  {/* 큰 원 테두리 */}
-                  <div
-                    style={{
-                      width: 140,
-                      height: 140,
-                      borderRadius: '50%',
-                      border: '6px solid #FF9B50',
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      position: 'relative',
-                    }}
-                  >
-                    {/* 중앙 동그라미 */}
-                    <div
-                      style={{
-                        width: 24,
-                        height: 24,
-                        borderRadius: '50%',
-                        background: '#FF9B50',
-                        position: 'absolute',
-                      }}
-                    />
-
-                    {/* 위 */}
-                    <div
-                      style={{
-                        width: 20,
-                        height: 20,
-                        borderRadius: '50%',
-                        background: '#A8D08D',
-                        position: 'absolute',
-                        top: 10,
-                      }}
-                    />
-
-                    {/* 오른쪽 */}
-                    <div
-                      style={{
-                        width: 20,
-                        height: 20,
-                        borderRadius: '50%',
-                        background: '#FF6B6B',
-                        position: 'absolute',
-                        right: 10,
-                      }}
-                    />
-
-                    {/* 아래 */}
-                    <div
-                      style={{
-                        width: 20,
-                        height: 20,
-                        borderRadius: '50%',
-                        background: '#FF9B50',
-                        position: 'absolute',
-                        bottom: 10,
-                        opacity: 0.8,
-                      }}
-                    />
-
-                    {/* 왼쪽 */}
-                    <div
-                      style={{
-                        width: 20,
-                        height: 20,
-                        borderRadius: '50%',
-                        background: '#A8D08D',
-                        position: 'absolute',
-                        left: 10,
-                        opacity: 0.8,
-                      }}
-                    />
-                  </div>
-                </div>
+              {/* 브랜드 로고 */}
+              <div className="flex flex-col items-center justify-center mb-6">
+                <Logo size="lg" color="primary" />
+                <p className="text-sm text-gray-500 mt-2">{BRAND.TAGLINE}</p>
               </div>
-              <h1 className="text-title mb-2">{BRAND.NAME}</h1>
-              <p className="text-caption text-[#A8A29E]">제주어로 '친목 도모를 위한 모임'을 뜻합니다</p>
             </div>
 
             <form onSubmit={handleLogin} className="space-y-4">
@@ -276,7 +201,7 @@ export default function AuthPage() {
                 onChange={(e) => setEmail(e.target.value)}
                 placeholder="이메일"
                 required
-                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#FF9B50] focus:border-transparent"
+                className="w-full px-4 py-3 border border-gray-200 rounded-lg focus:ring-2 focus:ring-[#5f0080] focus:border-transparent bg-gray-50"
               />
               <input
                 type="password"
@@ -284,13 +209,13 @@ export default function AuthPage() {
                 onChange={(e) => setPassword(e.target.value)}
                 placeholder="비밀번호"
                 required
-                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#FF9B50] focus:border-transparent"
+                className="w-full px-4 py-3 border border-gray-200 rounded-lg focus:ring-2 focus:ring-[#5f0080] focus:border-transparent bg-gray-50"
               />
               {error && <p className="text-red-500 text-sm">{error}</p>}
               <button
                 type="submit"
                 disabled={loading}
-                className="w-full bg-[#FF9B50] text-white font-semibold py-3 rounded-lg hover:bg-[#FF8A3D] active:scale-95 transition-all"
+                className="w-full bg-[#5f0080] text-white font-semibold py-3 rounded-lg hover:bg-[#4a0066] active:scale-95 transition-all"
               >
                 {loading ? '로그인 중...' : '로그인'}
               </button>
@@ -309,7 +234,7 @@ export default function AuthPage() {
                   <button
                     type="button"
                     onClick={() => setStep('signup')}
-                    className="text-[#FF9B50] text-sm font-semibold hover:underline"
+                    className="text-[#5f0080] text-sm font-semibold hover:underline"
                   >
                     회원가입
                   </button>
@@ -320,17 +245,13 @@ export default function AuthPage() {
         )}
 
         {step === 'signup' && (
-          <div className="bg-white rounded-2xl shadow-xl p-8">
+          <div className="bg-white rounded-2xl shadow-lg p-8">
             <div className="text-center mb-8">
-              {/* 환영 아이콘 */}
-              <div className="flex justify-center mb-6">
-                <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-[#FF9B50] to-[#FF8A3D] flex items-center justify-center shadow-lg">
-                  <svg className="w-8 h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M18 9v3m0 0v3m0-3h3m-3 0h-3m-2-5a4 4 0 11-8 0 4 4 0 018 0zM3 20a6 6 0 0112 0v1H3v-1z" />
-                  </svg>
-                </div>
+              {/* 브랜드 로고 */}
+              <div className="flex flex-col items-center justify-center mb-6">
+                <Logo size="lg" color="primary" />
+                <p className="text-sm text-gray-500 mt-2">회원가입</p>
               </div>
-              <h1 className="text-title mb-2">환영합니다!</h1>
             </div>
 
             <form onSubmit={handleSignup} className="space-y-4">
@@ -353,7 +274,7 @@ export default function AuthPage() {
                   placeholder="비밀번호"
                   required
                   minLength={6}
-                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#FF9B50]"
+                  className="w-full px-4 py-3 border border-gray-200 rounded-lg focus:ring-2 focus:ring-[#5f0080] focus:border-transparent bg-gray-50"
                 />
               </div>
 
@@ -365,7 +286,7 @@ export default function AuthPage() {
                   onChange={(e) => setName(e.target.value)}
                   placeholder="홍길동"
                   required
-                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#FF9B50]"
+                  className="w-full px-4 py-3 border border-gray-200 rounded-lg focus:ring-2 focus:ring-[#5f0080] focus:border-transparent bg-gray-50"
                 />
               </div>
 
@@ -375,7 +296,7 @@ export default function AuthPage() {
                   value={gender}
                   onChange={(e) => setGender(e.target.value)}
                   required
-                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#FF9B50]"
+                  className="w-full px-4 py-3 border border-gray-200 rounded-lg focus:ring-2 focus:ring-[#5f0080] focus:border-transparent bg-gray-50"
                 >
                   <option value="">선택</option>
                   <option value="남">남</option>
@@ -390,7 +311,7 @@ export default function AuthPage() {
                   value={birthdate}
                   onChange={(e) => setBirthdate(e.target.value)}
                   required
-                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#FF9B50]"
+                  className="w-full px-4 py-3 border border-gray-200 rounded-lg focus:ring-2 focus:ring-[#5f0080] focus:border-transparent bg-gray-50"
                 />
               </div>
 
@@ -405,7 +326,7 @@ export default function AuthPage() {
                       setLocation(e.target.value)
                     }}
                     required
-                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#FF9B50]"
+                    className="w-full px-4 py-3 border border-gray-200 rounded-lg focus:ring-2 focus:ring-[#5f0080] focus:border-transparent bg-gray-50"
                   >
                     <option value="">시/도</option>
                     {getCities().map(city => (
@@ -420,7 +341,7 @@ export default function AuthPage() {
                     }}
                     disabled={!selectedCity}
                     required
-                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#FF9B50] disabled:bg-gray-100 disabled:cursor-not-allowed"
+                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#5f0080] focus:border-transparent bg-gray-50 disabled:bg-gray-100 disabled:cursor-not-allowed"
                   >
                     <option value="">구/군</option>
                     {selectedCity && getDistricts(selectedCity).map(district => (
@@ -438,7 +359,7 @@ export default function AuthPage() {
                   onChange={(e) => setMbti(e.target.value)}
                   placeholder="ENFP"
                   maxLength={4}
-                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#FF9B50]"
+                  className="w-full px-4 py-3 border border-gray-200 rounded-lg focus:ring-2 focus:ring-[#5f0080] focus:border-transparent bg-gray-50"
                 />
               </div>
 
@@ -446,7 +367,7 @@ export default function AuthPage() {
                 <label className="block text-sm font-medium text-gray-700 mb-2">
                   관심 크루 카테고리 * (중복 선택 가능)
                 </label>
-                <div className="grid grid-cols-3 gap-2 max-h-48 overflow-y-auto p-3 border border-gray-300 rounded-lg bg-gray-50">
+                <div className="grid grid-cols-3 gap-2 max-h-48 overflow-y-auto p-3 border border-gray-200 rounded-lg bg-gray-50">
                   {CREW_CATEGORIES.map((category) => (
                     <label key={category} className="flex items-center gap-2 p-2 rounded hover:bg-white cursor-pointer transition-colors">
                       <input
@@ -459,7 +380,7 @@ export default function AuthPage() {
                             setInterestCategories(interestCategories.filter(c => c !== category))
                           }
                         }}
-                        className="w-4 h-4 text-[#FF9B50] border-gray-300 rounded focus:ring-[#FF9B50]"
+                        className="w-4 h-4 text-[#5f0080] border-gray-300 rounded focus:ring-[#5f0080]"
                       />
                       <span className="text-sm text-gray-700">{category}</span>
                     </label>
@@ -468,7 +389,7 @@ export default function AuthPage() {
                 {interestCategories.length > 0 && (
                   <div className="mt-2 flex flex-wrap gap-1">
                     {interestCategories.map((cat) => (
-                      <span key={cat} className="inline-flex items-center gap-1 px-2 py-1 bg-[#FF9B50] text-white text-xs rounded-full">
+                      <span key={cat} className="inline-flex items-center gap-1 px-2 py-1 bg-[#5f0080] text-white text-xs rounded-full">
                         {cat}
                         <button
                           type="button"
@@ -489,7 +410,7 @@ export default function AuthPage() {
                   type="file"
                   accept="image/*"
                   onChange={(e) => setAvatarFile(e.target.files?.[0] || null)}
-                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#FF9B50]"
+                  className="w-full px-4 py-3 border border-gray-200 rounded-lg focus:ring-2 focus:ring-[#5f0080] focus:border-transparent bg-gray-50"
                 />
                 <p className="text-xs text-gray-500 mt-1">※ 5MB 이하 권장</p>
               </div>
@@ -499,7 +420,7 @@ export default function AuthPage() {
               <button
                 type="submit"
                 disabled={loading}
-                className="w-full bg-[#FF9B50] text-white font-semibold py-3 rounded-lg hover:bg-[#FF8A3D] active:scale-95 transition-all"
+                className="w-full bg-[#5f0080] text-white font-semibold py-3 rounded-lg hover:bg-[#4a0066] active:scale-95 transition-all"
               >
                 {loading ? '가입 중...' : '가입하기'}
               </button>
@@ -516,10 +437,12 @@ export default function AuthPage() {
         )}
 
         {step === 'verify-email' && (
-          <div className="bg-white rounded-2xl shadow-xl p-8">
+          <div className="bg-white rounded-2xl shadow-lg p-8">
             <div className="text-center mb-8">
-              <div className="text-5xl mb-4">📧</div>
-              <h1 className="text-2xl font-bold text-gray-900 mb-2">이메일 인증</h1>
+              <div className="flex flex-col items-center justify-center mb-6">
+                <Logo size="lg" color="primary" />
+                <p className="text-sm text-gray-500 mt-2">이메일 인증</p>
+              </div>
               <p className="text-gray-600 mb-2">{email}로 인증 코드를 보냈습니다.</p>
               <p className="text-sm text-gray-500">메일함을 확인하고 6자리 코드를 입력해주세요.</p>
             </div>
@@ -534,7 +457,7 @@ export default function AuthPage() {
                   placeholder="6자리 인증 코드"
                   required
                   maxLength={6}
-                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#FF9B50] focus:border-transparent text-center text-2xl tracking-widest"
+                  className="w-full px-4 py-3 border border-gray-200 rounded-lg focus:ring-2 focus:ring-[#5f0080] focus:border-transparent text-center text-lg tracking-widest bg-gray-50"
                 />
               </div>
 
@@ -543,7 +466,7 @@ export default function AuthPage() {
               <button
                 type="submit"
                 disabled={loading}
-                className="w-full bg-[#FF9B50] text-white font-semibold py-3 rounded-lg hover:bg-[#FF8A3D] active:scale-95 transition-all"
+                className="w-full bg-[#5f0080] text-white font-semibold py-3 rounded-lg hover:bg-[#4a0066] active:scale-95 transition-all"
               >
                 {loading ? '인증 중...' : '인증 완료'}
               </button>
@@ -560,10 +483,12 @@ export default function AuthPage() {
         )}
 
         {step === 'forgot-password' && (
-          <div className="bg-white rounded-2xl shadow-xl p-8">
+          <div className="bg-white rounded-2xl shadow-lg p-8">
             <div className="text-center mb-8">
-              <div className="text-5xl mb-4">🔑</div>
-              <h1 className="text-2xl font-bold text-gray-900 mb-2">비밀번호 찾기</h1>
+              <div className="flex flex-col items-center justify-center mb-6">
+                <Logo size="lg" color="primary" />
+                <p className="text-sm text-gray-500 mt-2">비밀번호 찾기</p>
+              </div>
               <p className="text-gray-600">가입하신 이메일로 비밀번호 재설정 링크를 보내드립니다.</p>
             </div>
 
@@ -576,7 +501,7 @@ export default function AuthPage() {
                   onChange={(e) => setEmail(e.target.value)}
                   placeholder="이메일을 입력하세요"
                   required
-                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#FF9B50] focus:border-transparent"
+                  className="w-full px-4 py-3 border border-gray-200 rounded-lg focus:ring-2 focus:ring-[#5f0080] focus:border-transparent bg-gray-50"
                 />
               </div>
 
@@ -585,7 +510,7 @@ export default function AuthPage() {
               <button
                 type="submit"
                 disabled={loading}
-                className="w-full bg-[#FF9B50] text-white font-semibold py-3 rounded-lg hover:bg-[#FF8A3D] active:scale-95 transition-all"
+                className="w-full bg-[#5f0080] text-white font-semibold py-3 rounded-lg hover:bg-[#4a0066] active:scale-95 transition-all"
               >
                 {loading ? '전송 중...' : '비밀번호 재설정 링크 보내기'}
               </button>

@@ -1,5 +1,4 @@
 import type { Metadata, Viewport } from "next"
-import { Geist, Geist_Mono } from "next/font/google"
 import Script from "next/script"
 import "./globals.css"
 import { Analytics } from "@vercel/analytics/next"
@@ -7,23 +6,13 @@ import { AuthProvider } from "@/contexts/AuthContext"
 import VersionChecker from "@/components/VersionChecker"
 import { BRAND } from "@/lib/brand"
 
-const geistSans = Geist({
-  variable: "--font-geist-sans",
-  subsets: ["latin"],
-})
-
-const geistMono = Geist_Mono({
-  variable: "--font-geist-mono",
-  subsets: ["latin"],
-})
-
 export const viewport: Viewport = {
   width: 'device-width',
   initialScale: 1,
   maximumScale: 5,
   userScalable: true,
   viewportFit: 'cover',
-  themeColor: '#FF9B50',
+  themeColor: '#5f0080',
 }
 
 export const metadata: Metadata = {
@@ -57,8 +46,14 @@ export default function RootLayout({
   children: React.ReactNode
 }>) {
   return (
-    <html lang="ko" style={{ scrollBehavior: 'smooth' }}>
-      <body className={`${geistSans.variable} ${geistMono.variable} font-sans antialiased`}>
+    <html lang="ko">
+      <head>
+        <link
+          rel="stylesheet"
+          href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;600;700&display=swap"
+        />
+      </head>
+      <body className="font-sans antialiased">
         <Script
           src="//dapi.kakao.com/v2/maps/sdk.js?appkey=ff364c3f44129afc87e31935ac353ba2&libraries=services&autoload=false"
           strategy="beforeInteractive"

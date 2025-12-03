@@ -30,7 +30,7 @@ export async function GET(request: Request, { params }: RouteParams) {
     const user = await withAuth(request);
     console.log('[GET /api/schedules/organization/[orgId]] Authenticated user:', user.sub);
 
-    const { orgId } = params;
+    const { orgId } = await params;
     console.log('[GET /api/schedules/organization/[orgId]] Fetching schedules for organization:', orgId);
 
     // Parse query parameters from URL

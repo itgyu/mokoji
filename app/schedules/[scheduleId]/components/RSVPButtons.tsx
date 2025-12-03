@@ -1,10 +1,7 @@
 'use client';
 
-import { useState } from 'react';
-import { Button } from '@/components/ui';
-import { docClient, TABLES, schedulesDB } from '@/lib/dynamodb';
-import { GetCommand, UpdateCommand } from '@aws-sdk/lib-dynamodb';
-import { createRSVPSystemMessage, createSystemMessage } from '@/lib/dynamodb/chat-helpers';
+import { useState, useEffect } from 'react';
+import { schedulesAPI } from '@/lib/api-client';
 import type { RSVPStatus, ScheduleParticipant } from '@/types/firestore';
 
 interface RSVPButtonsProps {
@@ -13,18 +10,16 @@ interface RSVPButtonsProps {
   currentUserName: string;
   currentUserAvatar?: string;
   currentStatus?: RSVPStatus;
+  participants: ScheduleParticipant[];
   maxParticipants?: number;
   currentGoingCount: number;
-  onStatusChange?: (newStatus: RSVPStatus) => void;
+  onStatusChange?: (newStatus: RSVPStatus | undefined) => void;
 }
 
 /**
- * 참석 응답 버튼 컴포넌트 (대기열 시스템)
+ * 참석 응답 버튼 컴포넌트 (Optimistic UI 적용)
  *
- * 3개의 버튼으로 참석 상태를 변경합니다:
- * - 참석 (going) - 선착순 마감
- * - 대기 (waiting) - 정원 초과 시 대기열
- * - 불참 (declined)
+ * 버튼 클릭 즉시 UI 업데이트 → 백그라운드에서 API 호출 → 실패 시 롤백
  */
 export function RSVPButtons({
   scheduleId,
@@ -32,6 +27,7 @@ export function RSVPButtons({
   currentUserName,
   currentUserAvatar,
   currentStatus,
+  participants,
   maxParticipants,
   currentGoingCount,
   onStatusChange,
@@ -39,38 +35,47 @@ export function RSVPButtons({
   const [isUpdating, setIsUpdating] = useState(false);
   const [localStatus, setLocalStatus] = useState(currentStatus);
 
+  // props 변경 시 로컬 상태도 동기화
+  useEffect(() => {
+    setLocalStatus(currentStatus);
+  }, [currentStatus]);
+
   // 정원 체크
   const isFull = maxParticipants ? currentGoingCount >= maxParticipants : false;
-  const canJoin = !isFull || localStatus === 'going'; // 이미 참석 중이면 상태 변경 가능
+  const canJoin = !isFull || localStatus === 'going';
 
   const handleRSVP = async (newStatus: RSVPStatus) => {
     if (isUpdating) return;
 
     // 같은 버튼을 다시 누르면 취소 (토글)
     const isCanceling = newStatus === localStatus;
+    const updatedStatus = isCanceling ? undefined : newStatus;
 
+    // 정원 체크 (참석으로 변경하려는 경우에만)
+    if (!isCanceling && newStatus === 'going') {
+      // 현재 going 상태인 참가자 수 (나를 제외)
+      const otherGoingCount = participants.filter(
+        (p) => p.userId !== currentUserId && p.status === 'going'
+      ).length;
+
+      if (maxParticipants && otherGoingCount >= maxParticipants) {
+        alert('정원이 마감되었습니다. 대기를 선택해주세요.');
+        return;
+      }
+    }
+
+    // 이전 상태 저장 (롤백용)
+    const prevStatus = localStatus;
+
+    // 🚀 Optimistic UI: 즉시 로컬 상태 업데이트
+    setLocalStatus(updatedStatus);
+    onStatusChange?.(updatedStatus);
     setIsUpdating(true);
 
     try {
-      // DynamoDB에서 현재 일정 데이터 조회
-      const scheduleResult = await docClient.send(
-        new GetCommand({
-          TableName: TABLES.SCHEDULES,
-          Key: { scheduleId },
-        })
-      );
-
-      if (!scheduleResult.Item) {
-        throw new Error('일정을 찾을 수 없습니다.');
-      }
-
-      const scheduleData = scheduleResult.Item;
-      const participants = (scheduleData.participants || [])
-        .filter((p: any) => typeof p === 'object' && p !== null && p.userId); // 객체만 필터링
-
       // 기존 참여자 중에서 현재 사용자를 제외한 목록
       const otherParticipants = participants.filter(
-        (p: any) => p.userId !== currentUserId
+        (p) => p.userId !== currentUserId
       );
 
       let updatedParticipants;
@@ -79,20 +84,6 @@ export function RSVPButtons({
         // 취소: 현재 사용자를 participants에서 제거
         updatedParticipants = otherParticipants;
       } else {
-        // 정원 체크 (참석으로 변경하려는 경우에만)
-        if (newStatus === 'going') {
-          const currentGoingCount = otherParticipants.filter(
-            (p: any) => p.status === 'going'
-          ).length;
-
-          if (
-            scheduleData.maxParticipants &&
-            currentGoingCount >= scheduleData.maxParticipants
-          ) {
-            throw new Error('정원이 마감되었습니다. 대기를 선택해주세요.');
-          }
-        }
-
         // 새로운 참여자 데이터
         const newParticipant: any = {
           userId: currentUserId,
@@ -110,101 +101,57 @@ export function RSVPButtons({
         updatedParticipants = [...otherParticipants, newParticipant];
       }
 
-      // DynamoDB 업데이트
-      await docClient.send(
-        new UpdateCommand({
-          TableName: TABLES.SCHEDULES,
-          Key: { scheduleId },
-          UpdateExpression: 'SET participants = :participants, updatedAt = :updatedAt',
-          ExpressionAttributeValues: {
-            ':participants': updatedParticipants,
-            ':updatedAt': Date.now(),
-          },
-        })
-      );
-
-      console.log('[RSVPButtons] RSVP 업데이트 성공:', {
-        scheduleId,
-        userId: currentUserId,
-        newStatus: isCanceling ? 'canceled' : newStatus,
+      // 백그라운드에서 API 호출
+      await schedulesAPI.update(scheduleId, {
+        participants: updatedParticipants,
       });
 
-      // 로컬 상태 업데이트
-      const updatedStatus = isCanceling ? undefined : newStatus;
-      setLocalStatus(updatedStatus);
-      onStatusChange?.(updatedStatus as RSVPStatus);
-
-      // 시스템 메시지 생성
-      try {
-        if (isCanceling) {
-          // 취소 메시지
-          const statusText = {
-            going: '참석',
-            waiting: '대기',
-            declined: '불참',
-          }[localStatus as RSVPStatus];
-
-          await createSystemMessage(
-            scheduleId,
-            `${currentUserName || '사용자'}님이 ${statusText}을(를) 취소했습니다.`,
-            'rsvp_change'
-          );
-        } else {
-          await createRSVPSystemMessage(
-            scheduleId,
-            currentUserName || '사용자',
-            currentUserId,
-            newStatus,
-            localStatus
-          );
-        }
-        console.log('[RSVPButtons] 시스템 메시지 생성 완료');
-      } catch (systemMessageError) {
-        console.error('[RSVPButtons] 시스템 메시지 생성 실패:', systemMessageError);
-      }
     } catch (error: any) {
       console.error('[RSVPButtons] RSVP 업데이트 실패:', error);
+
+      // ❌ 실패 시 롤백
+      setLocalStatus(prevStatus);
+      onStatusChange?.(prevStatus);
+
       alert(error.message || '참석 응답 업데이트에 실패했습니다. 다시 시도해주세요.');
     } finally {
       setIsUpdating(false);
     }
   };
 
+  const buttons = [
+    { status: 'going' as RSVPStatus, label: '참석', disabled: !canJoin },
+    { status: 'waiting' as RSVPStatus, label: '대기', disabled: false },
+    { status: 'declined' as RSVPStatus, label: '불참', disabled: false },
+  ];
+
   return (
-    <div className="flex gap-2 w-full">
-      <Button
-        variant={localStatus === 'going' ? 'primary' : 'ghost'}
-        size="md"
-        onClick={() => handleRSVP('going')}
-        disabled={isUpdating || !canJoin}
-        className="flex-1"
-        title={isFull && localStatus !== 'going' ? '정원이 마감되었습니다' : ''}
-      >
-        <span className="mr-1">✅</span>
-        참석 {isFull && localStatus !== 'going' && '(마감)'}
-      </Button>
-
-      <Button
-        variant={localStatus === 'waiting' ? 'primary' : 'ghost'}
-        size="md"
-        onClick={() => handleRSVP('waiting' as RSVPStatus)}
-        disabled={isUpdating}
-        className="flex-1"
-      >
-        <span className="mr-1">⏳</span>
-        대기
-      </Button>
-
-      <Button
-        variant={localStatus === 'declined' ? 'primary' : 'ghost'}
-        size="md"
-        onClick={() => handleRSVP('declined')}
-        disabled={isUpdating}
-        className="flex-1"
-      >
-        <span className="mr-1">❌</span>
-        불참
-      </Button>
+    <div className="bg-white border-b border-gray-200 px-4 py-4">
+      <p className="text-xs text-gray-500 mb-3">내 참석 상태</p>
+      <div className="flex gap-2">
+        {buttons.map(({ status, label, disabled }) => {
+          const isSelected = localStatus === status;
+          return (
+            <button
+              key={status}
+              onClick={() => handleRSVP(status)}
+              disabled={disabled}
+              className={`
+                flex-1 py-2.5 text-sm font-medium rounded-lg transition-colors
+                ${isSelected
+                  ? 'bg-[#5f0080] text-white'
+                  : 'border border-gray-200 text-gray-700 hover:bg-gray-50'
+                }
+                ${disabled ? 'opacity-50 cursor-not-allowed' : ''}
+                ${isUpdating ? 'pointer-events-none' : ''}
+              `}
+            >
+              {label}
+              {status === 'going' && isFull && !isSelected && ' (마감)'}
+            </button>
+          );
+        })}
+      </div>
     </div>
   );
 }

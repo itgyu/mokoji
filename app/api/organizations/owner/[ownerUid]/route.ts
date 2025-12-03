@@ -38,8 +38,14 @@ export async function GET(request: NextRequest, context: RouteContext) {
     console.log('Authenticated user:', user.sub);
 
     // Fetch organizations by owner
-    const organizations = await organizationsDB.getByOwner(ownerUid);
-    console.log(`Fetched ${organizations.length} organizations for owner:`, ownerUid);
+    const rawOrganizations = await organizationsDB.getByOwner(ownerUid);
+    console.log(`Fetched ${rawOrganizations.length} organizations for owner:`, ownerUid);
+
+    // Normalize: add 'id' field for frontend compatibility
+    const organizations = rawOrganizations.map((org: any) => ({
+      ...org,
+      id: org.id || org.organizationId,
+    }));
 
     return successResponse({ organizations });
   } catch (error: any) {

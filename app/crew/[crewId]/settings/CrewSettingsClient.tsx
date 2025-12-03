@@ -21,9 +21,9 @@
 
 import { useState, useEffect, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
-import { organizationsDB, membersDB, usersDB, schedulesDB } from '@/lib/dynamodb';
+import { organizationsAPI, membersAPI, usersAPI, schedulesAPI } from '@/lib/api-client';
 import { Button, Card, CardBody, Avatar } from '@/components/ui';
-import { ChevronLeft, Users, Trash2, Settings, Camera, X, Shield } from 'lucide-react';
+import { ChevronLeft, Users, Trash2, Settings, Camera, X, Shield, ImageIcon, Save } from 'lucide-react';
 import { uploadToS3 } from '@/lib/s3-client';
 import { addDuplicateNameSuffixes } from '@/lib/name-utils';
 
@@ -109,7 +109,7 @@ export function CrewSettingsClient({
         updateData.imageUrl = avatarUrl; // 기존 필드 호환성
       }
 
-      await organizationsDB.update(crewId, updateData);
+      await organizationsAPI.update(crewId, updateData);
 
       alert('크루 정보가 수정되었습니다.');
       setIsEditing(false);
@@ -153,7 +153,7 @@ export function CrewSettingsClient({
     }
 
     try {
-      await membersDB.update(member.id, {
+      await membersAPI.update(member.id, {
         role: newRole,
         updatedAt: Date.now(),
       });
@@ -181,15 +181,16 @@ export function CrewSettingsClient({
 
     try {
       // members 테이블에서 삭제
-      await membersDB.delete(memberId);
+      await membersAPI.delete(memberId);
 
       // users의 organizations 배열에서 제거
-      const userProfile = await usersDB.get(memberUid);
+      const userResponse = await usersAPI.get(memberUid);
+      const userProfile = userResponse?.user || userResponse;
 
       if (userProfile) {
         const currentOrgs = userProfile.organizations || [];
         const updatedOrgs = currentOrgs.filter((orgId: string) => orgId !== crewId);
-        await usersDB.update(memberUid, {
+        await usersAPI.update(memberUid, {
           organizations: updatedOrgs,
         });
       }
@@ -220,19 +221,20 @@ export function CrewSettingsClient({
     setIsDeleting(true);
     try {
       // 크루의 모든 일정 삭제
-      const schedules = await schedulesDB.getByOrganization(crewId);
+      const schedulesResponse: any = await schedulesAPI.getByOrganization(crewId);
+      const schedules = schedulesResponse?.schedules || schedulesResponse || [];
 
       for (const schedule of schedules) {
-        await schedulesDB.delete(schedule.scheduleId);
+        await schedulesAPI.delete(schedule.scheduleId);
       }
 
       // 크루의 모든 멤버 삭제
       for (const member of members) {
-        await membersDB.delete(member.id);
+        await membersAPI.delete(member.id);
       }
 
       // 크루 삭제
-      await organizationsDB.delete(crewId);
+      await organizationsAPI.delete(crewId);
 
       alert('크루가 삭제되었습니다.');
       router.push('/dashboard');
@@ -255,13 +257,13 @@ export function CrewSettingsClient({
           >
             <ChevronLeft className="w-6 h-6" />
           </button>
-          <h1 className="text-xl font-bold">크루 관리</h1>
+          <h1 className="text-lg font-bold">크루 관리</h1>
         </div>
       </div>
 
       <div className="max-w-2xl mx-auto p-4 space-y-6">
         {/* 크루 정보 섹션 */}
-        <Card variant="elevated" padding="lg">
+        <Card padding="lg">
           <CardBody className="space-y-4">
             <div className="flex items-center justify-between">
               <h2 className="text-lg font-bold flex items-center gap-2">
@@ -339,8 +341,9 @@ export function CrewSettingsClient({
                       </div>
                     )}
                     <div className="flex gap-2">
-                      <label className="flex-1 py-2.5 px-4 bg-white border border-border text-foreground rounded-lg font-medium text-center cursor-pointer hover:bg-muted active:scale-[0.99] transition-transform duration-200">
-                        📸 사진 촬영
+                      <label className="flex-1 py-2.5 px-4 bg-white border border-border text-foreground rounded-lg font-medium text-center cursor-pointer hover:bg-muted active:scale-[0.99] transition-transform duration-200 flex items-center justify-center gap-2">
+                        <Camera className="w-4 h-4" strokeWidth={1.5} />
+                        사진 촬영
                         <input
                           type="file"
                           accept="image/*"
@@ -352,8 +355,9 @@ export function CrewSettingsClient({
                           className="hidden"
                         />
                       </label>
-                      <label className="flex-1 py-2.5 px-4 bg-white border border-border text-foreground rounded-lg font-medium text-center cursor-pointer hover:bg-muted active:scale-[0.99] transition-transform duration-200">
-                        🖼️ 갤러리
+                      <label className="flex-1 py-2.5 px-4 bg-white border border-border text-foreground rounded-lg font-medium text-center cursor-pointer hover:bg-muted active:scale-[0.99] transition-transform duration-200 flex items-center justify-center gap-2">
+                        <ImageIcon className="w-4 h-4" strokeWidth={1.5} />
+                        갤러리
                         <input
                           type="file"
                           accept="image/*"
@@ -377,7 +381,7 @@ export function CrewSettingsClient({
                     disabled={isSaving}
                     className="flex-1"
                   >
-                    {isSaving ? '저장 중...' : '💾 저장'}
+                    {isSaving ? '저장 중...' : '저장'}
                   </Button>
                   <Button
                     variant="ghost"
@@ -430,7 +434,7 @@ export function CrewSettingsClient({
         </Card>
 
         {/* 멤버 관리 섹션 */}
-        <Card variant="elevated" padding="lg">
+        <Card padding="lg">
           <CardBody className="space-y-4">
             <h2 className="text-lg font-bold flex items-center gap-2">
               <Users className="w-5 h-5" />
@@ -523,7 +527,7 @@ export function CrewSettingsClient({
         </Card>
 
         {/* 위험 구역 */}
-        <Card variant="elevated" padding="lg">
+        <Card padding="lg">
           <CardBody className="space-y-4">
             <div>
               <h2 className="text-lg font-bold text-red-500 flex items-center gap-2 mb-2">
@@ -540,7 +544,7 @@ export function CrewSettingsClient({
                 disabled={isDeleting}
                 className="w-full"
               >
-                {isDeleting ? '삭제 중...' : '🗑️ 크루 영구 삭제'}
+                {isDeleting ? '삭제 중...' : '크루 영구 삭제'}
               </Button>
             </div>
           </CardBody>
@@ -552,7 +556,7 @@ export function CrewSettingsClient({
         <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
           <div className="bg-card rounded-2xl max-w-md w-full p-6 space-y-6">
             <div className="flex items-center justify-between">
-              <h2 className="text-xl font-bold">멤버 역할 변경</h2>
+              <h2 className="text-lg font-bold">멤버 역할 변경</h2>
               <button
                 onClick={() => setEditingRole(null)}
                 className="text-muted-foreground hover:text-foreground"

@@ -15,7 +15,7 @@ export const runtime = 'nodejs';
 
 export async function DELETE(
   request: Request,
-  { params }: { params: { photoId: string } }
+  { params }: { params: Promise<{ photoId: string }> }
 ) {
   try {
     console.log('[DELETE /api/photos/[photoId]] Starting photo deletion');
@@ -24,7 +24,7 @@ export async function DELETE(
     const user = await withAuth(request);
     console.log('[DELETE /api/photos/[photoId]] Authenticated user:', user.sub);
 
-    const { photoId } = params;
+    const { photoId } = await params;
 
     // Validate photoId
     if (!photoId) {

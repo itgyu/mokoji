@@ -86,7 +86,7 @@ export default function ImageCropModal({
         <h2 className="text-lg font-bold">{title}</h2>
         <button
           onClick={onCancel}
-          className="text-white text-2xl hover:bg-white/10 w-8 h-8 rounded-lg flex items-center justify-center"
+          className="text-white text-lg hover:bg-white/10 w-8 h-8 rounded-lg flex items-center justify-center"
         >
           ×
         </button>
