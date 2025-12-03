@@ -99,8 +99,42 @@ export default function ScheduleDetailPage({ params }: ScheduleDetailPageProps) 
   const router = useRouter();
   const { user: currentUser, userProfile: authUserProfile } = useAuth();
 
-  // 캐시에서 즉시 데이터 로드 시도
-  const cachedData = getCachedSchedule(scheduleId);
+  // 캐시에서 즉시 데이터 로드 시도 (메모리 캐시 + localStorage)
+  const getCachedData = () => {
+    // 1. 메모리 캐시 확인
+    const memCached = getCachedSchedule(scheduleId);
+    if (memCached) return memCached;
+
+    // 2. localStorage에서 모든 일정 캐시 확인
+    if (typeof window !== 'undefined') {
+      try {
+        const allCached = localStorage.getItem('mokoji_schedules_cache');
+        if (allCached) {
+          const parsed = JSON.parse(allCached);
+          const found = parsed.schedules?.find((s: any) =>
+            s.scheduleId === scheduleId || s.id === scheduleId
+          );
+          if (found) return found;
+        }
+        // 조직별 캐시도 확인
+        for (let i = 0; i < localStorage.length; i++) {
+          const key = localStorage.key(i);
+          if (key?.startsWith('mokoji_org_schedules_')) {
+            const orgCached = localStorage.getItem(key);
+            if (orgCached) {
+              const parsed = JSON.parse(orgCached);
+              const found = parsed.schedules?.find((s: any) =>
+                s.scheduleId === scheduleId || s.id === scheduleId
+              );
+              if (found) return found;
+            }
+          }
+        }
+      } catch (e) {}
+    }
+    return null;
+  };
+  const cachedData = getCachedData();
   const initialSchedule = cachedData ? convertToOrgSchedule(cachedData, scheduleId) : null;
 
   const [schedule, setSchedule] = useState<OrgSchedule | null>(initialSchedule);

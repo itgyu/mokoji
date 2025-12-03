@@ -167,7 +167,18 @@ export default function DashboardPage() {
     return []
   })
   const [members, setMembers] = useState<Member[]>([])
-  const [organizations, setOrganizations] = useState<Organization[]>([]) // 내가 가입한 크루
+  // 캐시에서 즉시 로드
+  const [organizations, setOrganizations] = useState<Organization[]>(() => {
+    if (typeof window === 'undefined') return []
+    try {
+      const cached = localStorage.getItem('mokoji_organizations_cache')
+      if (cached) {
+        const parsed = JSON.parse(cached)
+        return parsed.organizations || []
+      }
+    } catch (e) {}
+    return []
+  })
   const [allOrganizations, setAllOrganizations] = useState<Organization[]>([]) // 모든 크루 (크루 찾기용)
   const [recommendedOrgs, setRecommendedOrgs] = useState<Organization[]>([])
 
@@ -477,6 +488,13 @@ export default function DashboardPage() {
 
       console.log('✅ [fetchMyOrganizations] 최종 fetchedOrgs:', fetchedOrgs.length, '개', fetchedOrgs);
       setOrganizations(fetchedOrgs)
+      // 캐시 저장
+      try {
+        localStorage.setItem('mokoji_organizations_cache', JSON.stringify({
+          organizations: fetchedOrgs,
+          timestamp: Date.now()
+        }))
+      } catch (e) {}
 
       // 3. 각 크루의 멤버 수 가져오기
       const counts: { [key: string]: number } = {}
