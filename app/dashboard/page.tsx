@@ -154,7 +154,18 @@ export default function DashboardPage() {
     return 'home' as Page
   }, [searchParams])
 
-  const [schedules, setSchedules] = useState<Schedule[]>([])
+  // 캐시에서 즉시 로드하여 초기값으로 사용
+  const [schedules, setSchedules] = useState<Schedule[]>(() => {
+    if (typeof window === 'undefined') return []
+    const cached = getCachedAllSchedules()
+    if (cached) {
+      return cached.schedules.map((schedule: any) => ({
+        id: schedule.scheduleId || schedule.id,
+        ...schedule
+      }))
+    }
+    return []
+  })
   const [members, setMembers] = useState<Member[]>([])
   const [organizations, setOrganizations] = useState<Organization[]>([]) // 내가 가입한 크루
   const [allOrganizations, setAllOrganizations] = useState<Organization[]>([]) // 모든 크루 (크루 찾기용)
