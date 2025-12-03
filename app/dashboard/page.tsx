@@ -3713,21 +3713,27 @@ ${BRAND.NAME}와 함께하는 모임 일정에 참여하세요!
             <div className="card-premium p-4 sm:p-5 md:p-6">
               <div className="text-center mb-5 sm:mb-6">
                 <div className="relative w-16 h-16 md:w-20 md:h-20 sm:w-24 sm:h-24 mx-auto mb-3 sm:mb-4 group">
-                  <div className="w-full h-full bg-gradient-to-br from-orange-50 to-indigo-50 rounded-full flex items-center justify-center text-xl leading-7 md:text-xl md:text-2xl md:text-3xl sm:text-4xl overflow-hidden">
-                    <img
-                      src={getValidAvatarUrl(profile.avatar)}
-                      alt={profile.name}
-                      className="w-full h-full object-cover"
-                      onError={(e) => {
-                        const target = e.target as HTMLImageElement
-                        if (target.src !== `${window.location.origin}/default-avatar.svg`) {
-                          target.src = '/default-avatar.svg'
-                        }
-                      }}
-                    />
-                  </div>
-                  {/* Hover 시 나타나는 변경 버튼 */}
-                  <label className="absolute inset-0 bg-black/50 rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer">
+                  <label className="block w-full h-full cursor-pointer">
+                    <div className="w-full h-full bg-gradient-to-br from-orange-50 to-indigo-50 rounded-full flex items-center justify-center text-xl leading-7 md:text-xl md:text-2xl md:text-3xl sm:text-4xl overflow-hidden">
+                      <img
+                        src={getValidAvatarUrl(profile.avatar)}
+                        alt={profile.name}
+                        className="w-full h-full object-cover"
+                        onError={(e) => {
+                          const target = e.target as HTMLImageElement
+                          if (target.src !== `${window.location.origin}/default-avatar.svg`) {
+                            target.src = '/default-avatar.svg'
+                          }
+                        }}
+                      />
+                    </div>
+                    {/* 카메라 아이콘 - 항상 표시 */}
+                    <div className="absolute bottom-0 right-0 w-6 h-6 sm:w-7 sm:h-7 bg-mokkoji-primary rounded-full flex items-center justify-center shadow-md border-2 border-white">
+                      <svg className="w-3 h-3 sm:w-3.5 sm:h-3.5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" />
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 13a3 3 0 11-6 0 3 3 0 016 0z" />
+                      </svg>
+                    </div>
                     <input
                       type="file"
                       accept="image/*"
@@ -3740,10 +3746,13 @@ ${BRAND.NAME}와 함께하는 모임 일정에 참여하세요!
                         }
                       }}
                     />
-                    <span className="text-white text-xs sm:text-sm font-bold">
-                      {uploadingAvatar ? '업로드 중...' : '사진 변경'}
-                    </span>
                   </label>
+                  {/* 업로드 중 오버레이 */}
+                  {uploadingAvatar && (
+                    <div className="absolute inset-0 bg-black/50 rounded-full flex items-center justify-center">
+                      <span className="text-white text-xs font-medium">업로드 중...</span>
+                    </div>
+                  )}
                 </div>
                 <h2 className="text-xl leading-7 sm:text-xl md:text-2xl font-medium tracking-tight text-mokkoji-black mb-1.5 sm:mb-2">{profile.name}</h2>
                 <p className="text-xs sm:text-sm text-mokkoji-gray-600">{profile.email}</p>
