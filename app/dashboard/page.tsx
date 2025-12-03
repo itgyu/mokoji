@@ -3351,8 +3351,8 @@ ${BRAND.NAME}와 함께하는 모임 일정에 참여하세요!
               </div>
             </div>
 
-            <div className="p-4 overflow-y-auto flex-1">
-              <div className="space-y-3">
+            <div className="px-4 pt-4 pb-8 overflow-y-auto flex-1">
+              <div className="space-y-3 pb-4">
                 {membersWithDisplayNames.length === 0 ? (
                   <p className="text-gray-400 text-center py-4 md:py-8">멤버가 없습니다.</p>
                 ) : (
