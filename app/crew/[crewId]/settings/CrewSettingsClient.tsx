@@ -23,7 +23,8 @@ import { useState, useEffect, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import { organizationsAPI, membersAPI, usersAPI, schedulesAPI } from '@/lib/api-client';
 import { Button, Card, CardBody, Avatar } from '@/components/ui';
-import { ChevronLeft, Users, Trash2, Settings, Camera, X, Shield, ImageIcon, Save } from 'lucide-react';
+import { ChevronLeft, Users, Trash2, Settings, Camera, X, Shield, ImageIcon, Save, MapPin } from 'lucide-react';
+import LocationSettings from '@/components/LocationSettings';
 import { uploadToS3 } from '@/lib/s3-client';
 import { addDuplicateNameSuffixes } from '@/lib/name-utils';
 
@@ -62,6 +63,8 @@ export function CrewSettingsClient({
   const [imageFile, setImageFile] = useState<File | null>(null);
   const [imagePreview, setImagePreview] = useState<string | null>(null);
   const [editingRole, setEditingRole] = useState<{ member: any; newRole: string } | null>(null);
+  const [showLocationSettings, setShowLocationSettings] = useState(false);
+  const [crewRegion, setCrewRegion] = useState(crewData.region || null);
 
   const [editForm, setEditForm] = useState({
     name: crewData.name || '',
@@ -121,6 +124,36 @@ export function CrewSettingsClient({
       alert('크루 정보 수정에 실패했습니다.');
     } finally {
       setIsSaving(false);
+    }
+  };
+
+  // 크루 지역 저장
+  const handleSaveRegion = async (location: {
+    address: string;
+    dong: string;
+    latitude: number;
+    longitude: number;
+    radius: number;
+  }) => {
+    try {
+      const regionData = {
+        address: location.address,
+        dong: location.dong,
+        latitude: location.latitude,
+        longitude: location.longitude,
+        radius: location.radius,
+      };
+
+      await organizationsAPI.update(crewId, {
+        region: regionData,
+        updatedAt: Date.now(),
+      });
+
+      setCrewRegion(regionData);
+      alert('크루 지역이 설정되었습니다.');
+    } catch (error) {
+      console.error('Error saving crew region:', error);
+      alert('크루 지역 설정에 실패했습니다.');
     }
   };
 
@@ -433,6 +466,53 @@ export function CrewSettingsClient({
           </CardBody>
         </Card>
 
+        {/* 크루 지역 설정 섹션 */}
+        <Card padding="lg">
+          <CardBody className="space-y-4">
+            <h2 className="text-lg font-bold flex items-center gap-2">
+              <MapPin className="w-5 h-5" />
+              크루 지역 설정
+            </h2>
+
+            <p className="text-sm text-muted-foreground">
+              크루의 활동 지역을 설정하세요. 해당 지역 근처의 회원들에게 크루가 노출됩니다.
+            </p>
+
+            {crewRegion ? (
+              <div className="space-y-3">
+                <div className="p-4 bg-muted rounded-lg">
+                  <div className="flex items-center gap-2 mb-2">
+                    <MapPin className="w-4 h-4 text-primary" />
+                    <span className="font-bold">{crewRegion.dong}</span>
+                  </div>
+                  <p className="text-sm text-muted-foreground">{crewRegion.address}</p>
+                  <p className="text-xs text-muted-foreground mt-1">
+                    활동 반경: {crewRegion.radius >= 1000 ? `${crewRegion.radius / 1000}km` : `${crewRegion.radius}m`}
+                  </p>
+                </div>
+                <Button
+                  variant="ghost"
+                  size="md"
+                  onClick={() => setShowLocationSettings(true)}
+                  className="w-full"
+                >
+                  지역 변경하기
+                </Button>
+              </div>
+            ) : (
+              <Button
+                variant="primary"
+                size="md"
+                onClick={() => setShowLocationSettings(true)}
+                className="w-full"
+              >
+                <MapPin className="w-4 h-4 mr-2" />
+                크루 지역 설정하기
+              </Button>
+            )}
+          </CardBody>
+        </Card>
+
         {/* 멤버 관리 섹션 */}
         <Card padding="lg">
           <CardBody className="space-y-4">
@@ -650,6 +730,18 @@ export function CrewSettingsClient({
           </div>
         </div>
       )}
+
+      {/* 크루 지역 설정 모달 */}
+      <LocationSettings
+        isOpen={showLocationSettings}
+        onClose={() => setShowLocationSettings(false)}
+        onSave={handleSaveRegion}
+        initialLocation={crewRegion ? {
+          latitude: crewRegion.latitude,
+          longitude: crewRegion.longitude,
+          radius: crewRegion.radius,
+        } : undefined}
+      />
     </div>
   );
 }

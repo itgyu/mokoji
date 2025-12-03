@@ -98,6 +98,14 @@ export function ParticipantStrip({
       <div className="bg-white border-b border-gray-200">
         <div className="flex items-center justify-between px-4 py-3 border-b border-gray-100">
           <span className="text-sm font-medium text-gray-900">참석자</span>
+          {onManageClick && (
+            <button
+              onClick={onManageClick}
+              className="text-xs text-[#5f0080] font-medium"
+            >
+              관리
+            </button>
+          )}
         </div>
         <div className="py-8 text-center">
           <p className="text-sm text-gray-500">아직 참석 응답이 없습니다</p>

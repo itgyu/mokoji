@@ -33,7 +33,7 @@ import { useState, useEffect, Suspense, useCallback, useMemo } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { useAuth } from '@/contexts/AuthContext'
 import { signOut, changePassword } from '@/lib/cognito'
-import { usersAPI, organizationsAPI, membersAPI, schedulesAPI, activityLogsAPI } from '@/lib/api-client'
+import { usersAPI, organizationsAPI, membersAPI, schedulesAPI, activityLogsAPI, photosAPI } from '@/lib/api-client'
 import { Home, Users, Calendar, User, MapPin, Bell, Settings, Target, MessageCircle, Sparkles, Star, Tent, Search, Plus, Check, Edit, LogOut, X, ChevronLeft, Camera, Clock, ImageIcon } from 'lucide-react'
 import { uploadToS3 } from '@/lib/s3-client'
 import ScheduleDeepLink from '@/components/ScheduleDeepLink'
@@ -85,7 +85,8 @@ interface Schedule {
   maxParticipants: number
   createdBy: string
   createdByUid?: string
-  orgId?: string
+  orgId: string       // organizationId와 동일
+  organizationId?: string  // DB 필드명
   comments?: Comment[]
   createdAt?: string
 }
@@ -161,6 +162,7 @@ export default function DashboardPage() {
     if (cached) {
       return cached.schedules.map((schedule: any) => ({
         id: schedule.scheduleId || schedule.id,
+        orgId: schedule.orgId || schedule.organizationId,
         ...schedule
       }))
     }
@@ -233,6 +235,7 @@ export default function DashboardPage() {
     mbti: ''
   })
   const [orgMemberCounts, setOrgMemberCounts] = useState<{ [key: string]: number }>({})
+  const [orgScheduleCounts, setOrgScheduleCounts] = useState<{ [key: string]: number }>({})
   const [viewingOrgMemberCount, setViewingOrgMemberCount] = useState<number>(0)
   const [editingMyProfile, setEditingMyProfile] = useState(false)
   const [showPasswordChange, setShowPasswordChange] = useState(false)
@@ -323,6 +326,34 @@ export default function DashboardPage() {
     }
   }, [userProfile, loading, router])
 
+  // 모달이 열렸을 때 배경 스크롤 방지
+  useEffect(() => {
+    const isAnyModalOpen = showMemberList || showCreateSchedule || showCreateCrew ||
+                           showLocationSettings || showPasswordChange || showDeleteCrewConfirm ||
+                           editingMyProfile || editingOrg || selectedSchedule || selectedPhoto ||
+                           editingMemberInfo || cropImageUrl
+
+    if (isAnyModalOpen) {
+      // 스크롤 위치 저장 및 body 스크롤 방지
+      const scrollY = window.scrollY
+      document.body.style.position = 'fixed'
+      document.body.style.top = `-${scrollY}px`
+      document.body.style.width = '100%'
+      document.body.style.overflow = 'hidden'
+
+      return () => {
+        // 모달 닫힐 때 원래 스크롤 위치로 복원
+        document.body.style.position = ''
+        document.body.style.top = ''
+        document.body.style.width = ''
+        document.body.style.overflow = ''
+        window.scrollTo(0, scrollY)
+      }
+    }
+  }, [showMemberList, showCreateSchedule, showCreateCrew, showLocationSettings,
+      showPasswordChange, showDeleteCrewConfirm, editingMyProfile, editingOrg,
+      selectedSchedule, selectedPhoto, editingMemberInfo, cropImageUrl])
+
   useEffect(() => {
     console.log('🔄 [useEffect] userProfile 변경됨:', userProfile?.uid, 'memberships:', memberships.length, 'loading:', loading)
 
@@ -347,29 +378,42 @@ export default function DashboardPage() {
   useEffect(() => {
     // 홈 화면 또는 내 크루 화면이고 특정 크루가 선택되지 않은 경우, 모든 크루의 일정을 가져옴
     if (!loading && userProfile?.uid && (currentPage === 'home' || currentPage === 'mycrew') && !selectedOrg) {
-      // organizations가 아직 로드되지 않았어도 캐시에서 먼저 로드 시도
+      // organizations가 로드되었으면 일정 가져오기
       if (organizations.length > 0) {
         const orgIds = organizations.map(org => org.id)
         fetchAllUserSchedules(orgIds)
-      } else {
-        // organizations가 없어도 캐시된 일정 표시
-        const cached = getCachedAllSchedules()
-        if (cached) {
-          const cachedSchedules: Schedule[] = cached.schedules.map((schedule: any) => ({
-            id: schedule.scheduleId || schedule.id,
-            ...schedule
-          }))
-          setSchedules(cachedSchedules)
-        }
       }
     }
 
     return () => {}
   }, [userProfile?.uid, organizations, currentPage, selectedOrg, loading])
 
+  // 내 크루 목록에서 일정 수 계산 (schedules 또는 organizations가 변경될 때마다)
+  useEffect(() => {
+    if (currentPage === 'mycrew' && !selectedOrg && organizations.length > 0) {
+      const today = new Date().toISOString().split('T')[0]
+      const scheduleCounts: { [key: string]: number } = {}
+
+      for (const org of organizations) {
+        const orgId = org.id
+        const count = schedules.filter(s => {
+          if (s.orgId !== orgId) return false
+          const scheduleDate = s.dateISO || s.date
+          return scheduleDate >= today
+        }).length
+        scheduleCounts[orgId] = count
+      }
+      setOrgScheduleCounts(scheduleCounts)
+    }
+  }, [currentPage, selectedOrg, organizations, schedules])
+
   // 특정 크루 선택 시 해당 크루의 일정과 멤버 가져오기
   useEffect(() => {
     if (!loading && userProfile?.uid && selectedOrg?.id) {
+      // 크루가 바뀔 때 이전 일정/멤버 초기화 (다른 크루 일정이 보이는 버그 방지)
+      setSchedules([])
+      setMembers([])
+
       fetchSchedules(selectedOrg.id) // Promise 반환값 무시 (DynamoDB는 실시간 리스너 없음)
       fetchMembers(selectedOrg.id)
     }
@@ -643,6 +687,7 @@ export default function DashboardPage() {
     if (cached) {
       const cachedSchedules: Schedule[] = cached.schedules.map((schedule: any) => ({
         id: schedule.scheduleId || schedule.id,
+        orgId: schedule.orgId || schedule.organizationId,
         ...schedule
       }))
       setSchedules(cachedSchedules)
@@ -660,6 +705,7 @@ export default function DashboardPage() {
 
       const fetchedSchedules: Schedule[] = (Array.isArray(schedulesArray) ? schedulesArray : []).map((schedule: any) => ({
         id: schedule.scheduleId || schedule.id,
+        orgId: schedule.orgId || schedule.organizationId,
         ...schedule
       }))
 
@@ -688,9 +734,22 @@ export default function DashboardPage() {
     if (cached) {
       const cachedSchedules: Schedule[] = cached.schedules.map((schedule: any) => ({
         id: schedule.scheduleId || schedule.id,
+        orgId: schedule.orgId || schedule.organizationId,
         ...schedule
       }))
       setSchedules(cachedSchedules)
+
+      // 캐시된 데이터로 크루별 예정 일정 수 계산
+      const today = new Date().toISOString().split('T')[0]
+      const scheduleCounts: { [key: string]: number } = {}
+      for (const orgId of orgIds) {
+        scheduleCounts[orgId] = cachedSchedules.filter(s => {
+          if (s.orgId !== orgId) return false
+          const scheduleDate = s.dateISO || s.date
+          return scheduleDate >= today
+        }).length
+      }
+      setOrgScheduleCounts(scheduleCounts)
 
       // 캐시가 신선하면 API 호출 건너뛰기
       if (!cached.isStale) {
@@ -715,8 +774,21 @@ export default function DashboardPage() {
 
       const allSchedules: Schedule[] = allSchedulesFlat.map((schedule: any) => ({
         id: schedule.scheduleId || schedule.id,
+        orgId: schedule.orgId || schedule.organizationId,
         ...schedule
       }))
+
+      // 크루별 예정 일정 수 계산
+      const today = new Date().toISOString().split('T')[0]
+      const scheduleCounts: { [key: string]: number } = {}
+      for (const orgId of orgIds) {
+        scheduleCounts[orgId] = allSchedules.filter(s => {
+          if (s.orgId !== orgId) return false
+          const scheduleDate = s.dateISO || s.date
+          return scheduleDate >= today
+        }).length
+      }
+      setOrgScheduleCounts(scheduleCounts)
 
       // 캐시에 저장
       cacheSchedules(allSchedules)
@@ -763,8 +835,18 @@ export default function DashboardPage() {
         // DynamoDB timestamp를 한국 날짜 형식으로 변환
         let joinDateString = ''
         if (orgMemberData.joinedAt) {
-          if (typeof orgMemberData.joinedAt === 'number') {
-            joinDateString = new Date(orgMemberData.joinedAt).toLocaleDateString('ko-KR')
+          try {
+            let date: Date | null = null
+            if (typeof orgMemberData.joinedAt === 'number') {
+              date = new Date(orgMemberData.joinedAt)
+            } else if (typeof orgMemberData.joinedAt === 'string') {
+              date = new Date(orgMemberData.joinedAt)
+            }
+            if (date && !isNaN(date.getTime())) {
+              joinDateString = date.toLocaleDateString('ko-KR')
+            }
+          } catch {
+            joinDateString = ''
           }
         }
 
@@ -1296,54 +1378,168 @@ export default function DashboardPage() {
   // 사진첩: 사진 목록 불러오기 (photosAPI 사용)
   const fetchPhotos = async (orgId: string) => {
     try {
-      // TODO: photosAPI.getByOrganization 구현 필요
-      // 현재는 빈 배열 반환
-      setPhotos([])
+      const response = await photosAPI.getByOrganization(orgId)
+      const photosArray = response?.photos || response || []
+      setPhotos(Array.isArray(photosArray) ? photosArray : [])
     } catch (error) {
       console.error('사진 목록 불러오기 실패:', error)
       setPhotos([])
     }
   }
 
+  // 이미지 압축 함수 (Vercel 4.5MB 제한 대응)
+  const compressImage = async (file: File, maxSizeMB: number = 4): Promise<File> => {
+    return new Promise((resolve, reject) => {
+      const img = new Image()
+      const canvas = document.createElement('canvas')
+      const ctx = canvas.getContext('2d')
+
+      img.onload = () => {
+        // 최대 크기 설정 (너비/높이)
+        const maxDimension = 1920
+        let { width, height } = img
+
+        // 이미지 크기 조정
+        if (width > maxDimension || height > maxDimension) {
+          if (width > height) {
+            height = (height / width) * maxDimension
+            width = maxDimension
+          } else {
+            width = (width / height) * maxDimension
+            height = maxDimension
+          }
+        }
+
+        canvas.width = width
+        canvas.height = height
+        ctx?.drawImage(img, 0, 0, width, height)
+
+        // 품질을 조절하며 압축
+        let quality = 0.8
+        const tryCompress = () => {
+          canvas.toBlob(
+            (blob) => {
+              if (!blob) {
+                reject(new Error('이미지 압축 실패'))
+                return
+              }
+
+              console.log(`📸 압축 결과: ${(blob.size / 1024 / 1024).toFixed(2)}MB (품질: ${quality})`)
+
+              // 목표 크기 이하이거나 품질이 너무 낮으면 종료
+              if (blob.size <= maxSizeMB * 1024 * 1024 || quality <= 0.3) {
+                const compressedFile = new File([blob], file.name, {
+                  type: 'image/jpeg',
+                  lastModified: Date.now(),
+                })
+                resolve(compressedFile)
+              } else {
+                // 품질 낮춰서 재시도
+                quality -= 0.1
+                tryCompress()
+              }
+            },
+            'image/jpeg',
+            quality
+          )
+        }
+        tryCompress()
+      }
+
+      img.onerror = () => reject(new Error('이미지 로드 실패'))
+      img.src = URL.createObjectURL(file)
+    })
+  }
+
   // 사진첩: 사진 업로드
   const handlePhotoUpload = async (file: File, orgId: string) => {
     if (!userProfile) return
 
-    // 파일 크기 체크 (10MB)
-    if (file.size > 10 * 1024 * 1024) {
-      alert('사진 크기는 10MB 이하여야 합니다.')
+    // 파일 크기 체크 (50MB - 너무 큰 원본은 거부)
+    if (file.size > 50 * 1024 * 1024) {
+      alert('사진 크기는 50MB 이하여야 합니다.')
       return
     }
 
     setUploadingPhoto(true)
 
     try {
-      // S3에 업로드
-      const photoUrl = await uploadToS3(file, `organizations/${orgId}/photos/${Date.now()}_${file.name}`)
+      // Vercel 제한(4.5MB) 초과 시 이미지 압축
+      let uploadFile = file
+      if (file.size > 4 * 1024 * 1024) {
+        console.log(`📸 이미지 압축 시작: ${(file.size / 1024 / 1024).toFixed(2)}MB`)
+        try {
+          uploadFile = await compressImage(file, 4)
+          console.log(`📸 압축 완료: ${(uploadFile.size / 1024 / 1024).toFixed(2)}MB`)
+        } catch (compressError) {
+          console.error('압축 실패, 원본으로 시도:', compressError)
+        }
+      }
 
-      // TODO: photosAPI.create 구현 필요
-      // 현재는 사진 업로드만 하고 메타데이터 저장은 스킵
+      // S3에 업로드 (파일명에서 특수문자 제거하고 안전한 이름으로 변환)
+      const safeFileName = file.name
+        .replace(/[^a-zA-Z0-9._-]/g, '_') // 특수문자를 _로 치환 (한글도 제거)
+        .replace(/_{2,}/g, '_') // 연속된 _를 하나로
+      console.log('📤 S3 업로드 시작...')
+      const photoUrl = await uploadToS3(uploadFile, `organizations/${orgId}/photos/${Date.now()}_${safeFileName}`)
+      console.log('✅ S3 업로드 완료:', photoUrl)
+
+      // 사진 메타데이터 DynamoDB에 저장
+      // crypto.randomUUID()는 일부 모바일 브라우저에서 지원하지 않을 수 있어 fallback 사용
+      const photoId = (typeof crypto !== 'undefined' && crypto.randomUUID)
+        ? crypto.randomUUID()
+        : `${Date.now()}-${Math.random().toString(36).substring(2, 15)}`
+      console.log('📸 사진 메타데이터 저장 시작:', photoId)
+
+      const photoData = {
+        photoId,
+        url: photoUrl,
+        organizationId: orgId,
+        uploaderUid: userProfile.uid,
+        uploaderName: userProfile.name || '익명',
+        caption: '',
+        tags: [],
+        thumbnailUrl: photoUrl,
+      }
+      console.log('📸 전송할 데이터:', JSON.stringify(photoData))
+
+      await photosAPI.create(photoData)
+      console.log('✅ 사진 메타데이터 저장 완료')
 
       alert('사진이 업로드되었어요!')
       await fetchPhotos(orgId)
-    } catch (error) {
-      console.error('사진 업로드 실패:', error)
-      alert('사진을 업로드하는 중에 문제가 생겼어요.')
+    } catch (error: any) {
+      console.error('❌ 사진 업로드 실패:', error)
+      console.error('❌ 에러 메시지:', error?.message)
+      console.error('❌ 에러 스택:', error?.stack)
+      // 인증 만료 시 페이지 새로고침 안내
+      if (error?.message?.includes('Not authenticated') || error?.message?.includes('Unauthorized')) {
+        alert('로그인이 만료되었어요. 페이지를 새로고침해주세요.')
+      } else {
+        alert(`사진 업로드 실패: ${error?.message || '알 수 없는 오류'}`)
+      }
     } finally {
       setUploadingPhoto(false)
     }
   }
 
-  // 사진첩: 사진 삭제
+  // 사진첩: 사진 삭제 (크루장만 가능)
   const handlePhotoDelete = async (photoId: string, orgId: string) => {
     if (!userProfile) return
+
+    // 크루장 권한 확인
+    if (selectedOrg?.ownerUid !== userProfile.uid) {
+      alert('크루장만 사진을 삭제할 수 있어요.')
+      return
+    }
 
     if (!confirm('이 사진을 삭제할까요?')) return
 
     try {
-      // TODO: photosAPI.delete 구현 필요
-      alert('사진 삭제 기능은 아직 준비 중이에요.')
+      await photosAPI.delete(photoId)
+      alert('사진이 삭제되었어요.')
       setSelectedPhoto(null)
+      await fetchPhotos(orgId)
     } catch (error) {
       console.error('사진 삭제 실패:', error)
       alert('사진을 삭제하는 중에 문제가 생겼어요.')
@@ -1436,6 +1632,38 @@ export default function DashboardPage() {
   const filteredCrews = useMemo(() => {
     let filtered = allOrganizations
 
+    // 사용자 위치 기반 필터링 (region 필드가 있는 크루만)
+    if (userProfile?.locations && userProfile.locations.length > 0) {
+      const selectedLocation = userProfile.locations.find(
+        loc => loc.id === userProfile.selectedLocationId
+      ) || userProfile.locations[0]
+
+      if (selectedLocation?.latitude && selectedLocation?.longitude) {
+        // 크루에 region이 설정된 경우만 거리 필터링
+        filtered = filtered.filter((org: any) => {
+          // region 필드가 없는 크루는 일단 표시 (아직 설정 안된 크루)
+          if (!org.region?.latitude || !org.region?.longitude) {
+            return true
+          }
+
+          // 사용자 위치와 크루 위치 사이의 거리 계산
+          const distance = calculateDistance(
+            selectedLocation.latitude,
+            selectedLocation.longitude,
+            org.region.latitude,
+            org.region.longitude
+          )
+
+          // 사용자 반경 + 크루 반경 이내인 경우 표시
+          const userRadius = (selectedLocation.radius || 5000) / 1000 // km로 변환
+          const crewRadius = (org.region.radius || 5000) / 1000 // km로 변환
+          const maxDistance = userRadius + crewRadius
+
+          return distance <= maxDistance
+        })
+      }
+    }
+
     // 검색어 필터링 (크루명 또는 카테고리)
     if (searchQuery.trim()) {
       const query = searchQuery.toLowerCase().trim()
@@ -1448,7 +1676,16 @@ export default function DashboardPage() {
       })
     }
 
-    // 카테고리 필터링
+    // 대카테고리 그룹 필터링
+    if (selectedCategoryGroup) {
+      const groupCategories = CATEGORY_GROUPS[selectedCategoryGroup as keyof typeof CATEGORY_GROUPS] || []
+      filtered = filtered.filter((org) => {
+        const orgCategories = org.categories || [org.category]
+        return orgCategories.some(cat => groupCategories.includes(cat))
+      })
+    }
+
+    // 세부 카테고리 필터링
     if (selectedCategory !== '전체') {
       filtered = filtered.filter((org) => {
         const categories = org.categories || [org.category]
@@ -1457,7 +1694,7 @@ export default function DashboardPage() {
     }
 
     return filtered
-  }, [allOrganizations, searchQuery, selectedCategory])
+  }, [allOrganizations, searchQuery, selectedCategory, selectedCategoryGroup, userProfile?.locations, userProfile?.selectedLocationId])
 
   // 크루 가입 신청
   const handleJoinCrew = async (orgId: string) => {
@@ -1590,10 +1827,6 @@ export default function DashboardPage() {
       alert('장소를 입력해주세요.')
       return
     }
-    if (!createScheduleForm.type.trim()) {
-      alert('활동 유형을 입력해주세요.')
-      return
-    }
 
     try {
       // createScheduleForm.date is now in ISO format: "2025-11-17"
@@ -1607,8 +1840,15 @@ export default function DashboardPage() {
       const displayDate = `${month}/${day}(${dayOfWeek})`
 
       // schedulesAPI를 사용하여 일정 생성
-      // 생성자를 자동으로 참석자에 추가 (이름 문자열로 저장)
+      // 생성자를 자동으로 참석자에 추가 (객체 형태로 저장)
       const creatorName = userProfile?.name || '익명'
+      const creatorParticipant = {
+        userId: userProfile?.uid || '',
+        userName: creatorName,
+        userAvatar: userProfile?.avatar || userProfile?.photoURL || '',
+        status: 'going',
+        respondedAt: Date.now()
+      }
 
       await schedulesAPI.create({
         title: createScheduleForm.title,
@@ -1616,9 +1856,8 @@ export default function DashboardPage() {
         dateISO: isoDate,       // ISO format for comparison
         time: createScheduleForm.time,
         location: createScheduleForm.location,
-        type: createScheduleForm.type,
         maxParticipants: createScheduleForm.maxParticipants,
-        participants: [creatorName],
+        participants: [creatorParticipant],
         createdBy: creatorName,
         createdByUid: userProfile?.uid || '',
         orgId: selectedOrg.id,
@@ -1707,6 +1946,9 @@ export default function DashboardPage() {
     try {
       // TODO: Convert to DynamoDB - removed Firebase dynamic import
       await schedulesAPI.delete(schedule.id)
+
+      // 일정 목록에서 삭제된 일정 제거
+      setSchedules(prev => prev.filter(s => s.id !== schedule.id))
 
       alert('일정이 삭제됐어요.')
       setSelectedSchedule(null)
@@ -2167,9 +2409,15 @@ ${BRAND.NAME}와 함께하는 모임 일정에 참여하세요!
                     내 주변 크루
                   </h2>
                   {userProfile?.locations && userProfile.locations.length > 0 && (
-                    <span className="px-3 py-1 bg-mokkoji-primary-light text-mokkoji-primary text-xs font-medium rounded-full">
+                    <button
+                      onClick={() => setShowLocationSettings(true)}
+                      className="px-3 py-1 bg-mokkoji-primary-light text-mokkoji-primary text-xs font-medium rounded-full hover:bg-mokkoji-primary/20 transition-all active:scale-95 flex items-center gap-1"
+                    >
                       {(userProfile.locations.find(loc => loc.id === userProfile.selectedLocationId) || userProfile.locations[0]).dong}
-                    </span>
+                      <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                      </svg>
+                    </button>
                   )}
                 </div>
 
@@ -2346,23 +2594,23 @@ ${BRAND.NAME}와 함께하는 모임 일정에 참여하세요!
             </div>
           </div>
 
-          {/* 카테고리 필터 칩 */}
-          <div className="sticky top-[var(--header-height)] bg-white z-9 border-b border-mokkoji-gray-200">
-            {/* 대카테고리 */}
-            <div className="px-4 md:px-6 pt-3 pb-2 overflow-x-auto scrollbar-hide border-b border-mokkoji-gray-100" style={{ WebkitOverflowScrolling: 'touch' }}>
-              <div className="flex gap-2 flex-nowrap" style={{ minWidth: 'max-content' }}>
+          {/* 카테고리 필터 */}
+          <div className="sticky top-[var(--header-height)] bg-white z-9 shadow-sm">
+            {/* 대카테고리 - 그리드 레이아웃 */}
+            <div className="px-4 md:px-6 py-4 border-b border-mokkoji-gray-100">
+              <div className="grid grid-cols-3 gap-2">
                 <button
                   onClick={() => {
                     setSelectedCategoryGroup(null)
                     setSelectedCategory('전체')
                   }}
-                  className={`flex-shrink-0 px-4 py-2 rounded-full text-sm font-medium transition-all duration-300 active:scale-95 ${
+                  className={`py-3 px-2 rounded-xl text-sm font-semibold transition-all duration-300 active:scale-95 ${
                     selectedCategoryGroup === null
-                      ? 'bg-mokkoji-primary text-white shadow-md'
-                      : 'bg-mokkoji-gray-100 text-mokkoji-gray-700 hover:bg-mokkoji-gray-200'
+                      ? 'bg-mokkoji-primary text-white shadow-lg shadow-mokkoji-primary/30'
+                      : 'bg-mokkoji-gray-50 text-mokkoji-gray-700 hover:bg-mokkoji-gray-100'
                   }`}
                 >
-                  ALL
+                  🔥 전체
                 </button>
                 {Object.keys(CATEGORY_GROUPS).map((groupName) => (
                   <button
@@ -2371,10 +2619,10 @@ ${BRAND.NAME}와 함께하는 모임 일정에 참여하세요!
                       setSelectedCategoryGroup(groupName)
                       setSelectedCategory('전체')
                     }}
-                    className={`flex-shrink-0 px-4 py-2 rounded-full text-sm font-medium transition-all duration-300 active:scale-95 ${
+                    className={`py-3 px-2 rounded-xl text-sm font-semibold transition-all duration-300 active:scale-95 ${
                       selectedCategoryGroup === groupName
-                        ? 'bg-mokkoji-primary text-white shadow-md'
-                        : 'bg-mokkoji-gray-100 text-mokkoji-gray-700 hover:bg-mokkoji-gray-200'
+                        ? 'bg-mokkoji-primary text-white shadow-lg shadow-mokkoji-primary/30'
+                        : 'bg-mokkoji-gray-50 text-mokkoji-gray-700 hover:bg-mokkoji-gray-100'
                     }`}
                   >
                     {groupName}
@@ -2383,18 +2631,18 @@ ${BRAND.NAME}와 함께하는 모임 일정에 참여하세요!
               </div>
             </div>
 
-            {/* 세부 카테고리 */}
-            <div className="px-4 md:px-6 py-2 overflow-x-auto scrollbar-hide" style={{ WebkitOverflowScrolling: 'touch' }}>
+            {/* 세부 카테고리 - 가로 스크롤 */}
+            <div className="px-4 md:px-6 py-3 overflow-x-auto scrollbar-hide bg-mokkoji-gray-50/50" style={{ WebkitOverflowScrolling: 'touch' }}>
               <div className="flex gap-2 flex-nowrap" style={{ minWidth: 'max-content' }}>
                 <button
                   onClick={() => setSelectedCategory('전체')}
-                  className={`flex-shrink-0 px-3 py-1.5 rounded-lg text-xs font-medium transition-all duration-300 ${
+                  className={`flex-shrink-0 px-4 py-2 rounded-full text-sm font-medium transition-all duration-300 ${
                     selectedCategory === '전체'
-                      ? 'bg-mokkoji-primary-light text-mokkoji-primary border border-mokkoji-primary'
-                      : 'bg-white text-mokkoji-gray-600 border border-mokkoji-gray-200 hover:border-mokkoji-gray-300'
+                      ? 'bg-mokkoji-primary text-white shadow-md'
+                      : 'bg-white text-mokkoji-gray-600 border border-mokkoji-gray-200 hover:border-mokkoji-primary hover:text-mokkoji-primary'
                   }`}
                 >
-                  All
+                  전체
                 </button>
                 {(selectedCategoryGroup
                   ? CATEGORY_GROUPS[selectedCategoryGroup as keyof typeof CATEGORY_GROUPS]
@@ -2403,10 +2651,10 @@ ${BRAND.NAME}와 함께하는 모임 일정에 참여하세요!
                   <button
                     key={category}
                     onClick={() => setSelectedCategory(category)}
-                    className={`flex-shrink-0 px-3 py-1.5 rounded-lg text-xs font-medium transition-all duration-300 ${
+                    className={`flex-shrink-0 px-4 py-2 rounded-full text-sm font-medium transition-all duration-300 ${
                       selectedCategory === category
-                        ? 'bg-mokkoji-primary-light text-mokkoji-primary border border-mokkoji-primary'
-                        : 'bg-white text-mokkoji-gray-600 border border-mokkoji-gray-200 hover:border-mokkoji-gray-300'
+                        ? 'bg-mokkoji-primary text-white shadow-md'
+                        : 'bg-white text-mokkoji-gray-600 border border-mokkoji-gray-200 hover:border-mokkoji-primary hover:text-mokkoji-primary'
                     }`}
                   >
                     {category}
@@ -2462,7 +2710,13 @@ ${BRAND.NAME}와 함께하는 모임 일정에 참여하세요!
                           {org.name}
                         </h4>
                         <div className="flex items-center gap-2 flex-wrap">
-                          {(org.categories || [org.category]).filter(Boolean).slice(0, 3).map((cat, idx) => (
+                          {(org as any).region?.dong && (
+                            <span className="inline-flex items-center px-2 py-1 bg-mokkoji-primary/10 text-mokkoji-primary text-xs rounded-lg font-medium">
+                              <MapPin className="w-3 h-3 mr-1" />
+                              {(org as any).region.dong}
+                            </span>
+                          )}
+                          {(org.categories || [org.category]).filter(Boolean).slice(0, 2).map((cat, idx) => (
                             <span
                               key={idx}
                               className="inline-flex items-center px-2 py-1 bg-mokkoji-gray-100 text-mokkoji-gray-700 text-xs rounded-lg font-normal"
@@ -2510,14 +2764,7 @@ ${BRAND.NAME}와 함께하는 모임 일정에 참여하세요!
                 {organizations.map((org, index) => {
                   const orgId = org.id || org.organizationId
                   const memberCount = orgMemberCounts[orgId] || org.memberCount || 0
-                  // 예정된 일정만 카운트 (오늘 포함, 그 이후)
-                  const today = new Date().toISOString().split('T')[0] // YYYY-MM-DD
-                  const orgScheduleCount = schedules.filter(s => {
-                    if (s.orgId !== orgId) return false
-                    // dateISO 필드가 있으면 사용, 없으면 date 필드 사용 (마이그레이션 전 데이터 대응)
-                    const scheduleDate = s.dateISO || s.date
-                    return scheduleDate >= today
-                  }).length
+                  const orgScheduleCount = orgScheduleCounts[orgId] || 0
 
                   return (
                     <div
@@ -3275,7 +3522,7 @@ ${BRAND.NAME}와 함께하는 모임 일정에 참여하세요!
                 <div className="grid grid-cols-3 gap-2">
                   {photos.map((photo) => (
                     <button
-                      key={photo.id}
+                      key={photo.photoId || photo.id}
                       onClick={() => {
                         // 크루 멤버만 상세 보기 가능
                         if (members.some(m => m.uid === userProfile?.uid)) {
@@ -3355,13 +3602,15 @@ ${BRAND.NAME}와 함께하는 모임 일정에 참여하세요!
                 올린 사람: {selectedPhoto.uploaderName}
               </p>
               <p className="text-xs text-gray-300 mt-1">
-                {selectedPhoto.createdAt?.toDate?.()?.toLocaleDateString('ko-KR') || '날짜 정보 없음'}
+                {selectedPhoto.createdAt
+                  ? new Date(selectedPhoto.createdAt).toLocaleDateString('ko-KR')
+                  : '날짜 정보 없음'}
               </p>
 
-              {/* 삭제 버튼 - 본인만 */}
-              {userProfile && selectedPhoto.uploaderUid === userProfile.uid && selectedOrg && (
+              {/* 삭제 버튼 - 크루장만 */}
+              {userProfile && selectedOrg && selectedOrg.ownerUid === userProfile.uid && (
                 <button
-                  onClick={() => handlePhotoDelete(selectedPhoto.id, selectedOrg.id)}
+                  onClick={() => handlePhotoDelete(selectedPhoto.photoId || selectedPhoto.id, selectedOrg.id)}
                   className="mt-3 w-full py-2 bg-red-500 hover:bg-red-600 text-white rounded-lg font-medium text-sm leading-5"
                 >
                   삭제
@@ -3526,7 +3775,7 @@ ${BRAND.NAME}와 함께하는 모임 일정에 참여하세요!
                             )}
                           </div>
                           <div className="mt-1.5 space-y-0.5">
-                            <p className="text-xs text-gray-500">가입일: {formatTimestamp(member.joinDate)}</p>
+                            <p className="text-xs text-gray-500">가입일: {member.joinDate || '-'}</p>
                             {member.birthdate && (
                               <p className="text-xs text-gray-500">생년월일: {member.birthdate}</p>
                             )}
@@ -3625,7 +3874,7 @@ ${BRAND.NAME}와 함께하는 모임 일정에 참여하세요!
                     {getGoingCount(selectedSchedule.participants)} / {selectedSchedule.maxParticipants}명
                   </div>
                 </div>
-                {selectedSchedule.participants && selectedSchedule.participants.length > 0 && (
+                {selectedSchedule.participants && selectedSchedule.participants.length > 0 ? (
                   <div className="flex flex-wrap gap-2">
                     {selectedSchedule.participants.map((name) => (
                       <div key={name} className="bg-[#F5F5F4] px-4 py-2.5 rounded-xl flex items-center gap-2 hover:bg-gray-200 transition-all duration-200">
@@ -3644,8 +3893,13 @@ ${BRAND.NAME}와 함께하는 모임 일정에 참여하세요!
                       </div>
                     ))}
                   </div>
+                ) : (
+                  <p className="text-sm text-gray-500">아직 참석자가 없어요</p>
                 )}
-                {((selectedOrg && canManageOrg(selectedOrg.id)) || selectedSchedule.createdByUid === userProfile?.uid) && (
+                {/* 크루장/관리자/일정생성자에게 참석자 관리 버튼 표시 */}
+                {(selectedOrg?.ownerUid === userProfile?.uid ||
+                  selectedSchedule.createdByUid === userProfile?.uid ||
+                  (selectedOrg && canManageOrg(selectedOrg.id))) ? (
                   <button
                     onClick={(e) => {
                       e.stopPropagation()
@@ -3655,7 +3909,7 @@ ${BRAND.NAME}와 함께하는 모임 일정에 참여하세요!
                   >
                     {managingParticipants ? '관리 종료' : '+ 참석자 추가하기'}
                   </button>
-                )}
+                ) : null}
                 {managingParticipants && membersWithDisplayNames.filter(m => !selectedSchedule.participants?.includes(m.displayName)).length > 0 && (
                   <div className="mt-3 p-4 bg-[#FFFBF7] rounded-2xl max-h-40 overflow-y-auto">
                     <div className="text-sm leading-5 font-extrabold text-gray-600 mb-3">멤버를 클릭하여 추가</div>
@@ -3897,7 +4151,7 @@ ${BRAND.NAME}와 함께하는 모임 일정에 참여하세요!
                 <div className="h-px bg-mokkoji-gray-200"></div>
                 <div>
                   <div className="text-sm leading-5 font-medium text-mokkoji-gray-600 mb-1.5 sm:mb-2 tracking-wider uppercase">Joined</div>
-                  <div className="text-sm leading-5 sm:text-base font-normal text-mokkoji-black">{formatTimestamp(profile.joinDate)}</div>
+                  <div className="text-sm leading-5 sm:text-base font-normal text-mokkoji-black">{profile.joinDate || '-'}</div>
                 </div>
               </div>
             </div>
@@ -5005,120 +5259,95 @@ ${BRAND.NAME}와 함께하는 모임 일정에 참여하세요!
         </div>
       )}
 
-      {/* 일정 생성 모달 */}
+      {/* 일정 생성 모달 - 컬리 디자인 */}
       {showCreateSchedule && (
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-3xl max-w-md w-full max-h-[80vh] overflow-hidden flex flex-col">
-            <div className="bg-[#FF9B50] text-white p-6">
-              <div className="flex justify-between items-center mb-2">
-                <h2 className="text-xl leading-7 md:text-xl md:text-2xl font-bold">언제 만날까요?</h2>
-                <button
-                  onClick={() => setShowCreateSchedule(false)}
-                  className="text-white text-xl leading-7 md:text-xl md:text-2xl hover:opacity-80"
-                >
-                  ×
-                </button>
-              </div>
-              <p className="text-sm leading-5 opacity-90">{selectedOrg?.name}</p>
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-end sm:items-center justify-center">
+          <div className="bg-white w-full sm:max-w-md sm:rounded-2xl rounded-t-2xl max-h-[90vh] overflow-hidden flex flex-col">
+            {/* 헤더 */}
+            <div className="flex items-center justify-between px-4 py-4 border-b border-gray-100">
+              <button
+                onClick={() => setShowCreateSchedule(false)}
+                className="p-1 text-gray-400 hover:text-gray-600"
+              >
+                <X className="w-6 h-6" />
+              </button>
+              <h2 className="text-lg font-bold text-gray-900">새 일정</h2>
+              <div className="w-8" />
             </div>
 
-            <div className="p-3 md:p-6 space-y-4 overflow-y-auto flex-1">
+            {/* 크루 정보 */}
+            <div className="px-4 py-3 bg-gray-50 border-b border-gray-100">
+              <p className="text-sm text-gray-500">크루</p>
+              <p className="font-medium text-gray-900">{selectedOrg?.name}</p>
+            </div>
+
+            {/* 폼 */}
+            <div className="p-4 space-y-5 overflow-y-auto flex-1">
               <div>
-                <label className="block text-base leading-6 font-extrabold text-gray-700 mb-1">일정 제목 *</label>
+                <label className="block text-sm font-medium text-gray-700 mb-2">일정 제목</label>
                 <input
                   type="text"
                   value={createScheduleForm.title}
                   onChange={(e) => setCreateScheduleForm({ ...createScheduleForm, title: e.target.value })}
                   placeholder="무엇을 할까요?"
-                  className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-[#FF9B50] focus:ring-offset-2"
+                  className="w-full px-4 py-3 border border-gray-200 rounded-lg text-base focus:outline-none focus:border-[#5f0080] focus:ring-1 focus:ring-[#5f0080] transition-colors"
                 />
               </div>
 
-              <div>
-                <label className="block text-base leading-6 font-extrabold text-gray-700 mb-1">날짜 *</label>
-                <input
-                  type="date"
-                  value={createScheduleForm.date}
-                  onChange={(e) => {
-                    const isoDate = e.target.value  // "2025-11-17"
-                    const selectedDate = new Date(isoDate)
-                    const days = ['일', '월', '화', '수', '목', '금', '토']
-                    const month = selectedDate.getMonth() + 1
-                    const day = selectedDate.getDate()
-                    const dayOfWeek = days[selectedDate.getDay()]
-                    const formattedDate = `${month}/${day}(${dayOfWeek})`
-                    // Store ISO date for form, will save both formats to Firestore
-                    setCreateScheduleForm({ ...createScheduleForm, date: isoDate })
-                  }}
-                  min={new Date().toISOString().split('T')[0]}
-                  className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-[#FF9B50] focus:ring-offset-2"
-                />
-                {createScheduleForm.date && (
-                  <p className="text-sm leading-5 text-gray-700 mt-1">선택된 날짜: {new Date(createScheduleForm.date).toLocaleDateString('ko-KR', { year: 'numeric', month: 'numeric', day: 'numeric', weekday: 'short' })}</p>
-                )}
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">날짜</label>
+                  <input
+                    type="date"
+                    value={createScheduleForm.date}
+                    onChange={(e) => setCreateScheduleForm({ ...createScheduleForm, date: e.target.value })}
+                    min={new Date().toISOString().split('T')[0]}
+                    className="w-full px-4 py-3 border border-gray-200 rounded-lg text-base focus:outline-none focus:border-[#5f0080] focus:ring-1 focus:ring-[#5f0080] transition-colors"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">시간</label>
+                  <input
+                    type="time"
+                    value={createScheduleForm.time}
+                    onChange={(e) => setCreateScheduleForm({ ...createScheduleForm, time: e.target.value })}
+                    className="w-full px-4 py-3 border border-gray-200 rounded-lg text-base focus:outline-none focus:border-[#5f0080] focus:ring-1 focus:ring-[#5f0080] transition-colors"
+                  />
+                </div>
               </div>
 
               <div>
-                <label className="block text-base leading-6 font-extrabold text-gray-700 mb-1">시간 *</label>
-                <input
-                  type="time"
-                  value={createScheduleForm.time}
-                  onChange={(e) => setCreateScheduleForm({ ...createScheduleForm, time: e.target.value })}
-                  className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-[#FF9B50] focus:ring-offset-2"
-                />
-              </div>
-
-              <div>
-                <label className="block text-base leading-6 font-extrabold text-gray-700 mb-1">장소 *</label>
+                <label className="block text-sm font-medium text-gray-700 mb-2">장소</label>
                 <input
                   type="text"
                   value={createScheduleForm.location}
                   onChange={(e) => setCreateScheduleForm({ ...createScheduleForm, location: e.target.value })}
                   placeholder="어디서 만날까요?"
-                  className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-[#FF9B50] focus:ring-offset-2"
+                  className="w-full px-4 py-3 border border-gray-200 rounded-lg text-base focus:outline-none focus:border-[#5f0080] focus:ring-1 focus:ring-[#5f0080] transition-colors"
                 />
               </div>
 
               <div>
-                <label className="block text-base leading-6 font-extrabold text-gray-700 mb-1">유형 *</label>
-                <select
-                  value={createScheduleForm.type}
-                  onChange={(e) => setCreateScheduleForm({ ...createScheduleForm, type: e.target.value })}
-                  className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-[#FF9B50] focus:ring-offset-2"
-                >
-                  <option value="">선택</option>
-                  <option value="오토캠핑">오토캠핑</option>
-                  <option value="노지캠핑">노지캠핑</option>
-                  <option value="백패킹">백패킹</option>
-                  <option value="일반모임">일반모임</option>
-                </select>
-              </div>
-
-              <div>
-                <label className="block text-base leading-6 font-extrabold text-gray-700 mb-1">최대 인원 *</label>
+                <label className="block text-sm font-medium text-gray-700 mb-2">최대 인원</label>
                 <input
                   type="number"
                   value={createScheduleForm.maxParticipants || ''}
                   onChange={(e) => setCreateScheduleForm({ ...createScheduleForm, maxParticipants: parseInt(e.target.value) || 0 })}
                   min="1"
-                  className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-[#FF9B50] focus:ring-offset-2"
+                  placeholder="참여 가능한 최대 인원"
+                  className="w-full px-4 py-3 border border-gray-200 rounded-lg text-base focus:outline-none focus:border-[#5f0080] focus:ring-1 focus:ring-[#5f0080] transition-colors"
                 />
               </div>
             </div>
 
-            <div className="p-3 md:p-6 border-t flex gap-3">
+            {/* 하단 버튼 */}
+            <div className="p-4 border-t border-gray-100 bg-white">
               <button
                 onClick={handleCreateSchedule}
-                disabled={!createScheduleForm.title || !createScheduleForm.date || !createScheduleForm.time || !createScheduleForm.location || !createScheduleForm.type}
-                className="flex-1 py-4 bg-[#FF9B50] text-white rounded-xl font-extrabold text-base leading-6 hover:bg-[#FF8A3D] transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
+                disabled={!createScheduleForm.title || !createScheduleForm.date || !createScheduleForm.time || !createScheduleForm.location}
+                className="w-full py-4 bg-[#5f0080] text-white rounded-lg font-bold text-base hover:bg-[#4a0066] transition-colors disabled:bg-gray-200 disabled:text-gray-400 disabled:cursor-not-allowed"
               >
-                생성
-              </button>
-              <button
-                onClick={() => setShowCreateSchedule(false)}
-                className="flex-1 py-4 bg-gray-100 text-gray-700 rounded-xl font-extrabold text-base leading-6 hover:bg-gray-300 transition-all duration-200"
-              >
-                취소
+                일정 만들기
               </button>
             </div>
           </div>

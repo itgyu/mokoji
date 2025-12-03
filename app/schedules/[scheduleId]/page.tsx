@@ -12,7 +12,7 @@
 import { use, useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/contexts/AuthContext';
-import { schedulesAPI } from '@/lib/api-client';
+import { schedulesAPI, organizationsAPI } from '@/lib/api-client';
 import { ScheduleDetailClient } from './ScheduleDetailClient';
 import { getCachedSchedule } from '@/lib/schedule-cache';
 import type { OrgSchedule } from '@/types/firestore';
@@ -21,6 +21,32 @@ interface ScheduleDetailPageProps {
   params: Promise<{
     scheduleId: string;
   }>;
+}
+
+// 조직 owner 캐시 (메모리)
+const orgOwnerCache = new Map<string, string>();
+
+// localStorage에서 조직 owner 정보 가져오기
+function getCachedOrgOwner(orgId: string): string | null {
+  // 1. 메모리 캐시 확인
+  if (orgOwnerCache.has(orgId)) {
+    return orgOwnerCache.get(orgId) || null;
+  }
+
+  // 2. localStorage에서 조직 캐시 확인
+  if (typeof window !== 'undefined') {
+    try {
+      const orgCached = localStorage.getItem(`mokoji_org_${orgId}`);
+      if (orgCached) {
+        const parsed = JSON.parse(orgCached);
+        if (parsed.ownerUid) {
+          orgOwnerCache.set(orgId, parsed.ownerUid);
+          return parsed.ownerUid;
+        }
+      }
+    } catch (e) {}
+  }
+  return null;
 }
 
 // DynamoDB 데이터를 OrgSchedule 형식으로 변환하는 함수
@@ -137,7 +163,19 @@ export default function ScheduleDetailPage({ params }: ScheduleDetailPageProps) 
   const cachedData = getCachedData();
   const initialSchedule = cachedData ? convertToOrgSchedule(cachedData, scheduleId) : null;
 
+  // 초기 crewOwnerId: 캐시된 일정에서 orgId를 가져와 조직 owner 캐시 확인
+  const getInitialCrewOwnerId = () => {
+    if (cachedData) {
+      const orgId = cachedData.organizationId || cachedData.orgId;
+      if (orgId) {
+        return getCachedOrgOwner(orgId);
+      }
+    }
+    return null;
+  };
+
   const [schedule, setSchedule] = useState<OrgSchedule | null>(initialSchedule);
+  const [crewOwnerId, setCrewOwnerId] = useState<string | null>(getInitialCrewOwnerId);
   const [isLoading, setIsLoading] = useState(!initialSchedule); // 캐시 있으면 로딩 false
   const [error, setError] = useState<string | null>(null);
 
@@ -164,6 +202,25 @@ export default function ScheduleDetailPage({ params }: ScheduleDetailPageProps) 
 
         const scheduleWithDates = convertToOrgSchedule(scheduleData, scheduleId);
         setSchedule(scheduleWithDates);
+
+        // 조직 owner 정보도 가져오기 (병렬로)
+        const orgId = scheduleData.organizationId || scheduleData.orgId;
+        if (orgId && !crewOwnerId) {
+          try {
+            const orgResponse = await organizationsAPI.get(orgId);
+            const orgData = orgResponse?.organization || orgResponse;
+            if (orgData?.ownerUid) {
+              setCrewOwnerId(orgData.ownerUid);
+              // 캐시에 저장
+              orgOwnerCache.set(orgId, orgData.ownerUid);
+              if (typeof window !== 'undefined') {
+                localStorage.setItem(`mokoji_org_${orgId}`, JSON.stringify({ ownerUid: orgData.ownerUid }));
+              }
+            }
+          } catch (orgErr) {
+            console.error('[ScheduleDetailPage] 조직 정보 가져오기 실패:', orgErr);
+          }
+        }
       } catch (err: any) {
         console.error('[ScheduleDetailPage] 데이터 가져오기 실패:', err);
         // 캐시 데이터가 없을 때만 에러 표시
@@ -219,6 +276,7 @@ export default function ScheduleDetailPage({ params }: ScheduleDetailPageProps) 
         currentUserId={currentUser.sub}
         currentUserName={authUserProfile?.name || currentUser.name || '익명'}
         currentUserAvatar={authUserProfile?.avatar || authUserProfile?.photoURL}
+        crewOwnerId={crewOwnerId || undefined}
       />
     </div>
   );

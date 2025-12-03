@@ -163,10 +163,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       }
 
       // ============================================
-      // 3. 멤버십 데이터에서 역할과 가입일 결정
+      // 3. 역할 결정 및 앱 가입일 설정
       // ============================================
       let userRole: 'member' | 'staff' | 'captain' = 'member'
-      let joinDate = ''
 
       if (userMemberships.length > 0) {
         // 첫 번째 멤버십의 역할 사용
@@ -176,22 +175,20 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         } else if (firstMembership.role === 'admin') {
           userRole = 'staff'
         }
+      }
 
-        // 가장 오래된 가입일 사용
-        const joinedAt = firstMembership.joinedAt
-        if (joinedAt) {
-          try {
-            if (typeof joinedAt === 'object' && 'seconds' in joinedAt) {
-              joinDate = new Date(joinedAt.seconds * 1000).toLocaleDateString('ko-KR')
-            } else if (typeof joinedAt === 'number') {
-              joinDate = new Date(joinedAt).toLocaleDateString('ko-KR')
-            } else {
-              joinDate = new Date(joinedAt).toLocaleDateString('ko-KR')
-            }
-          } catch (e) {
-            console.log('⚠️ joinDate 변환 실패:', e)
-            joinDate = ''
+      // 앱 회원가입일은 users 테이블의 createdAt 사용 (크루 가입일과 별개)
+      let joinDate = ''
+      if (userProfileData.createdAt) {
+        try {
+          if (typeof userProfileData.createdAt === 'number') {
+            joinDate = new Date(userProfileData.createdAt).toLocaleDateString('ko-KR')
+          } else if (typeof userProfileData.createdAt === 'string') {
+            joinDate = new Date(userProfileData.createdAt).toLocaleDateString('ko-KR')
           }
+        } catch (e) {
+          console.log('⚠️ joinDate 변환 실패:', e)
+          joinDate = ''
         }
       }
 

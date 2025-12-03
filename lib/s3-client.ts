@@ -13,7 +13,9 @@ export async function uploadToS3(
   path: string
 ): Promise<string> {
   try {
-    console.log('📤 S3 업로드 시작:', path);
+    const fileSize = file.size;
+    const fileType = file.type || 'unknown';
+    console.log('📤 S3 업로드 시작:', path, `(${fileSize} bytes, ${fileType})`);
 
     // FormData 생성
     const formData = new FormData();
@@ -21,14 +23,27 @@ export async function uploadToS3(
     formData.append('path', path);
 
     // API Route로 업로드
+    console.log('📤 API 호출 시작...');
     const response = await fetch('/api/upload', {
       method: 'POST',
       body: formData,
     });
+    console.log('📤 API 응답 상태:', response.status);
 
     if (!response.ok) {
-      const error = await response.json();
-      throw new Error(error.error || '업로드 실패');
+      let errorMsg = `HTTP ${response.status}`;
+      try {
+        const errorData = await response.json();
+        errorMsg = errorData.error || errorMsg;
+      } catch (e) {
+        // JSON 파싱 실패 시 텍스트로 시도
+        try {
+          errorMsg = await response.text();
+        } catch (e2) {
+          // ignore
+        }
+      }
+      throw new Error(errorMsg);
     }
 
     const data = await response.json();
@@ -37,7 +52,11 @@ export async function uploadToS3(
     return data.url;
   } catch (error: any) {
     console.error('❌ S3 업로드 실패:', error);
-    throw new Error(`파일 업로드에 실패했습니다: ${error.message}`);
+    // 네트워크 에러인 경우
+    if (error.name === 'TypeError' && error.message === 'Failed to fetch') {
+      throw new Error('네트워크 연결을 확인해주세요');
+    }
+    throw new Error(error.message || '알 수 없는 업로드 오류');
   }
 }
 

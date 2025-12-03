@@ -72,6 +72,7 @@ export default function CrewSettingsPage({
         ownerName: crewDoc.ownerName || '',
         categories: crewDoc.categories || [],
         memberCount: crewDoc.memberCount || 0,
+        region: crewDoc.region || null, // 크루 지역 설정
       };
 
       // 크루장 권한 확인

@@ -34,6 +34,7 @@ import { canUseScheduleChat, logFeatureFlags } from '@/lib/feature-flags';
 import type { OrgSchedule } from '@/types/firestore';
 import { ChevronLeft, Pencil, X, UserPlus, Trash2 } from 'lucide-react';
 import { Avatar } from '@/components/ui';
+import { addDuplicateNameSuffixes } from '@/lib/name-utils';
 
 interface ScheduleDetailClientProps {
   schedule: OrgSchedule;
@@ -41,6 +42,7 @@ interface ScheduleDetailClientProps {
   currentUserId: string;
   currentUserName: string;
   currentUserAvatar?: string;
+  crewOwnerId?: string; // 크루장 ID (page.tsx에서 전달)
 }
 
 /**
@@ -57,6 +59,7 @@ export function ScheduleDetailClient({
   currentUserId,
   currentUserName,
   currentUserAvatar,
+  crewOwnerId,
 }: ScheduleDetailClientProps) {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -76,6 +79,25 @@ export function ScheduleDetailClient({
   const [orgMembers, setOrgMembers] = useState<any[]>([]);
   const [isLoadingMembers, setIsLoadingMembers] = useState(false);
   const [isAddingParticipant, setIsAddingParticipant] = useState(false);
+
+  // 모달이 열렸을 때 배경 스크롤 방지
+  useEffect(() => {
+    if (showParticipantModal) {
+      const scrollY = window.scrollY;
+      document.body.style.position = 'fixed';
+      document.body.style.top = `-${scrollY}px`;
+      document.body.style.width = '100%';
+      document.body.style.overflow = 'hidden';
+
+      return () => {
+        document.body.style.position = '';
+        document.body.style.top = '';
+        document.body.style.width = '';
+        document.body.style.overflow = '';
+        window.scrollTo(0, scrollY);
+      };
+    }
+  }, [showParticipantModal]);
 
   // 뒤로가기 핸들러 - 브라우저 히스토리 사용
   const handleBack = () => {
@@ -102,12 +124,15 @@ export function ScheduleDetailClient({
   }, [currentUserId, localSchedule.organizationId]);
 
   // 크루 정보 가져오기 (크루장 확인용)
+  // organizationId 또는 orgId를 사용 (둘 다 지원)
+  const orgIdToUse = localSchedule.organizationId || (localSchedule as any).orgId;
+
   useEffect(() => {
     const fetchOrgData = async () => {
-      if (localSchedule.organizationId) {
+      if (orgIdToUse) {
         try {
-          console.log('[fetchOrgData] 조직 정보 조회:', localSchedule.organizationId);
-          const response = await organizationsAPI.get(localSchedule.organizationId);
+          console.log('[fetchOrgData] 조직 정보 조회:', orgIdToUse);
+          const response = await organizationsAPI.get(orgIdToUse);
           console.log('[fetchOrgData] API 응답:', response);
           const orgData = response?.organization || response;
           console.log('[fetchOrgData] orgData:', orgData);
@@ -121,13 +146,15 @@ export function ScheduleDetailClient({
       }
     };
     fetchOrgData();
-  }, [localSchedule.organizationId]);
+  }, [orgIdToUse]);
 
   // 권한 체크: 일정 작성자(벙주) 또는 크루장만 수정 가능
   // createdByUid가 없으면 hostUid, userId 등 대체 필드 확인
   const scheduleCreatorId = localSchedule.createdByUid || (localSchedule as any).hostUid || (localSchedule as any).userId;
   const isScheduleCreator = scheduleCreatorId === currentUserId;
-  const isCrewLeader = orgData?.ownerUid === currentUserId;
+  // crewOwnerId prop을 우선 사용, 없으면 orgData에서 가져옴
+  const actualCrewOwnerId = crewOwnerId || orgData?.ownerUid;
+  const isCrewLeader = actualCrewOwnerId === currentUserId;
   const canDelete = isScheduleCreator || isCrewLeader;
 
   // 실시간 채팅 Hook
@@ -241,7 +268,9 @@ export function ScheduleDetailClient({
         })
       );
 
-      setOrgMembers(membersWithProfiles);
+      // 동명이인 처리 (A, B, C... 접미사 추가)
+      const membersWithDisplayName = addDuplicateNameSuffixes(membersWithProfiles);
+      setOrgMembers(membersWithDisplayName);
     } catch (error) {
       console.error('Error fetching members:', error);
     } finally {
@@ -411,7 +440,7 @@ export function ScheduleDetailClient({
             participants={localSchedule.participants}
             currentUserId={currentUserId}
             scheduleOwnerId={scheduleCreatorId}
-            crewOwnerId={orgData?.ownerUid}
+            crewOwnerId={actualCrewOwnerId}
             onManageClick={canDelete ? handleOpenParticipantModal : undefined}
           />
 
@@ -561,9 +590,11 @@ export function ScheduleDetailClient({
                   <p className="text-sm text-gray-400 py-2">아직 참석자가 없습니다</p>
                 ) : (
                   <div className="space-y-2">
-                    {localSchedule.participants
-                      .filter(p => p.status === 'going')
-                      .map((participant) => (
+                    {addDuplicateNameSuffixes(
+                      localSchedule.participants
+                        .filter(p => p.status === 'going')
+                        .map(p => ({ ...p, name: p.userName }))
+                    ).map((participant) => (
                         <div
                           key={participant.userId}
                           className="flex items-center justify-between py-2"
@@ -571,10 +602,10 @@ export function ScheduleDetailClient({
                           <div className="flex items-center gap-3">
                             <Avatar
                               src={participant.userAvatar}
-                              alt={participant.userName}
+                              alt={participant.displayName}
                               size="sm"
                             />
-                            <span className="text-sm text-gray-900">{participant.userName}</span>
+                            <span className="text-sm text-gray-900">{participant.displayName}</span>
                           </div>
                           <button
                             onClick={() => handleRemoveParticipant(participant.userId, participant.userName)}
@@ -609,10 +640,10 @@ export function ScheduleDetailClient({
                           <div className="flex items-center gap-3">
                             <Avatar
                               src={member.avatar}
-                              alt={member.name}
+                              alt={member.displayName || member.name}
                               size="sm"
                             />
-                            <span className="text-sm text-gray-900">{member.name}</span>
+                            <span className="text-sm text-gray-900">{member.displayName || member.name}</span>
                           </div>
                           <button
                             onClick={() => handleAddParticipant(member)}
