@@ -51,7 +51,7 @@ import LoadingScreen from '@/components/LoadingScreen'
 import { addDuplicateNameSuffixes } from '@/lib/name-utils'
 import { AppHeader } from '@/components/AppHeader'
 import { Logo } from '@/components/Logo'
-import { cacheSchedules } from '@/lib/schedule-cache'
+import { cacheSchedules, cacheOrgSchedules, getCachedOrgSchedules, cacheAllSchedules, getCachedAllSchedules } from '@/lib/schedule-cache'
 
 type Page = 'home' | 'category' | 'mycrew' | 'myprofile' | 'schedules'
 
@@ -597,10 +597,24 @@ export default function DashboardPage() {
   }
 
   const fetchSchedules = async (orgId: string) => {
+    // 1. 캐시에서 먼저 로드 (즉시 표시)
+    const cached = getCachedOrgSchedules(orgId)
+    if (cached) {
+      const cachedSchedules: Schedule[] = cached.schedules.map((schedule: any) => ({
+        id: schedule.scheduleId || schedule.id,
+        ...schedule
+      }))
+      setSchedules(cachedSchedules)
+
+      // 캐시가 신선하면 API 호출 건너뛰기
+      if (!cached.isStale) {
+        return () => {}
+      }
+    }
+
+    // 2. 백그라운드에서 API 호출 (캐시 갱신)
     try {
-      // API: No real-time listeners, using regular query
       const response = await schedulesAPI.getByOrganization(orgId)
-      // API returns {schedules: [...]} format
       const schedulesArray = response?.schedules || response || []
 
       const fetchedSchedules: Schedule[] = (Array.isArray(schedulesArray) ? schedulesArray : []).map((schedule: any) => ({
@@ -608,35 +622,48 @@ export default function DashboardPage() {
         ...schedule
       }))
 
-      // 캐시에 저장 (상세 페이지 즉시 표시용)
+      // 캐시에 저장
       cacheSchedules(fetchedSchedules)
+      cacheOrgSchedules(orgId, fetchedSchedules)
 
       setSchedules(fetchedSchedules)
-
-      // Return empty function for compatibility (no unsubscribe needed)
       return () => {}
     } catch (error) {
       console.error('❌ Error fetching schedules:', error)
-      setSchedules([])
+      if (!cached) setSchedules([])
       return () => {}
     }
   }
 
   // 모든 크루의 일정을 가져오는 함수 (홈 화면용)
   const fetchAllUserSchedules = async (orgIds: string[]) => {
-    try {
-      if (orgIds.length === 0) {
-        setSchedules([])
+    if (orgIds.length === 0) {
+      setSchedules([])
+      return () => {}
+    }
+
+    // 1. 캐시에서 먼저 로드 (즉시 표시)
+    const cached = getCachedAllSchedules()
+    if (cached) {
+      const cachedSchedules: Schedule[] = cached.schedules.map((schedule: any) => ({
+        id: schedule.scheduleId || schedule.id,
+        ...schedule
+      }))
+      setSchedules(cachedSchedules)
+
+      // 캐시가 신선하면 API 호출 건너뛰기
+      if (!cached.isStale) {
         return () => {}
       }
+    }
 
-      // API: Fetch all schedules for all orgs (no real-time updates)
+    // 2. 백그라운드에서 API 호출 (캐시 갱신)
+    try {
       const allSchedulesPromises = orgIds.map(orgId =>
         schedulesAPI.getByOrganization(orgId)
       )
 
       const responses = await Promise.all(allSchedulesPromises)
-      // Each response is {schedules: [...]} format
       const allSchedulesFlat: any[] = []
       for (const response of responses) {
         const schedulesArray = response?.schedules || response || []
@@ -650,16 +677,15 @@ export default function DashboardPage() {
         ...schedule
       }))
 
-      // 캐시에 저장 (상세 페이지 즉시 표시용)
+      // 캐시에 저장
       cacheSchedules(allSchedules)
+      cacheAllSchedules(allSchedules)
 
       setSchedules(allSchedules)
-
-      // Return empty function for compatibility (no unsubscribe needed)
       return () => {}
     } catch (error) {
       console.error('❌ Error fetching all schedules:', error)
-      setSchedules([])
+      if (!cached) setSchedules([])
       return () => {}
     }
   }
