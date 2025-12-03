@@ -1,88 +1,213 @@
 @import "tailwindcss";
+@import "tw-animate-css";
+
+@custom-variant dark (&:is(.dark *));
 
 /* ========================================
-   MOKKOJI Design System v4.0
-   Phomistone-inspired Premium Design
-   White tone + Purple accent
-
-   Typography:
-   - Main Font: Noto Sans KR (Korean/English sans-serif)
-   - Weights: 400 (Regular), 500 (Medium), 600 (SemiBold), 700 (Bold)
-   - Fallback: sans-serif
+   모꼬지 디자인 시스템 v3.0 - Premium Edition
+   Phomistone 하이엔드 디자인 + 활기찬 에너지
+   검은색 헤더, 밝은 배경, 프리미엄 타이포그래피
    ======================================== */
 
 :root {
   /* ========================================
-     Brand Colors (Purple - Point Color Only)
+     Color System (당근 + 토스 조합)
      ======================================== */
-  --primary: #5f0080;
-  --primary-dark: #4a0066;
-  --primary-light: #f3e8f7;
+
+  /* Primary - 따뜻한 오렌지 (당근 스타일) */
+  --primary: oklch(0.70 0.15 40);           /* #FF9B50 */
+  --primary-hover: oklch(0.68 0.16 38);     /* #FF8533 */
+  --primary-active: oklch(0.65 0.17 36);    /* #FF6F1A */
+  --primary-light: oklch(0.92 0.08 40);     /* #FFE5D3 */
+  --primary-dark: oklch(0.62 0.18 38);      /* #E67A2E */
+  --primary-foreground: oklch(0.99 0 0);
+
+  /* Secondary - 신선한 그린 */
+  --secondary: oklch(0.78 0.12 130);        /* #A8D08D */
+  --secondary-hover: oklch(0.75 0.13 130);  /* #94C076 */
+  --secondary-light: oklch(0.92 0.06 130);  /* #E8F5E1 */
+  --secondary-foreground: oklch(0.2 0.01 40);
+
+  /* Accent - 포인트 컬러 */
+  --accent: oklch(0.67 0.18 25);            /* #FF6B6B 코랄 레드 */
+  --accent-hover: oklch(0.64 0.19 25);      /* #FF5252 */
+  --accent-light: oklch(0.92 0.09 25);      /* #FFE5E5 */
+  --accent-foreground: oklch(0.99 0 0);
+
+  /* Neutral - 따뜻한 그레이 톤 */
+  --background: oklch(0.99 0.005 40);       /* #FFFBF7 따뜻한 화이트 */
+  --surface: oklch(1 0 0);                  /* #FFFFFF 카드 배경 */
+  --surface-hover: oklch(0.98 0.006 40);    /* #FFF8F2 */
+
+  --foreground: oklch(0.2 0.01 40);         /* #292524 제목 */
+  --muted-foreground: oklch(0.5 0.01 40);   /* #78716C 본문 */
+  --text-tertiary: oklch(0.62 0.01 40);     /* #A8A29E 부가정보 */
+
+  --border: oklch(0.93 0.01 40);            /* #F0EBE3 부드러운 테두리 */
+  --border-strong: oklch(0.88 0.01 40);     /* #E5DFD4 강조 테두리 */
+
+  --muted: oklch(0.96 0.01 40);             /* #F8F4EF 비활성 배경 */
+  --muted-hover: oklch(0.93 0.01 40);       /* #F0EBE3 */
+
+  /* Semantic Colors */
+  --success: oklch(0.64 0.17 157);          /* #10B981 emerald-500 */
+  --success-light: oklch(0.92 0.08 157);    /* #D1FAE5 */
+
+  --warning: oklch(0.69 0.18 65);           /* #F59E0B amber-500 */
+  --warning-light: oklch(0.94 0.09 65);     /* #FEF3C7 */
+
+  --error: oklch(0.63 0.24 27);             /* #EF4444 red-500 */
+  --error-light: oklch(0.93 0.12 27);       /* #FEE2E2 */
+  --destructive: oklch(0.63 0.24 27);
+  --destructive-foreground: oklch(0.99 0 0);
+
+  --info: oklch(0.60 0.20 250);             /* #3B82F6 blue-500 */
+  --info-light: oklch(0.92 0.10 250);       /* #DBEAFE */
 
   /* ========================================
-     Background Colors
+     Brand Colors (Mokkoji Premium)
      ======================================== */
-  --background: #FAFAFA;
-  --surface: #FFFFFF;
+
+  /* Mokkoji Primary - Indigo */
+  --mokkoji-primary: oklch(0.554 0.153 264.4);           /* #6366F1 indigo-500 */
+  --mokkoji-primary-hover: oklch(0.525 0.163 265.3);     /* #5558E3 indigo-600 */
+  --mokkoji-primary-light: oklch(0.907 0.056 265.8);     /* #E0E7FF indigo-100 */
+
+  /* Mokkoji Accent - Amber */
+  --mokkoji-accent: oklch(0.747 0.148 74.4);             /* #F59E0B amber-500 */
+  --mokkoji-accent-hover: oklch(0.700 0.155 68.7);       /* #D97706 amber-600 */
+  --mokkoji-accent-light: oklch(0.947 0.065 83.3);       /* #FEF3C7 amber-100 */
+
+  /* Mokkoji Black - Premium Black */
+  --mokkoji-black: oklch(0.177 0 0);                     /* #1a1a1a */
+  --mokkoji-black-hover: oklch(0.225 0 0);               /* #2a2a2a */
+
+  /* Mokkoji Gray Scale */
+  --mokkoji-gray-50: oklch(0.989 0 0);                   /* #fafafa */
+  --mokkoji-gray-100: oklch(0.968 0 0);                  /* #f5f5f5 */
+  --mokkoji-gray-200: oklch(0.927 0 0);                  /* #e5e5e5 */
+  --mokkoji-gray-300: oklch(0.864 0 0);                  /* #d4d4d4 */
+  --mokkoji-gray-400: oklch(0.688 0 0);                  /* #a3a3a3 */
+  --mokkoji-gray-500: oklch(0.556 0 0);                  /* #737373 */
+  --mokkoji-gray-600: oklch(0.444 0 0);                  /* #525252 */
+  --mokkoji-gray-700: oklch(0.356 0 0);                  /* #404040 */
+  --mokkoji-gray-800: oklch(0.269 0 0);                  /* #262626 */
+  --mokkoji-gray-900: oklch(0.185 0 0);                  /* #171717 */
 
   /* ========================================
-     Text Colors
+     Spacing (8pt Grid System)
      ======================================== */
-  --text-primary: #111827;    /* gray-900 - 제목 */
-  --text-secondary: #374151;  /* gray-700 - 본문 */
-  --text-tertiary: #6B7280;   /* gray-500 - 보조 */
-  --text-disabled: #9CA3AF;   /* gray-400 - 비활성 */
 
-  /* ========================================
-     Border Colors
-     ======================================== */
-  --border: #E5E7EB;          /* gray-200 */
-  --border-focus: #5f0080;
-
-  /* ========================================
-     Semantic Colors
-     ======================================== */
-  --success: #22C55E;
-  --warning: #F59E0B;
-  --error: #EF4444;
-
-  /* ========================================
-     Spacing (8pt Grid)
-     ======================================== */
   --space-1: 0.25rem;   /* 4px */
   --space-2: 0.5rem;    /* 8px */
   --space-3: 0.75rem;   /* 12px */
   --space-4: 1rem;      /* 16px */
+  --space-5: 1.25rem;   /* 20px */
   --space-6: 1.5rem;    /* 24px */
+  --space-8: 2rem;      /* 32px */
+  --space-10: 2.5rem;   /* 40px */
+  --space-12: 3rem;     /* 48px */
+  --space-16: 4rem;     /* 64px */
 
   /* ========================================
-     Border Radius
+     Border Radius (당근 스타일 - 둥글게)
      ======================================== */
-  --radius-sm: 0.5rem;    /* 8px */
-  --radius-md: 0.75rem;   /* 12px */
-  --radius-lg: 1rem;      /* 16px */
-  --radius-xl: 1.25rem;   /* 20px */
+
+  --radius: 0.75rem;                /* 기본 12px */
+  --radius-sm: 0.5rem;              /* 8px - 버튼, 작은 요소 */
+  --radius-md: 0.75rem;             /* 12px - 카드, 입력 필드 */
+  --radius-lg: 1rem;                /* 16px - 큰 카드 */
+  --radius-xl: 1.25rem;             /* 20px - 모달, 바텀시트 */
+  --radius-2xl: 1.5rem;             /* 24px - 히어로 섹션 */
+  --radius-full: 9999px;            /* 원형 */
 
   /* ========================================
-     Layout
+     Shadows (부드럽고 자연스러운)
      ======================================== */
-  --header-height: 56px;  /* h-14 = 3.5rem = 56px */
 
-  /* Legacy compatibility for shadcn */
-  --foreground: var(--text-primary);
+  --shadow-xs: 0 1px 2px oklch(0 0 0 / 0.04);
+  --shadow-sm: 0 1px 3px oklch(0 0 0 / 0.08), 0 1px 2px oklch(0 0 0 / 0.04);
+  --shadow-md: 0 4px 6px oklch(0 0 0 / 0.06), 0 2px 4px oklch(0 0 0 / 0.04);
+  --shadow-lg: 0 10px 15px oklch(0 0 0 / 0.08), 0 4px 6px oklch(0 0 0 / 0.04);
+  --shadow-xl: 0 20px 25px oklch(0 0 0 / 0.1), 0 10px 10px oklch(0 0 0 / 0.04);
+
+  /* Colored Shadows (토스 스타일) */
+  --shadow-primary: 0 8px 16px oklch(0.70 0.15 40 / 0.15);
+  --shadow-success: 0 8px 16px oklch(0.64 0.17 157 / 0.15);
+  --shadow-error: 0 8px 16px oklch(0.63 0.24 27 / 0.15);
+
+  /* ========================================
+     Animations (의미있는 움직임)
+     ======================================== */
+
+  /* Durations */
+  --duration-fast: 150ms;
+  --duration-normal: 250ms;
+  --duration-slow: 350ms;
+
+  /* Easing (토스 스타일) */
+  --ease-in-out: cubic-bezier(0.4, 0, 0.2, 1);
+  --ease-out: cubic-bezier(0, 0, 0.2, 1);
+  --ease-in: cubic-bezier(0.4, 0, 1, 1);
+  --ease-bounce: cubic-bezier(0.68, -0.55, 0.265, 1.55);
+
+  /* ========================================
+     Z-Index Layers
+     ======================================== */
+
+  --z-base: 0;
+  --z-dropdown: 1000;
+  --z-sticky: 1100;
+  --z-fixed: 1200;
+  --z-modal-backdrop: 1300;
+  --z-modal: 1400;
+  --z-toast: 1500;
+  --z-tooltip: 1600;
+
+  /* Legacy compatibility */
   --card: var(--surface);
-  --card-foreground: var(--text-primary);
+  --card-foreground: var(--foreground);
   --popover: var(--surface);
-  --popover-foreground: var(--text-primary);
-  --muted: #F3F4F6;
-  --muted-foreground: var(--text-tertiary);
-  --accent: var(--primary-light);
-  --accent-foreground: var(--primary);
-  --destructive: var(--error);
-  --destructive-foreground: #FFFFFF;
+  --popover-foreground: var(--foreground);
   --input: var(--border);
   --ring: var(--primary);
-  --radius: var(--radius-md);
+}
+
+/* ========================================
+   Dark Mode (다크모드 지원)
+   ======================================== */
+
+.dark {
+  --background: oklch(0.145 0 0);
+  --surface: oklch(0.205 0 0);
+  --surface-hover: oklch(0.25 0 0);
+
+  --foreground: oklch(0.985 0 0);
+  --muted-foreground: oklch(0.708 0 0);
+  --text-tertiary: oklch(0.6 0 0);
+
+  --border: oklch(0.269 0 0);
+  --border-strong: oklch(0.35 0 0);
+
+  --muted: oklch(0.269 0 0);
+  --muted-hover: oklch(0.3 0 0);
+
+  --primary: oklch(0.55 0.18 250);
+  --primary-hover: oklch(0.58 0.19 250);
+  --primary-foreground: oklch(0.99 0 0);
+
+  --secondary: oklch(0.45 0.15 130);
+  --secondary-hover: oklch(0.48 0.16 130);
+
+  --accent: oklch(0.55 0.20 25);
+  --accent-hover: oklch(0.58 0.21 25);
+
+  /* Legacy */
+  --card: var(--surface);
+  --card-foreground: var(--foreground);
+  --destructive: oklch(0.396 0.141 25.723);
+  --destructive-foreground: oklch(0.637 0.237 25.331);
+  --ring: oklch(0.439 0 0);
 }
 
 /* ========================================
@@ -90,153 +215,264 @@
    ======================================== */
 
 @theme inline {
-  /* Phomistone Design System Typography */
-  --font-sans: "Noto Sans KR", sans-serif;
+  --font-sans: "Geist", "Geist Fallback", "Pretendard Variable", -apple-system, system-ui;
+  --font-mono: "Geist Mono", "Geist Mono Fallback";
 
-  /* Background Colors */
-  --color-background: #FAFAFA;
-  --color-surface: #FFFFFF;
+  /* Color mappings */
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
 
-  /* Text Colors - Direct values for Tailwind */
-  --color-foreground: #111827;
-  --color-muted-foreground: #6B7280;
+  /* Mokkoji Brand Colors */
+  --color-mokkoji-primary: var(--mokkoji-primary);
+  --color-mokkoji-primary-hover: var(--mokkoji-primary-hover);
+  --color-mokkoji-primary-light: var(--mokkoji-primary-light);
 
-  /* Card */
-  --color-card: #FFFFFF;
-  --color-card-foreground: #111827;
+  --color-mokkoji-accent: var(--mokkoji-accent);
+  --color-mokkoji-accent-hover: var(--mokkoji-accent-hover);
+  --color-mokkoji-accent-light: var(--mokkoji-accent-light);
 
-  /* Popover */
-  --color-popover: #FFFFFF;
-  --color-popover-foreground: #111827;
+  --color-mokkoji-black: var(--mokkoji-black);
+  --color-mokkoji-black-hover: var(--mokkoji-black-hover);
 
-  /* Primary (Purple) */
-  --color-primary: #5f0080;
-  --color-primary-foreground: #FFFFFF;
+  --color-mokkoji-gray-50: var(--mokkoji-gray-50);
+  --color-mokkoji-gray-100: var(--mokkoji-gray-100);
+  --color-mokkoji-gray-200: var(--mokkoji-gray-200);
+  --color-mokkoji-gray-300: var(--mokkoji-gray-300);
+  --color-mokkoji-gray-400: var(--mokkoji-gray-400);
+  --color-mokkoji-gray-500: var(--mokkoji-gray-500);
+  --color-mokkoji-gray-600: var(--mokkoji-gray-600);
+  --color-mokkoji-gray-700: var(--mokkoji-gray-700);
+  --color-mokkoji-gray-800: var(--mokkoji-gray-800);
+  --color-mokkoji-gray-900: var(--mokkoji-gray-900);
 
-  /* Secondary */
-  --color-secondary: #F3F4F6;
-  --color-secondary-foreground: #374151;
-
-  /* Muted */
-  --color-muted: #F3F4F6;
-
-  /* Accent */
-  --color-accent: #f3e8f7;
-  --color-accent-foreground: #5f0080;
-
-  /* Destructive */
-  --color-destructive: #EF4444;
-  --color-destructive-foreground: #FFFFFF;
-
-  /* Border & Input */
-  --color-border: #E5E7EB;
-  --color-input: #E5E7EB;
-  --color-ring: #5f0080;
-
-  /* ========================================
-     MOKKOJI Brand Colors (Legacy Support)
-     ======================================== */
-  --color-mokkoji-primary: #5f0080;
-  --color-mokkoji-primary-light: #f3e8f7;
-  --color-mokkoji-primary-hover: #4a0066;
-  --color-mokkoji-accent: #5f0080;
-  --color-mokkoji-black: #111827;
-  --color-mokkoji-black-hover: #1f2937;
-  --color-mokkoji-gray-50: #F9FAFB;
-  --color-mokkoji-gray-100: #F3F4F6;
-  --color-mokkoji-gray-200: #E5E7EB;
-  --color-mokkoji-gray-500: #6B7280;
-  --color-mokkoji-gray-600: #4B5563;
-  --color-mokkoji-gray-700: #374151;
+  /* Custom animations */
+  --animation-float: float 3s ease-in-out infinite;
+  --animation-float-delayed: float 3s ease-in-out 0.5s infinite;
+  --animation-float-slow: float 4s ease-in-out infinite;
+  --animation-bounce-slow: bounceSlow 2s ease-in-out infinite;
+  --animation-fade-in: fadeIn 1s ease-in;
+  --animation-slide-up: slideUp var(--duration-normal) var(--ease-out);
+  --animation-slide-down: slideDown var(--duration-normal) var(--ease-out);
+  --animation-scale-in: scaleIn var(--duration-normal) var(--ease-out);
 }
 
 /* ========================================
    Base Styles
    ======================================== */
 
-html {
-  height: 100% !important;
-  overflow-y: auto !important;
-  overflow-x: hidden !important;
-  -webkit-tap-highlight-color: transparent;
-  -webkit-font-smoothing: antialiased;
-  -moz-osx-font-smoothing: grayscale;
-  scroll-behavior: smooth;
-}
-
-body {
-  min-height: 100% !important;
-  height: auto !important;
-  overflow-x: hidden !important;
-  overflow-y: auto !important;
-  -webkit-overflow-scrolling: touch;
-  font-family: "Noto Sans KR", sans-serif;
-  font-size: 0.875rem;
-  background-color: #FAFAFA;
-  color: var(--text-secondary);
-  position: relative;
-}
-
-/* iOS 입력 줌 방지 */
-input, select, textarea {
-  font-size: 16px !important;
-}
-
-/* 모든 제목 태그 통일 - 18px */
-h1, h2, h3, h4, h5, h6 {
-  font-size: 1.125rem;
-  font-weight: 600;
-  color: var(--text-primary);
-}
-
-/* 포커스 스타일 */
-*:focus-visible {
-  outline: none;
-  box-shadow: 0 0 0 2px var(--primary);
-}
-
 @layer base {
   * {
-    @apply border-border;
+    @apply border-border outline-ring/50;
+  }
+
+  html {
+    scroll-behavior: smooth;
+    /* 모바일 safe area 설정 */
+    padding-top: env(safe-area-inset-top);
+    padding-bottom: env(safe-area-inset-bottom);
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  body {
+    @apply bg-background text-foreground;
+    font-feature-settings: 'cv02', 'cv03', 'cv04', 'cv11';
+    /* 모바일 최적화 */
+    -webkit-overflow-scrolling: touch;
+    touch-action: manipulation;
+  }
+
+  /* 포커스 스타일 */
+  *:focus-visible {
+    @apply outline-none ring-2 ring-primary ring-offset-2;
   }
 }
 
 /* ========================================
-   Utility Classes
+   Utility Classes (토스 + 당근 스타일)
    ======================================== */
 
 @layer utilities {
   /* ========================================
-     Phomistone Typography Utilities
-     - font-normal: 400 (Regular)
-     - font-medium: 500 (Medium)
-     - font-semibold: 600 (SemiBold)
-     - font-bold: 700 (Bold)
+     Typography System (3단계 + 캡션)
+     깔끔하고 명확한 정보 위계
      ======================================== */
 
-  /* iOS Safe Area */
-  .pb-safe {
-    padding-bottom: env(safe-area-inset-bottom, 0);
+  /* 1. 타이틀 - 페이지/섹션 제목 */
+  .text-title {
+    @apply text-2xl md:text-3xl font-bold leading-tight tracking-tight;
+    color: var(--foreground);
   }
 
-  .pt-safe {
-    padding-top: env(safe-area-inset-top, 0);
+  /* 2. 서브타이틀 - 카드 제목, 중요한 텍스트 */
+  .text-subtitle {
+    @apply text-lg md:text-xl font-semibold leading-snug;
+    color: var(--foreground);
   }
 
-  /* 스크롤바 숨기기 (터치 스크롤은 유지) */
+  /* 3. 본문 - 일반 텍스트, 설명 */
+  .text-body {
+    @apply text-sm md:text-base font-normal leading-relaxed;
+    color: var(--foreground);
+  }
+
+  /* 4. 캡션 - 작은 설명, 부가 정보 (옵션) */
+  .text-caption {
+    @apply text-xs md:text-sm font-normal leading-normal;
+    color: var(--text-tertiary);
+  }
+
+  /* Legacy support (기존 코드 호환) */
+  .text-heading-1 {
+    @apply text-2xl md:text-3xl font-bold leading-tight tracking-tight;
+    color: var(--foreground);
+  }
+
+  .text-heading-2 {
+    @apply text-xl md:text-2xl font-bold leading-tight;
+    color: var(--foreground);
+  }
+
+  .text-heading-3 {
+    @apply text-lg md:text-xl font-semibold leading-snug;
+    color: var(--foreground);
+  }
+
+  .text-body-1 {
+    @apply text-sm md:text-base font-normal leading-relaxed;
+    color: var(--foreground);
+  }
+
+  .text-body-2 {
+    @apply text-sm md:text-base font-normal leading-relaxed;
+    color: var(--foreground);
+  }
+
+  /* ========================================
+     Premium Design System (Phomistone Style)
+     ======================================== */
+
+  /* 프리미엄 카드 */
+  .card-premium {
+    @apply bg-white rounded-xl md:rounded-2xl shadow-sm border border-gray-200
+           hover:shadow-md transition-all duration-300;
+  }
+
+  /* 프리미엄 버튼 - Primary (Black) */
+  .btn-premium-primary {
+    @apply px-4 py-2.5 md:px-6 md:py-3 text-white
+           font-medium tracking-wider uppercase text-xs md:text-sm
+           active:scale-95 transition-all duration-300
+           flex items-center justify-center gap-2
+           min-h-[44px] min-w-[44px];
+    background-color: var(--mokkoji-black);
+  }
+  .btn-premium-primary:hover {
+    background-color: var(--mokkoji-black-hover);
+  }
+
+  /* 프리미엄 버튼 - Secondary (Indigo) */
+  .btn-premium-secondary {
+    @apply px-4 py-2.5 md:px-6 md:py-3 text-white
+           font-medium tracking-wider uppercase text-xs md:text-sm
+           active:scale-95 transition-all duration-300
+           flex items-center justify-center gap-2
+           min-h-[44px] min-w-[44px];
+    background-color: var(--mokkoji-primary);
+  }
+  .btn-premium-secondary:hover {
+    background-color: var(--mokkoji-primary-hover);
+  }
+
+  /* 프리미엄 인풋 */
+  .input-premium {
+    @apply w-full px-4 py-3 bg-white rounded-xl
+           text-sm font-medium
+           focus:outline-none focus:ring-2 focus:border-transparent
+           transition-all duration-300;
+    border: 1px solid var(--mokkoji-gray-300);
+  }
+  .input-premium::placeholder {
+    color: var(--mokkoji-gray-400);
+  }
+  .input-premium:focus {
+    ring-color: var(--mokkoji-primary);
+  }
+
+  /* 프리미엄 배지 */
+  .badge-premium {
+    @apply inline-flex items-center gap-1 px-2 py-1
+           text-xs font-medium tracking-wider uppercase
+           border rounded-md transition-all duration-300;
+  }
+
+  /* 스크롤바 숨기기 */
   .scrollbar-hide::-webkit-scrollbar {
     display: none;
   }
   .scrollbar-hide {
     -ms-overflow-style: none;
     scrollbar-width: none;
-    -webkit-overflow-scrolling: touch;
+  }
+
+  /* 프리미엄 스크롤바 */
+  .scrollbar-premium::-webkit-scrollbar {
+    width: 6px;
+    height: 8px;
+  }
+  .scrollbar-premium::-webkit-scrollbar-track {
+    background: var(--mokkoji-gray-100);
+    border-radius: 10px;
+  }
+  .scrollbar-premium::-webkit-scrollbar-thumb {
+    background: var(--mokkoji-primary);
+    border-radius: 10px;
+  }
+  .scrollbar-premium::-webkit-scrollbar-thumb:hover {
+    background: var(--mokkoji-primary-hover);
   }
 
   /* 터치 타겟 (최소 44px) */
   .touch-target {
     min-height: 44px;
     min-width: 44px;
+  }
+
+  /* iOS Safe Area */
+  .pb-safe {
+    padding-bottom: env(safe-area-inset-bottom, 0);
+  }
+
+  /* 그룹 호버 패턴 */
+  .card-hover-group {
+    @apply cursor-pointer transition-all duration-300;
+  }
+  .card-hover-group:hover {
+    @apply shadow-lg;
+  }
+  .card-hover-icon {
+    @apply text-white transition-all duration-300;
+    background-color: var(--mokkoji-primary);
+  }
+  .card-hover-group:hover .card-hover-icon {
+    background-color: var(--mokkoji-primary-hover);
   }
 }
 
@@ -255,6 +491,17 @@ h1, h2, h3, h4, h5, h6 {
   }
 }
 
+@keyframes slideDown {
+  from {
+    opacity: 0;
+    transform: translateY(-20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
 @keyframes fadeIn {
   from {
     opacity: 0;
@@ -264,33 +511,125 @@ h1, h2, h3, h4, h5, h6 {
   }
 }
 
+@keyframes scaleIn {
+  from {
+    opacity: 0;
+    transform: scale(0.95);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+@keyframes float {
+  0%, 100% {
+    transform: translateY(0px);
+  }
+  50% {
+    transform: translateY(-20px);
+  }
+}
+
+@keyframes bounceSlow {
+  0%, 100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-25%);
+  }
+}
+
+@keyframes shimmer {
+  0% {
+    background-position: -1000px 0;
+  }
+  100% {
+    background-position: 1000px 0;
+  }
+}
+
+/* 애니메이션 클래스 */
+.animate-slide-up {
+  animation: slideUp var(--duration-normal) var(--ease-out);
+}
+
 .animate-slideUp {
   animation: slideUp 0.3s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
-.animate-fadeIn {
-  animation: fadeIn 0.2s ease-out;
+.animate-slide-down {
+  animation: slideDown var(--duration-normal) var(--ease-out);
+}
+
+.animate-fade-in {
+  animation: fadeIn var(--duration-normal) var(--ease-out);
+}
+
+.animate-scale-in {
+  animation: scaleIn var(--duration-normal) var(--ease-out);
+}
+
+.animate-shimmer {
+  animation: shimmer 2s linear infinite;
+  background: linear-gradient(
+    to right,
+    transparent 0%,
+    oklch(0.70 0.15 40 / 0.1) 50%,
+    transparent 100%
+  );
+  background-size: 1000px 100%;
+}
+
+/* ========================================
+   Safe Area Utilities
+   ======================================== */
+
+.safe-top {
+  padding-top: max(1rem, env(safe-area-inset-top));
+}
+
+.safe-bottom {
+  padding-bottom: max(1rem, env(safe-area-inset-bottom));
+}
+
+.safe-left {
+  padding-left: max(1rem, env(safe-area-inset-left));
+}
+
+.safe-right {
+  padding-right: max(1rem, env(safe-area-inset-right));
 }
 
 /* ========================================
    Mobile Optimizations
    ======================================== */
 
-/* 모바일 터치 스크롤 강제 활성화 */
-html, body {
-  touch-action: pan-x pan-y;
-  -webkit-overflow-scrolling: touch;
-}
-
-* {
-  touch-action: auto;
-}
-
 @media (max-width: 768px) {
+  /* 터치 최적화 */
   button,
   a,
   [role="button"] {
     @apply active:scale-95;
-    transition: transform 150ms ease-out;
+    transition: transform var(--duration-fast) var(--ease-out);
+  }
+
+  /* iOS Safe Area */
+  body {
+    padding-bottom: env(safe-area-inset-bottom);
+  }
+}
+
+/* ========================================
+   Print Styles
+   ======================================== */
+
+@media print {
+  body {
+    @apply bg-white text-black;
+  }
+
+  .no-print {
+    display: none !important;
   }
 }

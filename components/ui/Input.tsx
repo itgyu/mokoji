@@ -1,40 +1,109 @@
 'use client';
 
 import React, { useEffect, useRef } from 'react';
+import { cva, type VariantProps } from 'class-variance-authority';
 import { clsx } from 'clsx';
 
-/**
- * MOKKOJI Input - Kurly-inspired Design System
- *
- * Font: text-sm (14px)
- * Border: gray-200, focus: purple
- */
+const inputVariants = cva(
+  [
+    'w-full',
+    'rounded-xl',
+    'border border-input',
+    'bg-background',
+    'px-4 py-3',
+    'text-base',
+    'transition-all duration-200',
+    'placeholder:text-muted-foreground',
+    'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:border-transparent',
+    'disabled:cursor-not-allowed disabled:opacity-50',
+  ],
+  {
+    variants: {
+      error: {
+        true: 'border-red-500 focus-visible:ring-red-500',
+        false: '',
+      },
+    },
+    defaultVariants: {
+      error: false,
+    },
+  }
+);
 
 export interface InputProps
   extends Omit<React.InputHTMLAttributes<HTMLInputElement>, 'size'> {
+  /**
+   * 에러 상태
+   */
   error?: boolean;
+  /**
+   * 레이블
+   */
   label?: string;
+  /**
+   * 헬퍼 텍스트 또는 에러 메시지
+   */
   helperText?: string;
+  /**
+   * 좌측 아이콘/요소
+   */
   leftElement?: React.ReactNode;
+  /**
+   * 우측 아이콘/요소
+   */
   rightElement?: React.ReactNode;
 }
 
+/**
+ * 모꼬지 Input 컴포넌트
+ *
+ * 텍스트 입력 필드
+ *
+ * @example
+ * ```tsx
+ * <Input
+ *   label="이름"
+ *   placeholder="이름을 입력하세요"
+ *   helperText="실명을 입력해주세요"
+ * />
+ *
+ * <Input
+ *   error
+ *   helperText="이메일 형식이 올바르지 않습니다"
+ * />
+ * ```
+ */
 export const Input = React.forwardRef<HTMLInputElement, InputProps>(
-  ({ className, error = false, label, helperText, leftElement, rightElement, id, ...props }, ref) => {
+  (
+    {
+      className,
+      error = false,
+      label,
+      helperText,
+      leftElement,
+      rightElement,
+      id,
+      ...props
+    },
+    ref
+  ) => {
     const inputId = id || `input-${React.useId()}`;
     const helperTextId = helperText ? `${inputId}-helper` : undefined;
 
     return (
       <div className="w-full space-y-2">
         {label && (
-          <label htmlFor={inputId} className="block text-sm font-medium text-gray-900">
+          <label
+            htmlFor={inputId}
+            className="block text-sm font-medium text-foreground"
+          >
             {label}
           </label>
         )}
 
         <div className="relative">
           {leftElement && (
-            <div className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400">
+            <div className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground">
               {leftElement}
             </div>
           )}
@@ -43,15 +112,9 @@ export const Input = React.forwardRef<HTMLInputElement, InputProps>(
             ref={ref}
             id={inputId}
             className={clsx(
-              'w-full px-4 py-3 text-sm bg-white',
-              'border border-gray-200 rounded-lg',
-              'placeholder:text-gray-400',
-              'focus:outline-none focus:border-[#5f0080] focus:ring-1 focus:ring-[#5f0080]',
-              'transition-colors',
-              'disabled:cursor-not-allowed disabled:opacity-50',
-              error && 'border-red-500 focus:border-red-500 focus:ring-red-500',
-              leftElement && 'pl-11',
-              rightElement && 'pr-11',
+              inputVariants({ error }),
+              leftElement && 'pl-10',
+              rightElement && 'pr-10',
               className
             )}
             aria-invalid={error}
@@ -60,7 +123,7 @@ export const Input = React.forwardRef<HTMLInputElement, InputProps>(
           />
 
           {rightElement && (
-            <div className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400">
+            <div className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground">
               {rightElement}
             </div>
           )}
@@ -69,7 +132,10 @@ export const Input = React.forwardRef<HTMLInputElement, InputProps>(
         {helperText && (
           <p
             id={helperTextId}
-            className={clsx('text-xs', error ? 'text-red-500' : 'text-gray-500')}
+            className={clsx(
+              'text-sm',
+              error ? 'text-red-600' : 'text-muted-foreground'
+            )}
           >
             {helperText}
           </p>
@@ -81,23 +147,73 @@ export const Input = React.forwardRef<HTMLInputElement, InputProps>(
 
 Input.displayName = 'Input';
 
+/**
+ * Textarea Props
+ */
 export interface TextareaProps
   extends Omit<React.TextareaHTMLAttributes<HTMLTextAreaElement>, 'size'> {
+  /**
+   * 에러 상태
+   */
   error?: boolean;
+  /**
+   * 레이블
+   */
   label?: string;
+  /**
+   * 헬퍼 텍스트 또는 에러 메시지
+   */
   helperText?: string;
+  /**
+   * 자동 높이 조절 (내용에 맞춰 높이 증가)
+   */
   autoResize?: boolean;
+  /**
+   * 최대 높이 (autoResize 사용 시)
+   */
   maxHeight?: number;
 }
 
+/**
+ * 모꼬지 Textarea 컴포넌트
+ *
+ * 멀티라인 텍스트 입력
+ * 채팅 입력창 등에 사용
+ *
+ * @example
+ * ```tsx
+ * <Textarea
+ *   label="메시지"
+ *   placeholder="메시지를 입력하세요"
+ *   autoResize
+ *   maxHeight={200}
+ * />
+ * ```
+ */
 export const Textarea = React.forwardRef<HTMLTextAreaElement, TextareaProps>(
-  ({ className, error = false, label, helperText, autoResize = false, maxHeight = 200, id, onChange, value, ...props }, ref) => {
+  (
+    {
+      className,
+      error = false,
+      label,
+      helperText,
+      autoResize = false,
+      maxHeight = 200,
+      id,
+      onChange,
+      value,
+      ...props
+    },
+    ref
+  ) => {
     const textareaId = id || `textarea-${React.useId()}`;
     const helperTextId = helperText ? `${textareaId}-helper` : undefined;
     const internalRef = useRef<HTMLTextAreaElement | null>(null);
 
+    // autoResize 기능 구현
     useEffect(() => {
       if (!autoResize) return;
+
       const textarea = internalRef.current;
       if (!textarea) return;
 
@@ -119,13 +235,17 @@ export const Textarea = React.forwardRef<HTMLTextAreaElement, TextareaProps>(
         textarea.style.height = `${newHeight}px`;
         textarea.style.overflowY = textarea.scrollHeight > maxHeight ? 'auto' : 'hidden';
       }
+
       onChange?.(e);
     };
 
     return (
       <div className="w-full space-y-2">
         {label && (
-          <label htmlFor={textareaId} className="block text-sm font-medium text-gray-900">
+          <label
+            htmlFor={textareaId}
+            className="block text-sm font-medium text-foreground"
+          >
             {label}
           </label>
         )}
@@ -141,14 +261,8 @@ export const Textarea = React.forwardRef<HTMLTextAreaElement, TextareaProps>(
           }}
           id={textareaId}
           className={clsx(
-            'w-full px-4 py-3 text-sm bg-white',
-            'border border-gray-200 rounded-lg',
-            'placeholder:text-gray-400',
-            'focus:outline-none focus:border-[#5f0080] focus:ring-1 focus:ring-[#5f0080]',
-            'transition-colors',
-            'disabled:cursor-not-allowed disabled:opacity-50',
+            inputVariants({ error }),
             'min-h-[80px] resize-none',
-            error && 'border-red-500 focus:border-red-500 focus:ring-red-500',
             autoResize && 'overflow-hidden',
             className
           )}
@@ -162,7 +276,10 @@ export const Textarea = React.forwardRef<HTMLTextAreaElement, TextareaProps>(
         {helperText && (
           <p
             id={helperTextId}
-            className={clsx('text-xs', error ? 'text-red-500' : 'text-gray-500')}
+            className={clsx(
+              'text-sm',
+              error ? 'text-red-600' : 'text-muted-foreground'
+            )}
           >
             {helperText}
           </p>
