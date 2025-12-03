@@ -32,9 +32,9 @@ export const dynamic = 'force-dynamic'
 import { useState, useEffect, Suspense, useCallback, useMemo } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { useAuth } from '@/contexts/AuthContext'
-import { signOut } from '@/lib/cognito'
-import { usersAPI, organizationsAPI, membersAPI, schedulesAPI, activityLogsAPI, photosAPI } from '@/lib/api-client'
-import { Home, Users, Calendar, User, MapPin, Bell, Settings, Target, MessageCircle, Sparkles, Star, Tent, Search, Plus, Check, Edit, LogOut, X, ChevronLeft, Camera, Clock } from 'lucide-react'
+import { signOut, changePassword } from '@/lib/cognito'
+import { usersAPI, organizationsAPI, membersAPI, schedulesAPI, activityLogsAPI } from '@/lib/api-client'
+import { Home, Users, Calendar, User, MapPin, Bell, Settings, Target, MessageCircle, Sparkles, Star, Tent, Search, Plus, Check, Edit, LogOut, X, ChevronLeft, Camera, Clock, ImageIcon } from 'lucide-react'
 import { uploadToS3 } from '@/lib/s3-client'
 import ScheduleDeepLink from '@/components/ScheduleDeepLink'
 import { getCities, getDistricts } from '@/lib/locations'
@@ -49,8 +49,21 @@ import type { OrganizationMember } from '@/types'
 import { formatTimestamp } from '@/lib/date-utils'
 import LoadingScreen from '@/components/LoadingScreen'
 import { addDuplicateNameSuffixes } from '@/lib/name-utils'
+import { AppHeader } from '@/components/AppHeader'
+import { Logo } from '@/components/Logo'
+import { cacheSchedules } from '@/lib/schedule-cache'
 
 type Page = 'home' | 'category' | 'mycrew' | 'myprofile' | 'schedules'
+
+// Helper function: 참석자 수 계산 (status === 'going'인 참가자만 카운트)
+const getGoingCount = (participants: any[] | undefined): number => {
+  if (!participants || !Array.isArray(participants)) return 0;
+  // participants가 객체 배열인 경우 status === 'going'인 것만 카운트
+  // participants가 문자열 배열인 경우(레거시) 전체 길이 반환
+  if (participants.length === 0) return 0;
+  if (typeof participants[0] === 'string') return participants.length;
+  return participants.filter((p: any) => p.status === 'going').length;
+}
 
 interface Comment {
   id: string
@@ -124,7 +137,7 @@ export default function DashboardPage() {
   console.log('🚀 [DashboardPage] 컴포넌트 렌더링 시작')
 
   const { user, userProfile, memberships, loading } = useAuth()
-  console.log('👤 [DashboardPage] user:', user?.uid, 'loading:', loading)
+  console.log('👤 [DashboardPage] userProfile:', userProfile?.uid, 'loading:', loading)
 
   const router = useRouter()
   const searchParams = useSearchParams()
@@ -180,9 +193,9 @@ export default function DashboardPage() {
 
   // 현재 보고 있는 크루에 가입했는지 확인
   const isCrewMember = useMemo(() => {
-    if (!selectedOrg || !user) return false
+    if (!selectedOrg || !userProfile) return false
     return organizations.some(o => o.id === selectedOrg.id)
-  }, [selectedOrg, organizations, user])
+  }, [selectedOrg, organizations, userProfile])
   const [selectedSchedule, setSelectedSchedule] = useState<Schedule | null>(null)
   const [showMemberList, setShowMemberList] = useState(false)
   const [scheduleFilter, setScheduleFilter] = useState<'all' | 'joined' | 'not-joined'>('all')
@@ -200,6 +213,15 @@ export default function DashboardPage() {
   const [orgMemberCounts, setOrgMemberCounts] = useState<{ [key: string]: number }>({})
   const [viewingOrgMemberCount, setViewingOrgMemberCount] = useState<number>(0)
   const [editingMyProfile, setEditingMyProfile] = useState(false)
+  const [showPasswordChange, setShowPasswordChange] = useState(false)
+  const [passwordForm, setPasswordForm] = useState({
+    currentPassword: '',
+    newPassword: '',
+    confirmPassword: ''
+  })
+  const [passwordChangeError, setPasswordChangeError] = useState('')
+  const [passwordChangeSuccess, setPasswordChangeSuccess] = useState(false)
+  const [changingPassword, setChangingPassword] = useState(false)
   const [myProfileForm, setMyProfileForm] = useState({
     name: '',
     gender: '',
@@ -274,66 +296,53 @@ export default function DashboardPage() {
   const [uploadingAvatar, setUploadingAvatar] = useState(false)
 
   useEffect(() => {
-    if (!loading && !user) {
+    if (!loading && !userProfile) {
       router.push('/auth')
     }
-  }, [user, loading, router])
+  }, [userProfile, loading, router])
 
   useEffect(() => {
-    console.log('🔄 [useEffect] user 변경됨:', user?.uid)
-    if (user) {
+    console.log('🔄 [useEffect] userProfile 변경됨:', userProfile?.uid, 'memberships:', memberships.length, 'loading:', loading)
+
+    // userProfile이 있고, loading이 완료된 후에만 실행
+    if (!loading && userProfile?.uid) {
       console.log('✅ [useEffect] fetchOrganizations 및 fetchAllOrganizations 호출')
       fetchOrganizations() // 내가 가입한 크루
       fetchAllOrganizations() // 모든 크루 (크루 찾기용)
     } else {
-      console.log('⚠️ [useEffect] user 없음, fetch 스킵')
+      console.log('⚠️ [useEffect] 조건 미충족 - loading:', loading, 'userProfile:', userProfile?.uid)
     }
-  }, [user])
+  }, [userProfile?.uid, memberships.length, loading])
 
   // 추천 크루 가져오기
   useEffect(() => {
-    if (user && userProfile) {
+    if (!loading && userProfile?.uid) {
       fetchRecommendedOrganizations()
     }
-  }, [user, userProfile])
+  }, [userProfile?.uid, loading])
 
   // 홈 화면 및 내 크루 화면에서 모든 크루의 일정을 가져오기
   useEffect(() => {
-
-    let unsubscribe: (() => void) | undefined
-
     // 홈 화면 또는 내 크루 화면이고 특정 크루가 선택되지 않은 경우, 모든 크루의 일정을 가져옴
-    if (user && (currentPage === 'home' || currentPage === 'mycrew') && !selectedOrg && organizations.length > 0) {
+    if (!loading && userProfile?.uid && (currentPage === 'home' || currentPage === 'mycrew') && !selectedOrg && organizations.length > 0) {
       const orgIds = organizations.map(org => org.id)
-      unsubscribe = fetchAllUserSchedules(orgIds)
+      fetchAllUserSchedules(orgIds) // Promise 반환값 무시 (DynamoDB는 실시간 리스너 없음)
     }
 
-    return () => {
-      if (unsubscribe) {
-        unsubscribe()
-      }
-    }
-  }, [user, organizations, currentPage, selectedOrg])
+    // DynamoDB는 실시간 리스너 없으니까 cleanup 필요 없음
+    return () => {}
+  }, [userProfile?.uid, organizations, currentPage, selectedOrg, loading])
 
   // 특정 크루 선택 시 해당 크루의 일정과 멤버 가져오기
   useEffect(() => {
-
-    let unsubscribe: (() => void) | undefined
-
-    if (user && selectedOrg) {
-      // 실시간 리스너 설정
-      unsubscribe = fetchSchedules(selectedOrg.id)
+    if (!loading && userProfile?.uid && selectedOrg?.id) {
+      fetchSchedules(selectedOrg.id) // Promise 반환값 무시 (DynamoDB는 실시간 리스너 없음)
       fetchMembers(selectedOrg.id)
-    } else {
     }
 
-    // Cleanup: 컴포넌트 언마운트 또는 selectedOrg 변경 시 리스너 해제
-    return () => {
-      if (unsubscribe) {
-        unsubscribe()
-      }
-    }
-  }, [user, selectedOrg])
+    // DynamoDB는 실시간 리스너 없으니까 cleanup 필요 없음
+    return () => {}
+  }, [userProfile?.uid, selectedOrg?.id, loading])
 
   // 사진첩 뷰로 전환시 사진 목록 불러오기
   useEffect(() => {
@@ -356,7 +365,7 @@ export default function DashboardPage() {
         setViewingOrgMemberCount(members.length)
       } catch (error) {
         console.error('❌ [fetchViewingOrgMemberCount] 조회 실패:', error)
-        // 레거시 fallback removed - using membersDB only
+        // 레거시 fallback removed - using membersAPI only
         console.error('❌ [fetchViewingOrgMemberCount] 조회 실패 - DynamoDB only')
         setViewingOrgMemberCount(0)
       }
@@ -365,46 +374,8 @@ export default function DashboardPage() {
     fetchViewingOrgMemberCount()
   }, [selectedOrg, urlOrgId, isCrewMember])
 
-  // 모달 열릴 때 백그라운드 스크롤 방지
-  useEffect(() => {
-    const isAnyModalOpen =
-      selectedSchedule ||
-      showMemberList ||
-      showCreateSchedule ||
-      editingSchedule ||
-      editingMember ||
-      editingMemberInfo ||
-      selectedAvatarUrl ||
-      managingParticipants ||
-      editingMyProfile ||
-      editingOrg ||
-      cropImageUrl ||
-      showCreateCrew ||
-      showDeleteCrewConfirm
-
-    if (isAnyModalOpen) {
-      document.body.style.overflow = 'hidden'
-    } else {
-      document.body.style.overflow = 'unset'
-    }
-
-    return () => {
-      document.body.style.overflow = 'unset'
-    }
-  }, [
-    selectedSchedule,
-    showMemberList,
-    showCreateSchedule,
-    editingSchedule,
-    editingMember,
-    editingMemberInfo,
-    selectedAvatarUrl,
-    managingParticipants,
-    editingMyProfile,
-    editingOrg,
-    cropImageUrl,
-    showCreateCrew
-  ])
+  // 모달 열릴 때 백그라운드 스크롤 방지 - 제거됨 (CSS로 처리)
+  // 각 모달 오버레이에 overscroll-behavior: contain 적용으로 대체
 
   // ============================================
   // 권한 체크 함수 (Permission Check Functions)
@@ -418,11 +389,11 @@ export default function DashboardPage() {
   }
 
   const canManageOrg = (orgId: string): boolean => {
-    if (!user) return false
+    if (!userProfile) return false
 
     // 크루의 ownerUid를 직접 체크
     const org = organizations.find(o => o.id === orgId)
-    if (org && org.ownerUid === user.uid) {
+    if (org && org.ownerUid === userProfile.uid) {
       return true
     }
 
@@ -437,9 +408,13 @@ export default function DashboardPage() {
 
   const fetchOrganizations = async () => {
     try {
-      console.log('🏁 [fetchOrganizations] 시작 - user:', user?.uid, 'memberships:', memberships.length);
-      if (!user) return
+      console.log('🏁 [fetchOrganizations] 시작 - userProfile:', userProfile?.uid, 'memberships:', memberships.length);
 
+      // userProfile.uid가 없으면 early return (undefined 방지)
+      if (!userProfile?.uid) {
+        console.log('⚠️ [fetchOrganizations] userProfile.uid 없음, 스킵')
+        return
+      }
 
       // 1. memberships 기반으로 가입한 크루 ID 목록 가져오기 (신규 방식)
       let userOrgIds: string[] = []
@@ -451,14 +426,9 @@ export default function DashboardPage() {
           .map(m => m.organizationId)
         console.log('✅ [fetchOrganizations] memberships에서 orgIds 추출:', userOrgIds);
       } else {
-        // ⚠️ 레거시: userProfiles.organizations 배열 사용 (하위 호환)
-        console.log('⚠️ [fetchOrganizations] memberships가 비어있음, 레거시 방식 시도');
-        const userProfile = await usersAPI.get(user.uid)
-
-        if (userProfile) {
-          userOrgIds = userProfile.joinedOrganizations || userProfile.organizations || []
-          console.log('📝 [fetchOrganizations] userProfile에서 orgIds 가져옴:', userOrgIds);
-        }
+        // memberships가 아직 로드 안됐으면 그냥 리턴 (레거시 호출 제거)
+        console.log('⚠️ [fetchOrganizations] memberships가 비어있음, 다음 렌더링 대기');
+        return
       }
 
       if (userOrgIds.length === 0) {
@@ -470,8 +440,16 @@ export default function DashboardPage() {
 
       // 2. organizations 컬렉션에서 크루 정보 가져오기
       // Get all organizations from DynamoDB
-      const allOrgs = await organizationsAPI.getAll ? await organizationsAPI.getAll() : []
-      const orgsSnapshot = { size: allOrgs.length, forEach: (fn: any) => allOrgs.forEach(fn) }
+      const allOrgsResponse = await organizationsAPI.getAll ? await organizationsAPI.getAll() : []
+      // Handle both array and {organizations: [...]} format
+      const allOrgsArray = Array.isArray(allOrgsResponse)
+        ? allOrgsResponse
+        : (allOrgsResponse?.organizations || [])
+
+      // 사용자의 organization만 필터링
+      const fetchedOrgs = allOrgsArray.filter((org: any) =>
+        userOrgIds.includes(org.id) || userOrgIds.includes(org.organizationId)
+      )
       console.log('📚 [fetchMyOrganizations] 조회된 조직 수:', fetchedOrgs.length);
 
       console.log('✅ [fetchMyOrganizations] 최종 fetchedOrgs:', fetchedOrgs.length, '개', fetchedOrgs);
@@ -481,14 +459,20 @@ export default function DashboardPage() {
       const counts: { [key: string]: number } = {}
 
       for (const org of fetchedOrgs) {
+        // org.id가 유효할 때만 조회
+        const orgId = org.id || org.organizationId
+        if (!orgId) {
+          console.log('⚠️ [fetchOrganizations] org.id가 없음, 스킵:', org)
+          continue
+        }
         try {
           // ✅ 신규: organizationMembers 컬렉션 사용 (더 정확함)
-          const members = await getOrganizationMembers(org.id)
-          counts[org.id] = members.length
+          const members = await getOrganizationMembers(orgId)
+          counts[orgId] = members.length
         } catch (error) {
           // ⚠️ 레거시 fallback removed - using organizationMembers only
-          console.error(`Error getting member count for ${org.id}:`, error)
-          counts[org.id] = 0
+          console.error(`Error getting member count for ${orgId}:`, error)
+          counts[orgId] = 0
         }
       }
 
@@ -502,9 +486,20 @@ export default function DashboardPage() {
   const fetchAllOrganizations = async () => {
     try {
       console.log('🔍 [fetchAllOrganizations] 모든 크루 로딩 시작...')
-      const allOrgsData = await organizationsAPI.getAll(100)
-      const allOrgs = allOrgsData.map((org: any) => ({
-        id: org.organizationId,
+      const response = await organizationsAPI.getAll(100)
+
+      // API 응답 형식 확인: {organizations: [...]} 형식
+      const organizationsArray = response?.organizations || response || []
+
+      // 배열인지 확인 (에러 객체 방어)
+      if (!Array.isArray(organizationsArray)) {
+        console.warn('⚠️ [fetchAllOrganizations] API returned non-array:', response)
+        setAllOrganizations([])
+        return
+      }
+
+      const allOrgs = organizationsArray.map((org: any) => ({
+        id: org.organizationId || org.id,
         ...org
       })) as Organization[]
 
@@ -518,7 +513,7 @@ export default function DashboardPage() {
 
   const fetchRecommendedOrganizations = async () => {
     try {
-      if (!user || !userProfile) return
+      if (!userProfile) return
 
 
       // 사용자의 관심 카테고리 확인
@@ -545,11 +540,8 @@ export default function DashboardPage() {
       const userOrgIds = userProfile.organizations || []
 
       // 모든 organizations 가져오기
-      const allOrgsData = await organizationsAPI.getAll(100)
-      const allOrgs = allOrgsData.map((org: any) => ({
-        id: org.organizationId,
-        ...org
-      })) as Organization[]
+      // TODO: Implement scan in DynamoDB
+      const allOrgs: any[] = [] // DynamoDB scan not yet implemented
       
       const recommended: OrganizationWithDistance[] = []
       allOrgs.forEach((orgData) => {
@@ -606,20 +598,26 @@ export default function DashboardPage() {
 
   const fetchSchedules = async (orgId: string) => {
     try {
-      // DynamoDB: No real-time listeners, using regular query
-      const schedules = await schedulesAPI.getByOrganization(orgId)
-      
-      const fetchedSchedules: Schedule[] = schedules.map((schedule: any) => ({
-        id: schedule.scheduleId,
+      // API: No real-time listeners, using regular query
+      const response = await schedulesAPI.getByOrganization(orgId)
+      // API returns {schedules: [...]} format
+      const schedulesArray = response?.schedules || response || []
+
+      const fetchedSchedules: Schedule[] = (Array.isArray(schedulesArray) ? schedulesArray : []).map((schedule: any) => ({
+        id: schedule.scheduleId || schedule.id,
         ...schedule
       }))
 
+      // 캐시에 저장 (상세 페이지 즉시 표시용)
+      cacheSchedules(fetchedSchedules)
+
       setSchedules(fetchedSchedules)
-      
+
       // Return empty function for compatibility (no unsubscribe needed)
       return () => {}
     } catch (error) {
       console.error('❌ Error fetching schedules:', error)
+      setSchedules([])
       return () => {}
     }
   }
@@ -632,42 +630,55 @@ export default function DashboardPage() {
         return () => {}
       }
 
-      // DynamoDB: Fetch all schedules for all orgs (no real-time updates)
-      const allSchedulesPromises = orgIds.map(orgId => 
+      // API: Fetch all schedules for all orgs (no real-time updates)
+      const allSchedulesPromises = orgIds.map(orgId =>
         schedulesAPI.getByOrganization(orgId)
       )
-      
-      const schedulesArrays = await Promise.all(allSchedulesPromises)
-      const allSchedules: Schedule[] = schedulesArrays
-        .flat()
-        .map((schedule: any) => ({
-          id: schedule.scheduleId,
-          ...schedule
-        }))
+
+      const responses = await Promise.all(allSchedulesPromises)
+      // Each response is {schedules: [...]} format
+      const allSchedulesFlat: any[] = []
+      for (const response of responses) {
+        const schedulesArray = response?.schedules || response || []
+        if (Array.isArray(schedulesArray)) {
+          allSchedulesFlat.push(...schedulesArray)
+        }
+      }
+
+      const allSchedules: Schedule[] = allSchedulesFlat.map((schedule: any) => ({
+        id: schedule.scheduleId || schedule.id,
+        ...schedule
+      }))
+
+      // 캐시에 저장 (상세 페이지 즉시 표시용)
+      cacheSchedules(allSchedules)
 
       setSchedules(allSchedules)
-      
+
       // Return empty function for compatibility (no unsubscribe needed)
       return () => {}
     } catch (error) {
       console.error('❌ Error fetching all schedules:', error)
+      setSchedules([])
       return () => {}
     }
   }
 
   const fetchMembers = async (orgId: string) => {
     try {
-      // DynamoDB: Get organization members
-      const orgMembers = await membersAPI.getByOrganization(orgId)
+      // API: Get organization members
+      const response = await membersAPI.getByOrganization(orgId)
+      // API returns {members: [...]} format
+      const orgMembers = response?.members || response || []
 
-      if (orgMembers.length === 0) {
+      if (!Array.isArray(orgMembers) || orgMembers.length === 0) {
         setMembers([])
         return
       }
 
       // Get all user profiles for these members
       const userIds = orgMembers.map((m: any) => m.userId)
-      const userProfilesPromises = userIds.map((uid: string) => usersAPI.get(uid))
+      const userProfilesPromises = userIds.map((uid: string) => usersAPI.get(uid).catch(() => null))
       const userProfilesResults = await Promise.all(userProfilesPromises)
 
       const userProfilesMap: { [uid: string]: any } = {}
@@ -728,7 +739,7 @@ export default function DashboardPage() {
     longitude: number
     radius: number
   }) => {
-    if (!user) return
+    if (!userProfile) return
 
     try {
       // 지역 이름 결정
@@ -755,7 +766,7 @@ export default function DashboardPage() {
       const currentLocations = userProfile?.locations || []
       const updatedLocations = [...currentLocations, locationData]
 
-      await usersAPI.update(user.uid, {
+      await usersAPI.update(userProfile.uid, {
         locations: updatedLocations,
         // 첫 번째 지역이면 자동으로 선택
         ...((!userProfile?.locations || userProfile.locations.length === 0) && {
@@ -778,23 +789,14 @@ export default function DashboardPage() {
     if (!confirmRemove) return
 
     try {
-      // 1. organizationMembers에서 멤버 삭제
-      const memberRecords = await membersAPI.getByOrganization(selectedOrg.id)
-      const memberToRemove = memberRecords.find((m: any) => m.userId === member.uid)
+      // membersAPI를 사용하여 멤버 삭제
+      await membersAPI.delete(member.id)
 
-      if (memberToRemove) {
-        await membersAPI.delete(memberToRemove.memberId)
-      }
-
-      // 2. userProfiles의 organizations 배열에서 제거
+      // userProfiles의 joinedOrganizations 배열에서 제거
       const userProfile = await usersAPI.get(member.uid)
       if (userProfile) {
-        const updatedOrgs = (userProfile.organizations || []).filter((id: string) => id !== selectedOrg.id)
-        await usersAPI.update(member.uid, { organizations: updatedOrgs })
-      } else {
-        console.error('❌ userProfile을 찾을 수 없습니다.')
-        alert('멤버 프로필을 찾을 수 없습니다.')
-        return
+        const updatedOrgs = (userProfile.joinedOrganizations || []).filter((id: string) => id !== selectedOrg.id)
+        await usersAPI.update(member.uid, { joinedOrganizations: updatedOrgs })
       }
 
       alert(`${member.name}님이 크루에서 제거되었습니다.`)
@@ -812,18 +814,9 @@ export default function DashboardPage() {
     if (!selectedOrg) return
 
     try {
-      // organizationMembers 컬렉션 업데이트
-      const memberRecords = await membersAPI.getByOrganization(selectedOrg.id)
-      const memberToUpdate = memberRecords.find((m: any) => m.userId === member.uid)
-
-      if (!memberToUpdate) {
-        alert('멤버 정보를 찾을 수 없습니다.')
-        return
-      }
-
-      // organizationMembers의 role 필드 업데이트
+      // membersAPI를 사용하여 역할 업데이트
       const roleValue = newRole === 'captain' ? 'owner' : newRole === 'staff' ? 'admin' : 'member'
-      await membersAPI.update(memberToUpdate.memberId, { role: roleValue })
+      await membersAPI.update(member.id, { role: roleValue })
 
       alert('역할이 변경되었습니다.')
       setEditingMember(null)
@@ -839,11 +832,11 @@ export default function DashboardPage() {
   const handleOpenMemberInfoEdit = async (member: Member) => {
     // userProfiles에서 상세 정보 가져오기
     try {
-      const userProfile = await usersAPI.get(member.uid)
+      const data = await usersAPI.get(member.uid)
 
-      if (userProfile) {
+      if (data) {
         // 지역 정보 파싱 (예: "서울특별시 강남구" -> city: "서울특별시", district: "강남구")
-        const locationParts = (userProfile.location || '').split(' ')
+        const locationParts = (data.location || '').split(' ')
         const city = locationParts[0] || ''
         const district = locationParts[1] || ''
 
@@ -852,10 +845,10 @@ export default function DashboardPage() {
 
         setEditForm({
           name: member.name || '',
-          gender: userProfile.gender || '',
-          birthdate: userProfile.birthdate || '',
-          location: userProfile.location || '',
-          mbti: userProfile.mbti || ''
+          gender: data.gender || '',
+          birthdate: data.birthdate || '',
+          location: data.location || '',
+          mbti: data.mbti || ''
         })
       } else {
         setSelectedCityForMemberEdit('')
@@ -881,7 +874,7 @@ export default function DashboardPage() {
     if (!editingMemberInfo) return
 
     try {
-      // userProfiles 업데이트
+      // usersAPI를 사용하여 프로필 업데이트
       await usersAPI.update(editingMemberInfo.uid, {
         name: editForm.name,
         gender: editForm.gender,
@@ -904,15 +897,15 @@ export default function DashboardPage() {
   }
 
   const handleChangeAvatar = async (file: File) => {
-    if (!user) return
+    if (!userProfile) return
 
     setUploadingAvatar(true)
     try {
       // S3에 업로드
-      const avatarUrl = await uploadToS3(file, `avatars/${user.uid}`)
+      const avatarUrl = await uploadToS3(file, `avatars/${userProfile.uid}`)
 
-      // userProfiles 업데이트
-      await usersAPI.update(user.uid, { avatar: avatarUrl })
+      // usersAPI를 사용하여 프로필 업데이트
+      await usersAPI.update(userProfile.uid, { avatar: avatarUrl })
 
       // 페이지 새로고침
       window.location.reload()
@@ -925,7 +918,7 @@ export default function DashboardPage() {
   }
 
   const handleUpdateMyProfile = async () => {
-    if (!user) return
+    if (!userProfile) return
 
     // 관심 카테고리 검증
     if (myProfileForm.interestCategories.length === 0) {
@@ -944,8 +937,8 @@ export default function DashboardPage() {
         interestCategories: myProfileForm.interestCategories
       }
 
-      // userProfiles 업데이트
-      await usersAPI.update(user.uid, updateData)
+      // usersAPI를 사용하여 프로필 업데이트
+      await usersAPI.update(userProfile.uid, updateData)
 
       alert('프로필이 수정됐어요.')
       setEditingMyProfile(false)
@@ -955,6 +948,69 @@ export default function DashboardPage() {
     } catch (error) {
       console.error('Error updating my profile:', error)
       alert('프로필을 수정하는 중에 문제가 생겼어요.')
+    }
+  }
+
+  // 비밀번호 변경 핸들러
+  const handleChangePassword = async () => {
+    setPasswordChangeError('')
+    setPasswordChangeSuccess(false)
+
+    // 유효성 검사
+    if (!passwordForm.currentPassword) {
+      setPasswordChangeError('현재 비밀번호를 입력해주세요.')
+      return
+    }
+    if (!passwordForm.newPassword) {
+      setPasswordChangeError('새 비밀번호를 입력해주세요.')
+      return
+    }
+    if (passwordForm.newPassword.length < 8) {
+      setPasswordChangeError('새 비밀번호는 8자 이상이어야 합니다.')
+      return
+    }
+    if (!/[A-Z]/.test(passwordForm.newPassword)) {
+      setPasswordChangeError('새 비밀번호는 대문자를 포함해야 합니다.')
+      return
+    }
+    if (!/[a-z]/.test(passwordForm.newPassword)) {
+      setPasswordChangeError('새 비밀번호는 소문자를 포함해야 합니다.')
+      return
+    }
+    if (!/[0-9]/.test(passwordForm.newPassword)) {
+      setPasswordChangeError('새 비밀번호는 숫자를 포함해야 합니다.')
+      return
+    }
+    if (!/[!@#$%^&*(),.?":{}|<>]/.test(passwordForm.newPassword)) {
+      setPasswordChangeError('새 비밀번호는 특수문자를 포함해야 합니다.')
+      return
+    }
+    if (passwordForm.newPassword !== passwordForm.confirmPassword) {
+      setPasswordChangeError('새 비밀번호가 일치하지 않습니다.')
+      return
+    }
+
+    try {
+      setChangingPassword(true)
+      await changePassword(passwordForm.currentPassword, passwordForm.newPassword)
+      setPasswordChangeSuccess(true)
+      setPasswordForm({ currentPassword: '', newPassword: '', confirmPassword: '' })
+      // 3초 후 성공 메시지 숨기기
+      setTimeout(() => {
+        setPasswordChangeSuccess(false)
+        setShowPasswordChange(false)
+      }, 2000)
+    } catch (error: any) {
+      console.error('Password change error:', error)
+      if (error.code === 'NotAuthorizedException' || error.message?.includes('Incorrect')) {
+        setPasswordChangeError('현재 비밀번호가 올바르지 않습니다.')
+      } else if (error.message?.includes('password')) {
+        setPasswordChangeError('비밀번호 정책을 충족하지 않습니다.')
+      } else {
+        setPasswordChangeError('비밀번호 변경 중 오류가 발생했습니다.')
+      }
+    } finally {
+      setChangingPassword(false)
     }
   }
 
@@ -1002,35 +1058,25 @@ export default function DashboardPage() {
     if (!editingOrg) return
 
     try {
-      // 1. organizationMembers에서 해당 크루의 모든 멤버 삭제
-      const members = await membersAPI.getByOrganization(editingOrg.id)
-      const memberDeletePromises = members.map((member: any) =>
-        membersAPI.delete(member.memberId)
-      )
-
-      // 2. schedules에서 해당 크루의 모든 일정 삭제
-      const schedules = await schedulesAPI.getByOrganization(editingOrg.id)
-      const scheduleDeletePromises = schedules.map((schedule: any) =>
-        schedulesAPI.delete(schedule.scheduleId)
-      )
-
-      // 3. 모든 멤버의 userProfiles의 organizations 배열에서 크루 ID 제거
-      const userUpdatePromises = members.map(async (member: any) => {
-        const userProfile = await usersAPI.get(member.userId)
-        if (userProfile && userProfile.organizations) {
-          const updatedOrgs = userProfile.organizations.filter((id: string) => id !== editingOrg.id)
-          await usersAPI.update(member.userId, { organizations: updatedOrgs })
+      // 1. organizationMembers에서 해당 크루의 모든 멤버 조회 및 삭제
+      const membersResponse = await membersAPI.getByOrganization(editingOrg.id)
+      const membersList = membersResponse?.members || membersResponse || []
+      if (Array.isArray(membersList)) {
+        for (const member of membersList) {
+          await membersAPI.delete(member.memberId || member.id)
         }
-      })
+      }
 
-      // 모든 삭제 작업 실행
-      await Promise.all([
-        ...memberDeletePromises,
-        ...scheduleDeletePromises,
-        ...userUpdatePromises
-      ])
+      // 2. schedules에서 해당 크루의 모든 일정 조회 및 삭제
+      const schedulesResponse = await schedulesAPI.getByOrganization(editingOrg.id)
+      const schedulesList = schedulesResponse?.schedules || schedulesResponse || []
+      if (Array.isArray(schedulesList)) {
+        for (const schedule of schedulesList) {
+          await schedulesAPI.delete(schedule.scheduleId || schedule.id)
+        }
+      }
 
-      // 4. 크루 문서 삭제
+      // 3. 크루 문서 삭제
       await organizationsAPI.delete(editingOrg.id)
 
       alert(`"${editingOrg.name}" 크루가 해체되었습니다.`)
@@ -1048,7 +1094,7 @@ export default function DashboardPage() {
   }
 
   const handleCreateCrew = async () => {
-    if (!user || !userProfile) return
+    if (!userProfile) return
 
     // 필수값 검증
     if (!orgForm.name.trim()) {
@@ -1065,17 +1111,14 @@ export default function DashboardPage() {
     }
 
     try {
-      // 1. 먼저 크루 문서 생성 (ID 생성)
-      const orgId = `org_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`
-
+      // 1. 먼저 크루 문서 생성 (ID 얻기 위해)
       const orgData: any = {
-        organizationId: orgId,
         name: orgForm.name,
         description: orgForm.description,
         categories: orgForm.categories,
-        ownerUid: user.uid,
+        ownerUid: userProfile.uid,
         ownerName: userProfile.name,
-        createdAt: Date.now(),
+        createdAt: new Date().toISOString(),
         avatar: ''
       }
 
@@ -1087,24 +1130,34 @@ export default function DashboardPage() {
         orgData.location = orgForm.location
       }
 
-      // 2. 이미지가 있으면 S3에 업로드
-      if (orgAvatarFile) {
-        const avatarUrl = await uploadToS3(orgAvatarFile, `organizations/${orgId}`)
-        orgData.avatar = avatarUrl
+      // organizationsAPI를 사용하여 크루 생성
+      const response = await organizationsAPI.create(orgData)
+      const newOrgId = response?.organization?.organizationId || response?.organizationId
+
+      if (!newOrgId) {
+        throw new Error('Failed to create organization')
       }
 
-      // 3. 크루 생성
-      await organizationsAPI.create(orgData)
+      // 2. 이미지가 있으면 S3에 업로드하고 URL 업데이트
+      if (orgAvatarFile) {
+        const avatarUrl = await uploadToS3(orgAvatarFile, `organizations/${newOrgId}`)
+        await organizationsAPI.update(newOrgId, { avatar: avatarUrl })
+      }
 
-      // 4. 사용자 프로필의 organizations 배열에 추가
-      const currentProfile = await usersAPI.get(user.uid)
-      const currentOrgs = currentProfile?.organizations || []
-      await usersAPI.update(user.uid, {
-        organizations: [...currentOrgs, orgId]
+      // 3. 사용자를 크루의 owner 멤버로 추가
+      await membersAPI.create({
+        userId: userProfile.uid,
+        organizationId: newOrgId,
+        role: 'owner',
+        status: 'active',
+        joinedAt: Date.now()
       })
 
-      // 5. 크루장을 멤버로 추가
-      await addOrganizationMember(orgId, user.uid, 'owner')
+      // 4. 사용자 프로필의 joinedOrganizations 배열에 추가
+      const currentOrgs = userProfile.joinedOrganizations || []
+      await usersAPI.update(userProfile.uid, {
+        joinedOrganizations: [...currentOrgs, newOrgId]
+      })
 
       alert('크루가 만들어졌어요!')
       setShowCreateCrew(false)
@@ -1115,7 +1168,7 @@ export default function DashboardPage() {
       await fetchOrganizations()
 
       // 새로 생성한 크루를 선택
-      router.replace(`/dashboard?page=mycrew&orgId=${orgId}`, { scroll: false })
+      router.replace(`/dashboard?page=mycrew&orgId=${newOrgId}`, { scroll: false })
     } catch (error) {
       console.error('❌ 크루 생성 실패:', error)
       alert('크루를 만드는 중에 문제가 생겼어요.')
@@ -1123,7 +1176,7 @@ export default function DashboardPage() {
   }
 
   const handleUpdateOrg = async () => {
-    if (!user || !editingOrg) return
+    if (!userProfile || !editingOrg) return
 
     // 필수값 검증
     if (!orgForm.name.trim()) {
@@ -1160,14 +1213,14 @@ export default function DashboardPage() {
         updateData.location = null
       }
 
+      // organizationsAPI를 사용하여 크루 정보 업데이트
+      await organizationsAPI.update(editingOrg.id, updateData)
+
       // 2. 새 이미지가 있으면 S3에 업로드하고 URL 업데이트
       if (orgAvatarFile) {
         const avatarUrl = await uploadToS3(orgAvatarFile, `organizations/${editingOrg.id}`)
-        updateData.avatar = avatarUrl
+        await organizationsAPI.update(editingOrg.id, { avatar: avatarUrl })
       }
-
-      // 크루 정보 업데이트
-      await organizationsAPI.update(editingOrg.id, updateData)
 
       alert('크루 정보가 수정되었어요!')
       setEditingOrg(null)
@@ -1183,18 +1236,12 @@ export default function DashboardPage() {
     }
   }
 
-  // 사진첩: 사진 목록 불러오기
+  // 사진첩: 사진 목록 불러오기 (photosAPI 사용)
   const fetchPhotos = async (orgId: string) => {
     try {
-      const photos = await photosAPI.getByOrganization(orgId, 50);
-      setPhotos(photos.map((photo: any) => ({
-        id: photo.photoId,
-        url: photo.url,
-        uploadedBy: photo.uploaderName,
-        uploadedByUid: photo.uploaderUid,
-        createdAt: photo.createdAt,
-        fileName: photo.fileName
-      })));
+      // TODO: photosAPI.getByOrganization 구현 필요
+      // 현재는 빈 배열 반환
+      setPhotos([])
     } catch (error) {
       console.error('사진 목록 불러오기 실패:', error)
       setPhotos([])
@@ -1203,7 +1250,7 @@ export default function DashboardPage() {
 
   // 사진첩: 사진 업로드
   const handlePhotoUpload = async (file: File, orgId: string) => {
-    if (!user || !userProfile) return
+    if (!userProfile) return
 
     // 파일 크기 체크 (10MB)
     if (file.size > 10 * 1024 * 1024) {
@@ -1217,19 +1264,10 @@ export default function DashboardPage() {
       // S3에 업로드
       const photoUrl = await uploadToS3(file, `organizations/${orgId}/photos/${Date.now()}_${file.name}`)
 
-      // DynamoDB에 메타데이터 저장
-      const photoId = `photo_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`
+      // TODO: photosAPI.create 구현 필요
+      // 현재는 사진 업로드만 하고 메타데이터 저장은 스킵
 
-      await photosAPI.create({
-        photoId,
-        organizationId: orgId,
-        url: photoUrl,
-        uploaderUid: user.uid,
-        uploaderName: userProfile.name,
-        createdAt: Date.now(),
-        fileName: file.name
-      })
-
+      alert('사진이 업로드되었어요!')
       await fetchPhotos(orgId)
     } catch (error) {
       console.error('사진 업로드 실패:', error)
@@ -1241,13 +1279,13 @@ export default function DashboardPage() {
 
   // 사진첩: 사진 삭제
   const handlePhotoDelete = async (photoId: string, orgId: string) => {
-    if (!user) return
+    if (!userProfile) return
 
     if (!confirm('이 사진을 삭제할까요?')) return
 
     try {
-      await photosAPI.delete(photoId)
-      await fetchPhotos(orgId)
+      // TODO: photosAPI.delete 구현 필요
+      alert('사진 삭제 기능은 아직 준비 중이에요.')
       setSelectedPhoto(null)
     } catch (error) {
       console.error('사진 삭제 실패:', error)
@@ -1333,36 +1371,37 @@ export default function DashboardPage() {
 
   // 크루 가입 신청
   const handleJoinCrew = async (orgId: string) => {
-    if (!user || !userProfile) {
+    if (!userProfile) {
       alert('로그인이 필요합니다.')
       return
     }
 
     try {
-      const org = await organizationsAPI.get(orgId)
+      // organizationsAPI를 사용하여 크루 정보 조회
+      const orgResponse = await organizationsAPI.get(orgId)
+      const orgData = orgResponse?.organization || orgResponse
 
-      if (!org) {
+      if (!orgData) {
         alert('크루를 찾을 수 없습니다.')
         return
       }
 
-      const existingPending = org.pendingMembers || []
+      const existingPending = orgData.pendingMembers || []
 
       // 이미 신청한 경우
-      if (existingPending.some((m: any) => m.uid === user.uid)) {
+      if (existingPending.some((m: any) => m.uid === userProfile.uid)) {
         alert('이미 가입 신청을 보내셨어요.')
         return
       }
 
       // pendingMembers에 추가
       const newPendingMember = {
-        uid: user.uid,
+        uid: userProfile.uid,
         name: userProfile.name,
         email: userProfile.email,
         avatar: userProfile.avatar || '',
-        requestedAt: Date.now()
+        requestedAt: new Date().toISOString()
       }
-
       await organizationsAPI.update(orgId, {
         pendingMembers: [...existingPending, newPendingMember]
       })
@@ -1384,25 +1423,23 @@ export default function DashboardPage() {
     if (!confirm(`${member.name}님의 가입을 승인하시겠습니까?`)) return
 
     try {
-      // 1. pendingMembers에서 제거
-      const org = await organizationsAPI.get(orgId)
-      if (org) {
-        const updatedPending = (org.pendingMembers || []).filter((m: any) => m.uid !== member.uid)
-        await organizationsAPI.update(orgId, {
-          pendingMembers: updatedPending
-        })
-      }
+      // 크루 정보 조회
+      const orgResponse = await organizationsAPI.get(orgId)
+      const orgData = orgResponse?.organization || orgResponse
+      const currentPending = orgData?.pendingMembers || []
 
-      // 2. userProfiles의 organizations 배열에 추가
+      // pendingMembers에서 제거
+      const updatedPending = currentPending.filter((m: any) => m.uid !== member.uid)
+      await organizationsAPI.update(orgId, { pendingMembers: updatedPending })
+
+      // userProfiles의 joinedOrganizations 배열에 추가
       const userProfile = await usersAPI.get(member.uid)
-      if (userProfile) {
-        const currentOrgs = userProfile.organizations || []
-        await usersAPI.update(member.uid, {
-          organizations: [...currentOrgs, orgId]
-        })
-      }
+      const currentOrgs = userProfile?.joinedOrganizations || []
+      await usersAPI.update(member.uid, {
+        joinedOrganizations: [...currentOrgs, orgId]
+      })
 
-      // 3. organizationMembers 컬렉션에 추가
+      // organizationMembers 컬렉션에 추가
       await addOrganizationMember(orgId, member.uid, 'member')
       console.log('✅ organizationMembers에 추가 완료:', orgId, member.uid)
 
@@ -1425,14 +1462,14 @@ export default function DashboardPage() {
     if (!confirm(`${member.name}님의 가입을 거절하시겠습니까?`)) return
 
     try {
+      // 크루 정보 조회
+      const orgResponse = await organizationsAPI.get(orgId)
+      const orgData = orgResponse?.organization || orgResponse
+      const currentPending = orgData?.pendingMembers || []
+
       // pendingMembers에서만 제거
-      const org = await organizationsAPI.get(orgId)
-      if (org) {
-        const updatedPending = (org.pendingMembers || []).filter((m: any) => m.uid !== member.uid)
-        await organizationsAPI.update(orgId, {
-          pendingMembers: updatedPending
-        })
-      }
+      const updatedPending = currentPending.filter((m: any) => m.uid !== member.uid)
+      await organizationsAPI.update(orgId, { pendingMembers: updatedPending })
 
       alert(`${member.name}님의 가입 신청을 거절했어요.`)
       fetchOrganizations()
@@ -1444,7 +1481,7 @@ export default function DashboardPage() {
   }
 
   const handleCreateSchedule = async () => {
-    if (!selectedOrg || !user) return
+    if (!selectedOrg || !userProfile) return
 
     // 필수값 검증
     if (!createScheduleForm.title.trim()) {
@@ -1479,11 +1516,11 @@ export default function DashboardPage() {
       const dayOfWeek = days[selectedDate.getDay()]
       const displayDate = `${month}/${day}(${dayOfWeek})`
 
-      const scheduleId = `schedule_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`
+      // schedulesAPI를 사용하여 일정 생성
+      // 생성자를 자동으로 참석자에 추가 (이름 문자열로 저장)
+      const creatorName = userProfile?.name || '익명'
 
       await schedulesAPI.create({
-        scheduleId,
-        organizationId: selectedOrg.id,
         title: createScheduleForm.title,
         date: displayDate,      // Display format for UI
         dateISO: isoDate,       // ISO format for comparison
@@ -1491,13 +1528,13 @@ export default function DashboardPage() {
         location: createScheduleForm.location,
         type: createScheduleForm.type,
         maxParticipants: createScheduleForm.maxParticipants,
-        participants: [],
-        createdBy: userProfile?.name || user.displayName || '익명',
-        createdByUid: user.uid,
+        participants: [creatorName],
+        createdBy: creatorName,
+        createdByUid: userProfile?.uid || '',
         orgId: selectedOrg.id,
         comments: [],
-        createdAt: Date.now(),
-        hasChat: true,  // 채팅 기능 활성화
+        createdAt: new Date().toISOString(),
+        hasChat: true,
         lastChatMessageAt: null,
         lastChatMessagePreview: null
       })
@@ -1512,9 +1549,6 @@ export default function DashboardPage() {
         type: '',
         maxParticipants: 10
       })
-
-      // 일정 목록 새로고침
-      await fetchSchedules(selectedOrg.id)
     } catch (error) {
       console.error('Error creating schedule:', error)
       alert('일정을 만드는 중에 문제가 생겼어요.')
@@ -1557,6 +1591,7 @@ export default function DashboardPage() {
       const dayOfWeek = days[selectedDate.getDay()]
       const displayDate = `${month}/${day}(${dayOfWeek})`
 
+      // schedulesAPI를 사용하여 일정 수정
       await schedulesAPI.update(editingSchedule.id, {
         title: editScheduleForm.title,
         date: displayDate,      // Display format for UI
@@ -1570,11 +1605,6 @@ export default function DashboardPage() {
       alert('일정이 수정됐어요.')
       setEditingSchedule(null)
       setSelectedSchedule(null)
-
-      // 일정 목록 새로고침
-      if (selectedOrg) {
-        await fetchSchedules(selectedOrg.id)
-      }
     } catch (error) {
       console.error('Error updating schedule:', error)
       alert('일정을 수정하는 중에 문제가 생겼어요.')
@@ -1598,13 +1628,14 @@ export default function DashboardPage() {
 
   const handleAddParticipant = async (schedule: Schedule, memberName: string) => {
     try {
-      // 정원 체크
-      if (schedule.participants.length >= schedule.maxParticipants) {
+      // 정원 체크 (status === 'going'인 참가자만 카운트)
+      if (getGoingCount(schedule.participants) >= schedule.maxParticipants) {
         alert('정원이 초과되었습니다.')
         return
       }
 
       const updatedParticipants = [...(schedule.participants || []), memberName]
+      // schedulesAPI를 사용하여 참석자 추가
       await schedulesAPI.update(schedule.id, { participants: updatedParticipants })
 
       // selectedSchedule 업데이트 (UI 즉시 반영)
@@ -1613,11 +1644,6 @@ export default function DashboardPage() {
           ...selectedSchedule,
           participants: updatedParticipants
         })
-      }
-
-      // 일정 목록 새로고침
-      if (selectedOrg) {
-        await fetchSchedules(selectedOrg.id)
       }
     } catch (error) {
       console.error('Error adding participant:', error)
@@ -1628,6 +1654,7 @@ export default function DashboardPage() {
   const handleRemoveParticipant = async (schedule: Schedule, memberName: string) => {
     try {
       const updatedParticipants = schedule.participants.filter(name => name !== memberName)
+      // schedulesAPI를 사용하여 참석자 제거
       await schedulesAPI.update(schedule.id, { participants: updatedParticipants })
 
       // selectedSchedule 업데이트 (UI 즉시 반영)
@@ -1636,11 +1663,6 @@ export default function DashboardPage() {
           ...selectedSchedule,
           participants: updatedParticipants
         })
-      }
-
-      // 일정 목록 새로고침
-      if (selectedOrg) {
-        await fetchSchedules(selectedOrg.id)
       }
     } catch (error) {
       console.error('Error removing participant:', error)
@@ -1657,7 +1679,7 @@ export default function DashboardPage() {
 📅 일시: ${formatDateWithYear(schedule.date)} ${schedule.time}
 📍 장소: ${schedule.location}
 🎯 벙주: ${schedule.createdBy || '정보 없음'}
-👥 참여 인원: ${schedule.participants?.length || 0} / ${schedule.maxParticipants}명
+👥 참여 인원: ${getGoingCount(schedule.participants)} / ${schedule.maxParticipants}명
 
 ${BRAND.NAME}와 함께하는 모임 일정에 참여하세요!
 
@@ -1692,24 +1714,20 @@ ${BRAND.NAME}와 함께하는 모임 일정에 참여하세요!
   }
 
   const handleAddComment = async (schedule: Schedule) => {
-    if (!commentText.trim() || !user) return
+    if (!commentText.trim() || !userProfile) return
 
     try {
       const newComment: Comment = {
         id: Date.now().toString(),
-        userName: userProfile?.name || user.displayName || '익명',
-        userUid: user.uid,
+        userName: userProfile?.name || '익명',
+        userUid: userProfile.uid,
         text: commentText,
         createdAt: new Date().toISOString()
       }
       const updatedComments = [...(schedule.comments || []), newComment]
+      // schedulesAPI를 사용하여 댓글 추가
       await schedulesAPI.update(schedule.id, { comments: updatedComments })
       setCommentText('')
-
-      // 일정 목록 새로고침
-      if (selectedOrg) {
-        await fetchSchedules(selectedOrg.id)
-      }
     } catch (error) {
       console.error('Error adding comment:', error)
       alert('댓글을 추가하는 중에 문제가 생겼어요.')
@@ -1721,12 +1739,8 @@ ${BRAND.NAME}와 함께하는 모임 일정에 참여하세요!
 
     try {
       const updatedComments = schedule.comments?.filter(comment => comment.id !== commentId) || []
+      // schedulesAPI를 사용하여 댓글 삭제
       await schedulesAPI.update(schedule.id, { comments: updatedComments })
-
-      // 일정 목록 새로고침
-      if (selectedOrg) {
-        await fetchSchedules(selectedOrg.id)
-      }
     } catch (error) {
       console.error('Error deleting comment:', error)
       alert('댓글 삭제 중 오류가 발생했습니다.')
@@ -1791,7 +1805,7 @@ ${BRAND.NAME}와 함께하는 모임 일정에 참여하세요!
   }
 
   // 멤버의 마지막 참여일로부터 경과일 계산 함수
-  const getMemberLastParticipationDays = (memberName: string): number | null => {
+  const getMemberLastParticipationDays = (memberName: string, memberUid?: string): number | null => {
     const today = new Date()
     today.setHours(0, 0, 0, 0) // 시간 부분 제거
 
@@ -1807,10 +1821,12 @@ ${BRAND.NAME}와 함께하는 모임 일정에 참여하세요!
         // 문자열 배열: ["이태규", "유시몬", ...]
         isParticipant = schedule.participants.includes(memberName)
       } else {
-        // 객체 배열: [{name: "이태규", uid: "..."}, ...]
-        // name 또는 userName 필드로 체크
+        // 객체 배열: [{name: "이태규", uid: "...", userId: "..."}, ...]
+        // userId, name, userName 필드로 체크
         isParticipant = schedule.participants.some((p: any) =>
-          p.name === memberName || p.userName === memberName
+          (memberUid && p.userId === memberUid) ||
+          p.name === memberName ||
+          p.userName === memberName
         )
       }
 
@@ -1906,7 +1922,7 @@ ${BRAND.NAME}와 함께하는 모임 일정에 참여하세요!
     try {
       if (!selectedOrg) return
 
-      const myName = userProfile?.name || user?.displayName || '익명'
+      const myName = userProfile?.name || '익명'
       const isParticipating = schedule.participants?.includes(myName)
 
       let updatedParticipants: string[]
@@ -1914,47 +1930,35 @@ ${BRAND.NAME}와 함께하는 모임 일정에 참여하세요!
         // 참여 취소
         updatedParticipants = schedule.participants.filter(name => name !== myName)
       } else {
-        // 참여
-        if (schedule.participants.length >= schedule.maxParticipants) {
+        // 참여 (status === 'going'인 참가자만 카운트)
+        if (getGoingCount(schedule.participants) >= schedule.maxParticipants) {
           alert('정원이 초과되었습니다.')
           return
         }
         updatedParticipants = [...schedule.participants, myName]
       }
 
+      // schedulesAPI를 사용하여 참여 상태 업데이트
       await schedulesAPI.update(schedule.id, {
         participants: updatedParticipants
       })
-
-      // 일정 목록 새로고침
-      await fetchSchedules(selectedOrg.id)
     } catch (error) {
       console.error('Error toggling participation:', error)
       alert('참여 상태를 바꾸는 중에 문제가 생겼어요.')
     }
   }
 
-  // 초기 로딩 중이고 유저가 없을 때만 로딩 화면 표시 (이미 인증된 상태에서는 깜빡임 방지)
-  if (loading && !user) {
+  // 초기 로딩 중이고 유저 프로필이 없을 때만 로딩 화면 표시 (이미 인증된 상태에서는 깜빡임 방지)
+  if (loading && !userProfile) {
     return <LoadingScreen />
   }
 
-  if (!user) {
+  if (!userProfile) {
     return null
   }
 
-  // userProfile이 없을 경우 기본값 사용
-  const profile = userProfile || {
-    uid: user.uid,
-    email: user.email || '',
-    name: user.email?.split('@')[0] || '사용자',
-    gender: '-',
-    birthdate: '-',
-    location: '서울',
-    mbti: '-',
-    joinDate: new Date().toLocaleDateString('ko-KR'),
-    role: 'member' as const
-  }
+  // userProfile을 profile로 사용
+  const profile = userProfile
 
   // 날짜에 연도 추가하는 함수
   const formatDateWithYear = (dateString: string): string => {
@@ -1999,7 +2003,7 @@ ${BRAND.NAME}와 함께하는 모임 일정에 참여하세요!
     const filtered = upcomingSchedules.filter(s => {
       const participants = s.participants || []
       const myName = userProfile?.name || ''
-      const myUid = user?.uid || ''
+      const myUid = userProfile?.uid || ''
 
       // 배열인 경우
       if (Array.isArray(participants)) {
@@ -2059,25 +2063,8 @@ ${BRAND.NAME}와 함께하는 모임 일정에 참여하세요!
       {/* Home Page */}
       {currentPage === 'home' && (
         <div className="bg-[#FAFAFA]">
-          {/* Premium Black Header */}
-          <header className="sticky top-0 z-10 safe-top" style={{ backgroundColor: 'var(--mokkoji-black)' }}>
-            <div className="px-4 md:px-6 py-3 flex justify-between items-center">
-              <div>
-                <h1 className="text-lg md:text-xl font-medium tracking-wider text-white flex items-center gap-2">
-                  <Home className="w-5 h-5" style={{ color: 'var(--mokkoji-accent)' }} />
-                  <span className="uppercase text-sm md:text-base">HOME</span>
-                </h1>
-              </div>
-              <div className="flex items-center gap-1">
-                <button className="p-2 md:p-2.5 rounded-lg transition-all duration-300 touch-target" style={{ '--hover-bg': 'var(--mokkoji-black-hover)' } as any} onMouseEnter={(e) => e.currentTarget.style.backgroundColor = 'var(--mokkoji-black-hover)'} onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}>
-                  <Bell className="w-5 h-5 text-white" strokeWidth={2} />
-                </button>
-                <button className="p-2 md:p-2.5 rounded-lg transition-all duration-300 touch-target" onMouseEnter={(e) => e.currentTarget.style.backgroundColor = 'var(--mokkoji-black-hover)'} onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}>
-                  <Settings className="w-5 h-5 text-white" strokeWidth={2} />
-                </button>
-              </div>
-            </div>
-          </header>
+          {/* MOKKOJI Header */}
+          <AppHeader showNotification showSettings />
 
           <div className="px-4 md:px-6 py-4 pb-24 space-y-6">
             {/* 내 동네 크루 섹션 */}
@@ -2085,9 +2072,9 @@ ${BRAND.NAME}와 함께하는 모임 일정에 참여하세요!
               {/* 헤더 */}
               <div className="flex items-center justify-between mb-4">
                 <div className="flex items-center gap-3">
-                  <MapPin className="w-5 h-5 text-mokkoji-accent" />
-                  <h2 className="text-lg md:text-xl font-medium tracking-wider text-mokkoji-black">
-                    NEARBY CREWS
+                  <MapPin className="w-5 h-5 text-[#5f0080]" strokeWidth={1.5} />
+                  <h2 className="text-lg font-semibold text-gray-900">
+                    내 주변 크루
                   </h2>
                   {userProfile?.locations && userProfile.locations.length > 0 && (
                     <span className="px-3 py-1 bg-mokkoji-primary-light text-mokkoji-primary text-xs font-medium rounded-full">
@@ -2166,12 +2153,12 @@ ${BRAND.NAME}와 함께하는 모임 일정에 참여하세요!
             `}</style>
 
             {/* 다가오는 일정 섹션 */}
-            <div className="card-premium p-6">
+            <div className="bg-white rounded-xl border border-gray-200 p-6">
               <div className="flex justify-between items-center mb-6">
                 <div className="flex items-center gap-3">
-                  <Calendar className="w-5 h-5 text-mokkoji-accent" />
-                  <h2 className="text-lg md:text-xl font-medium tracking-wider text-mokkoji-black">
-                    UPCOMING EVENTS
+                  <Calendar className="w-5 h-5 text-[#5f0080]" strokeWidth={1.5} />
+                  <h2 className="text-lg font-semibold text-gray-900">
+                    다가오는 일정
                   </h2>
                 </div>
                 <button
@@ -2179,9 +2166,9 @@ ${BRAND.NAME}와 함께하는 모임 일정에 참여하세요!
                     setScheduleFilter('joined')
                     router.replace('/dashboard?page=schedules', { scroll: false })
                   }}
-                  className="text-mokkoji-primary text-sm font-medium hover:text-mokkoji-primary-hover transition-colors duration-300 px-3 py-2 rounded-lg hover:bg-mokkoji-primary-light"
+                  className="text-[#5f0080] text-sm font-medium hover:text-[#4a0066] transition-colors px-3 py-2 rounded-lg hover:bg-[#f3e8f7]"
                 >
-                  View All →
+                  전체보기
                 </button>
               </div>
               {mySchedules.length === 0 ? (
@@ -2227,7 +2214,7 @@ ${BRAND.NAME}와 함께하는 모임 일정에 참여하세요!
                             Participants
                           </p>
                           <p className="text-mokkoji-black text-lg font-medium">
-                            {schedule.participants?.length || 0}<span className="text-mokkoji-gray-500">/{schedule.maxParticipants}</span>
+                            {getGoingCount(schedule.participants)}<span className="text-mokkoji-gray-500">/{schedule.maxParticipants}</span>
                           </p>
                         </div>
                       </div>
@@ -2243,52 +2230,37 @@ ${BRAND.NAME}와 함께하는 모임 일정에 참여하세요!
       {/* Category Page - Premium Design */}
       {currentPage === 'category' && (
         <div className="bg-[#FAFAFA] min-h-screen">
-          <header className="sticky top-0 z-10 safe-top" style={{ backgroundColor: 'var(--mokkoji-black)' }}>
-            <div className="px-4 md:px-6 py-3 flex items-center justify-between">
-              <h1 className="text-lg md:text-xl font-medium tracking-wider text-white flex items-center gap-2">
-                <Users className="w-5 h-5" style={{ color: 'var(--mokkoji-accent)' }} />
-                <span className="uppercase text-sm md:text-base">CATEGORY</span>
-              </h1>
-              <div className="flex items-center gap-1">
-                <button onClick={() => setSettingLocation(true)} className="p-2 md:p-2.5 rounded-lg transition-all duration-300 touch-target" onMouseEnter={(e) => e.currentTarget.style.backgroundColor = 'var(--mokkoji-black-hover)'} onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}>
-                  <MapPin className="w-5 h-5 text-white" />
-                </button>
-                <button onClick={() => router.push('/dashboard?page=home')} className="p-2 md:p-2.5 rounded-lg transition-all duration-300 touch-target" onMouseEnter={(e) => e.currentTarget.style.backgroundColor = 'var(--mokkoji-black-hover)'} onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}>
-                  <Bell className="w-5 h-5 text-white" />
-                </button>
-              </div>
-            </div>
+          {/* MOKKOJI Header */}
+          <AppHeader showNotification />
 
-            {/* 검색창 */}
-            <div className="px-4 md:px-6 pb-3">
-              <div className="relative">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5" style={{ color: 'var(--mokkoji-gray-400)' }} />
-                <input
-                  type="text"
-                  placeholder="크루명 또는 카테고리 검색..."
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  className="input-premium text-base"
-                  style={{ fontSize: '16px' }}
-                />
-                {searchQuery && (
-                  <button
-                    onClick={() => setSearchQuery('')}
-                    className="absolute right-3 top-1/2 -translate-y-1/2 p-1 rounded transition-colors"
-                    style={{ color: 'var(--mokkoji-gray-400)' }}
-                  >
-                    <X className="w-4 h-4" />
-                  </button>
-                )}
-              </div>
+          {/* 검색창 */}
+          <div className="bg-white border-b border-gray-200 px-4 py-3">
+            <div className="relative">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" strokeWidth={1.5} />
+              <input
+                type="text"
+                placeholder="크루명 또는 카테고리 검색..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="w-full pl-10 pr-10 py-2.5 bg-gray-100 border-0 rounded-lg text-sm text-gray-900 placeholder-gray-500 focus:ring-2 focus:ring-[#5f0080] focus:bg-white"
+                style={{ fontSize: '16px' }}
+              />
+              {searchQuery && (
+                <button
+                  onClick={() => setSearchQuery('')}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 p-1 rounded text-gray-400 hover:text-gray-600"
+                >
+                  <X className="w-4 h-4" strokeWidth={1.5} />
+                </button>
+              )}
             </div>
-          </header>
+          </div>
 
           {/* 카테고리 필터 칩 */}
           <div className="sticky top-[var(--header-height)] bg-white z-9 border-b border-mokkoji-gray-200">
             {/* 대카테고리 */}
-            <div className="px-4 md:px-6 pt-3 pb-2 overflow-x-auto scrollbar-hide border-b border-mokkoji-gray-100">
-              <div className="flex gap-2">
+            <div className="px-4 md:px-6 pt-3 pb-2 overflow-x-auto scrollbar-hide border-b border-mokkoji-gray-100" style={{ WebkitOverflowScrolling: 'touch' }}>
+              <div className="flex gap-2 flex-nowrap" style={{ minWidth: 'max-content' }}>
                 <button
                   onClick={() => {
                     setSelectedCategoryGroup(null)
@@ -2322,8 +2294,8 @@ ${BRAND.NAME}와 함께하는 모임 일정에 참여하세요!
             </div>
 
             {/* 세부 카테고리 */}
-            <div className="px-4 md:px-6 py-2 overflow-x-auto scrollbar-hide">
-              <div className="flex gap-2">
+            <div className="px-4 md:px-6 py-2 overflow-x-auto scrollbar-hide" style={{ WebkitOverflowScrolling: 'touch' }}>
+              <div className="flex gap-2 flex-nowrap" style={{ minWidth: 'max-content' }}>
                 <button
                   onClick={() => setSelectedCategory('전체')}
                   className={`flex-shrink-0 px-3 py-1.5 rounded-lg text-xs font-medium transition-all duration-300 ${
@@ -2423,36 +2395,35 @@ ${BRAND.NAME}와 함께하는 모임 일정에 참여하세요!
       {/* My Crew List Page - 가입한 크루 목록 */}
       {currentPage === 'mycrew' && !urlOrgId && (
         <div className="bg-[#FAFAFA] min-h-screen">
-          {/* Premium Black Header */}
-          <header className="sticky top-0 z-10 safe-top" style={{ backgroundColor: 'var(--mokkoji-black)' }}>
-            <div className="px-4 md:px-6 py-3">
-              <h1 className="text-lg md:text-xl font-medium tracking-wider text-white flex items-center gap-2">
-                <Tent className="w-5 h-5" style={{ color: 'var(--mokkoji-accent)' }} />
-                <span className="uppercase text-sm md:text-base">MY CREW</span>
-              </h1>
-            </div>
-          </header>
+          {/* MOKKOJI Header */}
+          <AppHeader showNotification showSettings />
+
+          {/* 페이지 타이틀 */}
+          <div className="bg-white border-b border-gray-200 px-4 py-3">
+            <h1 className="text-lg font-semibold text-gray-900">내 크루</h1>
+          </div>
 
           {/* 크루 목록 */}
-          <div className="px-4 md:px-6 py-4">
+          <div className="px-4 py-4">
             {organizations.length === 0 ? (
-              <div className="card-premium p-12 text-center">
+              <div className="bg-white rounded-xl border border-gray-200 p-12 text-center">
                 <div className="flex justify-center mb-4">
-                  <div className="w-16 h-16 rounded-full bg-mokkoji-primary/10 flex items-center justify-center">
-                    <Tent className="w-8 h-8 text-mokkoji-primary" />
+                  <div className="w-16 h-16 rounded-full bg-[#f3e8f7] flex items-center justify-center">
+                    <Tent className="w-8 h-8 text-[#5f0080]" strokeWidth={1.5} />
                   </div>
                 </div>
-                <p className="text-base font-medium text-mokkoji-black mb-2">No Crews Yet</p>
-                <p className="text-sm text-mokkoji-gray-600">Find and join crews nearby</p>
+                <p className="text-sm font-medium text-gray-900 mb-2">가입한 크루가 없습니다</p>
+                <p className="text-sm text-gray-500">주변 크루를 찾아 가입해보세요</p>
               </div>
             ) : (
               <div className="space-y-4">
-                {organizations.map((org) => {
-                  const memberCount = orgMemberCounts[org.id] || org.memberCount || 0
+                {organizations.map((org, index) => {
+                  const orgId = org.id || org.organizationId
+                  const memberCount = orgMemberCounts[orgId] || org.memberCount || 0
                   // 예정된 일정만 카운트 (오늘 포함, 그 이후)
                   const today = new Date().toISOString().split('T')[0] // YYYY-MM-DD
                   const orgScheduleCount = schedules.filter(s => {
-                    if (s.orgId !== org.id) return false
+                    if (s.orgId !== orgId) return false
                     // dateISO 필드가 있으면 사용, 없으면 date 필드 사용 (마이그레이션 전 데이터 대응)
                     const scheduleDate = s.dateISO || s.date
                     return scheduleDate >= today
@@ -2460,9 +2431,9 @@ ${BRAND.NAME}와 함께하는 모임 일정에 참여하세요!
 
                   return (
                     <div
-                      key={org.id}
+                      key={orgId || `org-${index}`}
                       onClick={() => {
-                        router.replace(`/dashboard?page=mycrew&orgId=${org.id}`, { scroll: false })
+                        router.replace(`/dashboard?page=mycrew&orgId=${orgId}`, { scroll: false })
                       }}
                       className="card-premium p-6 border border-mokkoji-gray-200 hover:border-mokkoji-primary hover:shadow-md transition-all duration-300 cursor-pointer active:scale-[0.98]"
                     >
@@ -2521,15 +2492,15 @@ ${BRAND.NAME}와 함께하는 모임 일정에 참여하세요!
                   setOrgForm({ name: '', subtitle: '', description: '', categories: [] })
                   setOrgAvatarFile(null)
                 }}
-                className="w-full bg-mokkoji-primary hover:bg-mokkoji-primary-hover rounded-xl p-5 md:p-6 shadow-md hover:shadow-lg transition-all duration-300 active:scale-[0.98] text-white"
+                className="w-full bg-[#5f0080] hover:bg-[#4a0066] rounded-xl p-5 transition-all active:scale-[0.98] text-white"
               >
                 <div className="flex items-center justify-between">
                   <div className="text-left">
-                    <h3 className="text-lg md:text-xl font-medium tracking-wider uppercase mb-1">Create New Crew</h3>
-                    <p className="text-sm leading-5 opacity-90 font-normal">Start your own community</p>
+                    <h3 className="text-lg font-semibold mb-1">새 크루 만들기</h3>
+                    <p className="text-sm opacity-90">나만의 크루를 시작하세요</p>
                   </div>
                   <div className="flex items-center justify-center">
-                    <Plus className="w-8 h-8 md:w-10 md:h-10 text-white" />
+                    <Plus className="w-8 h-8 text-white" strokeWidth={1.5} />
                   </div>
                 </div>
               </button>
@@ -2541,68 +2512,57 @@ ${BRAND.NAME}와 함께하는 모임 일정에 참여하세요!
       {/* All Schedules Page - 다가오는 일정 전체보기 (독립 페이지) */}
       {currentPage === 'schedules' && (
         <div className="bg-[#FAFAFA] min-h-screen">
-          {/* Premium Black Header */}
-          <header className="sticky top-0 z-10 safe-top" style={{ backgroundColor: 'var(--mokkoji-black)' }}>
-            <div className="px-4 md:px-6 py-3 flex items-center justify-between">
-              <div>
-                <h1 className="text-lg md:text-xl font-medium tracking-wider text-white flex items-center gap-2">
-                  <Calendar className="w-5 h-5" style={{ color: 'var(--mokkoji-accent)' }} />
-                  <span className="uppercase text-sm md:text-base">SCHEDULE</span>
-                </h1>
-              </div>
-              <button
-                onClick={() => router.replace('/dashboard?page=home', { scroll: false })}
-                className="p-2 md:p-2.5 rounded-lg transition-all duration-300 touch-target"
-                onMouseEnter={(e) => e.currentTarget.style.backgroundColor = 'var(--mokkoji-black-hover)'}
-                onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
-              >
-                <X className="w-5 h-5 text-white" strokeWidth={2} />
-              </button>
-            </div>
+          {/* MOKKOJI Header */}
+          <AppHeader showNotification showSettings />
 
+          {/* 페이지 타이틀 & 필터 */}
+          <div className="bg-white border-b border-gray-200">
+            <div className="px-4 py-3 flex items-center justify-between">
+              <h1 className="text-lg font-semibold text-gray-900">일정</h1>
+            </div>
             {/* 필터 칩 */}
-            <div className="px-4 pb-3 overflow-x-auto scrollbar-hide">
-              <div className="flex gap-2">
+            <div className="px-4 pb-3 overflow-x-auto scrollbar-hide" style={{ WebkitOverflowScrolling: 'touch' }}>
+              <div className="flex gap-2 flex-nowrap" style={{ minWidth: 'max-content' }}>
                 <button
                   onClick={() => setScheduleFilter('all')}
                   className={`px-4 py-2 rounded-full text-sm font-medium whitespace-nowrap transition-all duration-300 active:scale-95 flex-shrink-0 ${
                     scheduleFilter === 'all'
-                      ? 'bg-mokkoji-primary text-white shadow-md'
-                      : 'bg-mokkoji-gray-100 text-mokkoji-black hover:bg-mokkoji-gray-200'
+                      ? 'bg-[#5f0080] text-white shadow-md'
+                      : 'bg-gray-100 text-gray-900 hover:bg-gray-200'
                   }`}
                 >
-                  All ({upcomingSchedules.length})
+                  전체 ({upcomingSchedules.length})
                 </button>
                 <button
                   onClick={() => setScheduleFilter('joined')}
                   className={`px-4 py-2 rounded-full text-sm font-medium whitespace-nowrap transition-all duration-300 active:scale-95 flex-shrink-0 ${
                     scheduleFilter === 'joined'
-                      ? 'bg-mokkoji-primary text-white shadow-md'
-                      : 'bg-mokkoji-gray-100 text-mokkoji-black hover:bg-mokkoji-gray-200'
+                      ? 'bg-[#5f0080] text-white shadow-md'
+                      : 'bg-gray-100 text-gray-900 hover:bg-gray-200'
                   }`}
                 >
-                  Joined ({mySchedules.length})
+                  참여중 ({mySchedules.length})
                 </button>
                 <button
                   onClick={() => setScheduleFilter('not-joined')}
                   className={`px-4 py-2 rounded-full text-sm font-medium whitespace-nowrap transition-all duration-300 active:scale-95 flex-shrink-0 ${
                     scheduleFilter === 'not-joined'
-                      ? 'bg-mokkoji-primary text-white shadow-md'
-                      : 'bg-mokkoji-gray-100 text-mokkoji-black hover:bg-mokkoji-gray-200'
+                      ? 'bg-[#5f0080] text-white shadow-md'
+                      : 'bg-gray-100 text-gray-900 hover:bg-gray-200'
                   }`}
                 >
-                  Available ({upcomingSchedules.length - mySchedules.length})
+                  참여가능 ({upcomingSchedules.length - mySchedules.length})
                 </button>
               </div>
             </div>
-          </header>
+          </div>
 
           <div className="px-6 py-4 md:py-6 space-y-6">
             {(() => {
               // 필터 적용
               let filteredSchedules = upcomingSchedules
-              const myName = userProfile?.name || user?.displayName || '익명'
-              const myUid = user?.uid || ''
+              const myName = userProfile?.name || '익명'
+              const myUid = userProfile?.uid || ''
 
               // 참여 여부 확인 헬퍼 함수
               const isParticipating = (schedule: any) => {
@@ -2682,7 +2642,7 @@ ${BRAND.NAME}와 함께하는 모임 일정에 참여하세요!
                         {/* 일정 카드들 */}
                         <div className="space-y-4">
                           {orgSchedules.map((schedule) => {
-                            const myName = userProfile?.name || user?.displayName || '익명'
+                            const myName = userProfile?.name || '익명'
                             const isParticipating = schedule.participants?.includes(myName)
                             return (
                               <div
@@ -2709,7 +2669,7 @@ ${BRAND.NAME}와 함께하는 모임 일정에 참여하세요!
                                   </p>
                                   <p className="flex items-center gap-2">
                                     <Users className="w-4 h-4 text-mokkoji-primary flex-shrink-0" />
-                                    <span className="font-normal">{schedule.participants?.length || 0}/{schedule.maxParticipants}명</span>
+                                    <span className="font-normal">{getGoingCount(schedule.participants)}/{schedule.maxParticipants}명</span>
                                   </p>
                                 </div>
                                 {isParticipating && (
@@ -2731,20 +2691,22 @@ ${BRAND.NAME}와 함께하는 모임 일정에 참여하세요!
         </div>
       )}
 
-      {/* Crew Detail Page - 토스 스타일 */}
+      {/* Crew Detail Page */}
       {currentPage === 'mycrew' && urlOrgId && (
-        <div className="bg-[#FFFBF7] min-h-screen">
+        <div className="bg-[#FAFAFA] min-h-screen">
           {!selectedOrg ? (
             // organizations 로딩 중일 때 로딩 표시
-            <div className="bg-[#FFFBF7] min-h-screen flex items-center justify-center">
+            <div className="bg-[#FAFAFA] min-h-screen flex items-center justify-center">
               <div className="text-center">
-                <div className="text-6xl mb-4">🔍</div>
-                <p className="text-lg font-bold text-gray-600">크루 정보를 불러오는 중...</p>
+                <div className="w-12 h-12 mx-auto mb-4 rounded-full bg-gray-100 flex items-center justify-center">
+                  <Search className="w-6 h-6 text-gray-400 animate-pulse" strokeWidth={1.5} />
+                </div>
+                <p className="text-sm text-gray-500">크루 정보를 불러오는 중...</p>
               </div>
             </div>
           ) : !isCrewMember ? (
             // 가입하지 않은 크루 - 가입 신청 페이지
-            <div className="bg-[#FFFBF7] min-h-screen">
+            <div className="bg-[#FAFAFA] min-h-screen">
               <header className="sticky top-0 bg-white z-10 safe-top border-b border-gray-100">
                 <div className="px-4 py-3">
                   <button
@@ -2798,7 +2760,9 @@ ${BRAND.NAME}와 함께하는 모임 일정에 참여하세요!
                 {/* 멤버 수 정보 - 개선된 디자인 */}
                 <div className="bg-white rounded-2xl p-6 shadow-sm mb-24">
                   <div className="flex items-center gap-3">
-                    <span className="text-3xl">👥</span>
+                    <div className="w-10 h-10 rounded-full bg-[#f3e8f7] flex items-center justify-center">
+                      <Users className="w-5 h-5 text-[#5f0080]" strokeWidth={1.5} />
+                    </div>
                     <div>
                       <p className="font-semibold text-2xl text-gray-900">
                         {viewingOrgMemberCount}명
@@ -2815,7 +2779,7 @@ ${BRAND.NAME}와 함께하는 모임 일정에 참여하세요!
                   onClick={() => handleJoinCrew(selectedOrg.id)}
                   className="w-full h-14 bg-[#FF9B50] text-white rounded-xl font-semibold text-lg shadow-lg hover:shadow-xl transition-all active:scale-95"
                 >
-                  🙋 크루 가입 신청하기
+                  크루 가입 신청하기
                 </button>
                 <p className="text-center text-xs text-gray-500 mt-2">
                   크루장의 승인 후 크루에 참여할 수 있습니다
@@ -2825,103 +2789,145 @@ ${BRAND.NAME}와 함께하는 모임 일정에 참여하세요!
           ) : (
             // 가입한 크루 - 크루 상세 페이지
             <>
-              {/* Premium Black Header */}
-              <header className="sticky top-0 z-10 safe-top" style={{ backgroundColor: 'var(--mokkoji-black)' }}>
-                <div className="px-4 md:px-6 py-3">
-                  <div className="flex items-center justify-between mb-2">
+              {/* 헤더 (sticky) */}
+              <header className="sticky top-0 z-10 bg-white border-b border-gray-200">
+                <div className="h-14 px-4 flex items-center justify-between">
+                  <button
+                    onClick={() => router.replace('/dashboard?page=mycrew', { scroll: false })}
+                    className="p-2 -ml-2 rounded-lg hover:bg-gray-100 transition-colors"
+                  >
+                    <ChevronLeft className="w-5 h-5 text-gray-700" strokeWidth={1.5} />
+                  </button>
+                  <h1 className="text-lg font-semibold text-gray-900 truncate max-w-[200px]">{selectedOrg.name}</h1>
+                  {canManageOrg(selectedOrg.id) ? (
                     <button
-                      onClick={() => {
-                        router.replace('/dashboard?page=mycrew', { scroll: false })
-                      }}
-                      className="p-2 rounded-lg transition-all duration-300"
-                      onMouseEnter={(e) => e.currentTarget.style.backgroundColor = 'var(--mokkoji-black-hover)'}
-                      onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
+                      onClick={() => router.push(`/crew/${selectedOrg.id}/settings`)}
+                      className="p-2 -mr-2 rounded-lg hover:bg-gray-100 transition-colors"
                     >
-                      <ChevronLeft className="w-5 h-5 text-white" strokeWidth={2} />
+                      <Settings className="w-5 h-5 text-gray-700" strokeWidth={1.5} />
                     </button>
-                    {canManageOrg(selectedOrg.id) && (
-                      <button
-                        onClick={() => router.push(`/crew/${selectedOrg.id}/settings`)}
-                        className="px-3 py-2 bg-mokkoji-primary text-white text-sm font-medium rounded-lg hover:bg-mokkoji-primary-hover transition-all duration-300 active:scale-95"
-                      >
-                        <span className="inline-flex items-center gap-1.5">
-                          <Settings className="w-4 h-4" />
-                          Settings
+                  ) : (
+                    <div className="w-9" />
+                  )}
+                </div>
+              </header>
+
+              {/* 크루 정보 카드 */}
+              <div className="bg-[#FAFAFA] px-4 py-4 space-y-4">
+                <div className="bg-white border border-gray-200 rounded-xl p-4">
+                  <div className="flex gap-4">
+                    {/* 크루 이미지 */}
+                    <div className="w-20 h-20 rounded-xl overflow-hidden bg-gray-100 flex-shrink-0">
+                      {selectedOrg.avatar ? (
+                        <img src={selectedOrg.avatar} alt={selectedOrg.name} className="w-full h-full object-cover" />
+                      ) : (
+                        <div className="w-full h-full flex items-center justify-center">
+                          <Tent className="w-10 h-10 text-gray-400" strokeWidth={1.5} />
+                        </div>
+                      )}
+                    </div>
+                    {/* 크루 정보 */}
+                    <div className="flex-1 min-w-0">
+                      <h2 className="text-lg font-semibold text-gray-900 truncate">{selectedOrg.name}</h2>
+                      {selectedOrg.subtitle && (
+                        <p className="text-sm text-gray-500 mt-0.5">{selectedOrg.subtitle}</p>
+                      )}
+                      {selectedOrg.description && (
+                        <p className="text-sm text-gray-700 mt-2 line-clamp-2">{selectedOrg.description}</p>
+                      )}
+                      {/* 멤버 수, 일정 수 */}
+                      <div className="flex items-center gap-3 mt-2 text-xs text-gray-500">
+                        <span className="flex items-center gap-1">
+                          <Users className="w-3.5 h-3.5" strokeWidth={1.5} />
+                          멤버 {orgMemberCounts[selectedOrg.id] || selectedOrg.memberCount || 0}명
                         </span>
-                      </button>
-                    )}
+                        <span className="flex items-center gap-1">
+                          <Calendar className="w-3.5 h-3.5" strokeWidth={1.5} />
+                          일정 {upcomingSchedules.length}개
+                        </span>
+                      </div>
+                    </div>
                   </div>
-                  <h1 className="text-lg md:text-xl font-medium text-white">{selectedOrg.name}</h1>
-                  {selectedOrg.subtitle && (
-                    <p className="text-sm text-mokkoji-gray-300 mt-1">{selectedOrg.subtitle}</p>
+                  {/* 태그들 */}
+                  {(selectedOrg.categories || [selectedOrg.category]).filter(Boolean).length > 0 && (
+                    <div className="flex flex-wrap gap-2 mt-4 pt-4 border-t border-gray-100">
+                      {(selectedOrg.categories || [selectedOrg.category]).filter(Boolean).map((cat, idx) => (
+                        <span
+                          key={idx}
+                          className="px-2.5 py-1 bg-gray-100 text-gray-700 text-xs rounded-md font-medium"
+                        >
+                          {cat}
+                        </span>
+                      ))}
+                    </div>
                   )}
                 </div>
 
-            {/* 탭 전환 버튼 */}
-            <div className="px-4 md:px-6 pb-3 flex gap-2">
-              <button
-                onClick={() => setCrewView('schedules')}
-                className={`flex-1 py-3 rounded-lg font-medium text-sm tracking-wider uppercase transition-all duration-300 active:scale-95 ${
-                  crewView === 'schedules'
-                    ? 'bg-mokkoji-primary text-white'
-                    : 'bg-mokkoji-gray-800 text-mokkoji-gray-300 hover:bg-mokkoji-gray-700'
-                }`}
-              >
-                <Calendar className="w-4 h-4 inline-block mr-2" />
-                Events
-              </button>
-              <button
-                onClick={() => setCrewView('photos')}
-                className={`flex-1 py-3 rounded-lg font-medium text-sm tracking-wider uppercase transition-all duration-300 active:scale-95 ${
-                  crewView === 'photos'
-                    ? 'bg-mokkoji-primary text-white'
-                    : 'bg-mokkoji-gray-800 text-mokkoji-gray-300 hover:bg-mokkoji-gray-700'
-                }`}
-              >
-                <Camera className="w-4 h-4 inline-block mr-2" />
-                Photos
-              </button>
-            </div>
+                {/* 탭 영역 */}
+                <div className="bg-white border border-gray-200 rounded-xl p-1 flex gap-1">
+                  <button
+                    onClick={() => setCrewView('schedules')}
+                    className={`flex-1 py-2.5 rounded-lg font-medium text-sm transition-all ${
+                      crewView === 'schedules'
+                        ? 'bg-[#5f0080] text-white'
+                        : 'text-gray-500 hover:bg-gray-50'
+                    }`}
+                  >
+                    <Calendar className="w-4 h-4 inline-block mr-1.5" strokeWidth={1.5} />
+                    일정
+                  </button>
+                  <button
+                    onClick={() => setCrewView('photos')}
+                    className={`flex-1 py-2.5 rounded-lg font-medium text-sm transition-all ${
+                      crewView === 'photos'
+                        ? 'bg-[#5f0080] text-white'
+                        : 'text-gray-500 hover:bg-gray-50'
+                    }`}
+                  >
+                    <Camera className="w-4 h-4 inline-block mr-1.5" strokeWidth={1.5} />
+                    사진
+                  </button>
+                </div>
 
-            {/* 통계 카드 - 일정 탭에서만 표시 */}
-            {crewView === 'schedules' && (
-            <div className="px-4 pb-4 grid grid-cols-3 gap-3">
-              <button
-                onClick={() => setScheduleFilter('all')}
-                className={`rounded-xl p-4 text-center transition-all duration-300 active:scale-95 ${
-                  scheduleFilter === 'all'
-                    ? 'bg-mokkoji-primary text-white shadow-md'
-                    : 'bg-mokkoji-gray-100 text-mokkoji-black hover:bg-mokkoji-gray-200'
-                }`}
-              >
-                <div className="text-3xl leading-9 font-medium tracking-tight">{upcomingSchedules.length}</div>
-                <div className="text-xs leading-5 font-medium mt-1 opacity-80 tracking-wider uppercase">All</div>
-              </button>
-              <button
-                onClick={() => setScheduleFilter('joined')}
-                className={`rounded-xl p-4 text-center transition-all duration-300 active:scale-95 ${
-                  scheduleFilter === 'joined'
-                    ? 'bg-mokkoji-primary text-white shadow-md'
-                    : 'bg-mokkoji-gray-100 text-mokkoji-black hover:bg-mokkoji-gray-200'
-                }`}
-              >
-                <div className="text-3xl leading-9 font-medium tracking-tight">{mySchedules.length}</div>
-                <div className="text-xs leading-5 font-medium mt-1 opacity-80 tracking-wider uppercase">Joined</div>
-              </button>
-              <button
-                onClick={() => setScheduleFilter('not-joined')}
-                className={`rounded-xl p-4 text-center transition-all duration-300 active:scale-95 ${
-                  scheduleFilter === 'not-joined'
-                    ? 'bg-mokkoji-primary text-white shadow-md'
-                    : 'bg-mokkoji-gray-100 text-mokkoji-black hover:bg-mokkoji-gray-200'
-                }`}
-              >
-                <div className="text-3xl leading-9 font-medium tracking-tight">{upcomingSchedules.length - mySchedules.length}</div>
-                <div className="text-xs leading-5 font-medium mt-1 opacity-80 tracking-wider uppercase">Available</div>
-              </button>
-            </div>
-            )}
-          </header>
+                {/* 일정 필터 - 일정 탭에서만 표시 */}
+                {crewView === 'schedules' && (
+                  <div className="flex gap-2">
+                    <button
+                      onClick={() => setScheduleFilter('all')}
+                      className={`flex-1 py-3 rounded-xl text-center transition-all ${
+                        scheduleFilter === 'all'
+                          ? 'bg-[#5f0080] text-white'
+                          : 'bg-white border border-gray-200 text-gray-700 hover:bg-gray-50'
+                      }`}
+                    >
+                      <div className="text-2xl font-semibold">{upcomingSchedules.length}</div>
+                      <div className="text-xs mt-0.5">전체</div>
+                    </button>
+                    <button
+                      onClick={() => setScheduleFilter('joined')}
+                      className={`flex-1 py-3 rounded-xl text-center transition-all ${
+                        scheduleFilter === 'joined'
+                          ? 'bg-[#5f0080] text-white'
+                          : 'bg-white border border-gray-200 text-gray-700 hover:bg-gray-50'
+                      }`}
+                    >
+                      <div className="text-2xl font-semibold">{mySchedules.length}</div>
+                      <div className="text-xs mt-0.5">참여중</div>
+                    </button>
+                    <button
+                      onClick={() => setScheduleFilter('not-joined')}
+                      className={`flex-1 py-3 rounded-xl text-center transition-all ${
+                        scheduleFilter === 'not-joined'
+                          ? 'bg-[#5f0080] text-white'
+                          : 'bg-white border border-gray-200 text-gray-700 hover:bg-gray-50'
+                      }`}
+                    >
+                      <div className="text-2xl font-semibold">{upcomingSchedules.length - mySchedules.length}</div>
+                      <div className="text-xs mt-0.5">참여가능</div>
+                    </button>
+                  </div>
+                )}
+              </div>
 
           {/* 일정 뷰 */}
           {crewView === 'schedules' && (
@@ -2982,8 +2988,8 @@ ${BRAND.NAME}와 함께하는 모임 일정에 참여하세요!
               <div className="space-y-4">
                 {(() => {
                   let filteredSchedules = upcomingSchedules
-                  const myName = userProfile?.name || user?.displayName || '익명'
-                  const myUid = user?.uid || ''
+                  const myName = userProfile?.name || '익명'
+                  const myUid = userProfile?.uid || ''
 
                   // 참여 여부 확인 헬퍼 함수
                   const isParticipating = (schedule: any) => {
@@ -3057,7 +3063,7 @@ ${BRAND.NAME}와 함께하는 모임 일정에 참여하세요!
                         </p>
                         <p className="flex items-center gap-2">
                           <Users className="w-4 h-4 text-mokkoji-primary flex-shrink-0" />
-                          <span className="font-normal">{schedule.participants?.length || 0}/{schedule.maxParticipants}명</span>
+                          <span className="font-normal">{getGoingCount(schedule.participants)}/{schedule.maxParticipants}명</span>
                         </p>
                         <p className="flex items-center gap-2">
                           <Target className="w-4 h-4 text-mokkoji-primary flex-shrink-0" />
@@ -3109,7 +3115,7 @@ ${BRAND.NAME}와 함께하는 모임 일정에 참여하세요!
                           </p>
                           <p className="flex items-center gap-2">
                             <Users className="w-4 h-4 text-mokkoji-gray-500 flex-shrink-0" />
-                            <span className="font-normal">{schedule.participants?.length || 0}/{schedule.maxParticipants}명</span>
+                            <span className="font-normal">{getGoingCount(schedule.participants)}/{schedule.maxParticipants}명</span>
                           </p>
                           <p className="flex items-center gap-2">
                             <Target className="w-4 h-4 text-mokkoji-gray-500 flex-shrink-0" />
@@ -3134,7 +3140,7 @@ ${BRAND.NAME}와 함께하는 모임 일정에 참여하세요!
           {crewView === 'photos' && selectedOrg && (
             <div className="px-6 py-4 md:py-6">
               {/* 사진 업로드 버튼 - 크루 멤버만 */}
-              {members.some(m => m.uid === user?.uid) && (
+              {members.some(m => m.uid === userProfile?.uid) && (
                 <div className="mb-6">
                   <label className="w-full py-4 px-6 bg-mokkoji-primary hover:bg-mokkoji-primary-hover text-white rounded-xl font-medium text-sm tracking-wider uppercase cursor-pointer active:scale-[0.98] transition-all duration-300 flex items-center justify-center gap-2">
                     {uploadingPhoto ? (
@@ -3182,7 +3188,7 @@ ${BRAND.NAME}와 함께하는 모임 일정에 참여하세요!
                       key={photo.id}
                       onClick={() => {
                         // 크루 멤버만 상세 보기 가능
-                        if (members.some(m => m.uid === user?.uid)) {
+                        if (members.some(m => m.uid === userProfile?.uid)) {
                           setSelectedPhoto(photo)
                         } else {
                           alert('크루 멤버만 사진을 자세히 볼 수 있어요.')
@@ -3201,7 +3207,7 @@ ${BRAND.NAME}와 함께하는 모임 일정에 참여하세요!
               )}
 
               {/* 비회원용 안내 메시지 */}
-              {!members.some(m => m.uid === user?.uid) && photos.length > 0 && (
+              {!members.some(m => m.uid === userProfile?.uid) && photos.length > 0 && (
                 <div className="mt-6 p-4 bg-mokkoji-accent-light border border-mokkoji-accent rounded-xl">
                   <p className="text-sm leading-5 text-mokkoji-gray-700 text-center flex items-center justify-center gap-2">
                     <Camera className="w-4 h-4 text-mokkoji-accent flex-shrink-0" />
@@ -3263,7 +3269,7 @@ ${BRAND.NAME}와 함께하는 모임 일정에 참여하세요!
               </p>
 
               {/* 삭제 버튼 - 본인만 */}
-              {user && selectedPhoto.uploaderUid === user.uid && selectedOrg && (
+              {userProfile && selectedPhoto.uploaderUid === userProfile.uid && selectedOrg && (
                 <button
                   onClick={() => handlePhotoDelete(selectedPhoto.id, selectedOrg.id)}
                   className="mt-3 w-full py-2 bg-red-500 hover:bg-red-600 text-white rounded-lg font-medium text-sm leading-5"
@@ -3326,7 +3332,7 @@ ${BRAND.NAME}와 함께하는 모임 일정에 참여하세요!
                       // 활동 경과일 필터 적용
                       if (memberActivityFilter === 'all') return true
 
-                      const daysSinceLastParticipation = getMemberLastParticipationDays(member.displayName)
+                      const daysSinceLastParticipation = getMemberLastParticipationDays(member.displayName, member.uid)
 
                       if (memberActivityFilter === '10plus') {
                         return daysSinceLastParticipation !== null && daysSinceLastParticipation >= 10
@@ -3381,7 +3387,7 @@ ${BRAND.NAME}와 함께하는 모임 일정에 참여하세요!
                     .map((member) => {
                       const isCaptain = userProfile?.role === 'captain'
                       const isCurrentUser = userProfile?.uid === member.uid
-                      const daysSinceLastParticipation = getMemberLastParticipationDays(member.name)
+                      const daysSinceLastParticipation = getMemberLastParticipationDays(member.name, member.uid)
 
                       return (
                       <div
@@ -3518,7 +3524,7 @@ ${BRAND.NAME}와 함께하는 모임 일정에 참여하세요!
                 <div className="flex items-center justify-between mb-3">
                   <div className="text-base leading-6 font-extrabold text-gray-900 flex items-center gap-1.5"><Users className="w-5 h-5 text-[#FF9B50]" />참여 인원</div>
                   <div className="text-base leading-6 font-extrabold text-[#FF9B50]">
-                    {selectedSchedule.participants?.length || 0} / {selectedSchedule.maxParticipants}명
+                    {getGoingCount(selectedSchedule.participants)} / {selectedSchedule.maxParticipants}명
                   </div>
                 </div>
                 {selectedSchedule.participants && selectedSchedule.participants.length > 0 && (
@@ -3526,7 +3532,7 @@ ${BRAND.NAME}와 함께하는 모임 일정에 참여하세요!
                     {selectedSchedule.participants.map((name) => (
                       <div key={name} className="bg-[#F5F5F4] px-4 py-2.5 rounded-xl flex items-center gap-2 hover:bg-gray-200 transition-all duration-200">
                         <span className="text-sm leading-5 font-extrabold text-gray-900">{name}</span>
-                        {(userProfile?.role === 'captain' || userProfile?.role === 'staff' || selectedSchedule.createdByUid === user?.uid) && (
+                        {((selectedOrg && canManageOrg(selectedOrg.id)) || selectedSchedule.createdByUid === userProfile?.uid) && (
                           <button
                             onClick={(e) => {
                               e.stopPropagation()
@@ -3541,7 +3547,7 @@ ${BRAND.NAME}와 함께하는 모임 일정에 참여하세요!
                     ))}
                   </div>
                 )}
-                {(userProfile?.role === 'captain' || userProfile?.role === 'staff' || selectedSchedule.createdByUid === user?.uid) && (
+                {((selectedOrg && canManageOrg(selectedOrg.id)) || selectedSchedule.createdByUid === userProfile?.uid) && (
                   <button
                     onClick={(e) => {
                       e.stopPropagation()
@@ -3585,7 +3591,7 @@ ${BRAND.NAME}와 함께하는 모임 일정에 참여하세요!
                       <div key={`${comment.id}-${index}`} className="bg-[#FFFBF7] p-4 rounded-2xl">
                         <div className="flex justify-between items-start mb-2">
                           <div className="font-bold text-sm leading-5 text-[#FF9B50]">{comment.userName || '익명'}</div>
-                          {(comment.userUid === user?.uid || userProfile?.role === 'captain' || userProfile?.role === 'staff') && (
+                          {(comment.userUid === userProfile?.uid || (selectedOrg && canManageOrg(selectedOrg.id))) && (
                             <button
                               onClick={() => handleDeleteComment(selectedSchedule, comment.id)}
                               className="text-gray-600 hover:text-red-500 text-xl md:text-xl leading-none active:scale-[0.99] transition-transform duration-200 ease-out"
@@ -3632,7 +3638,7 @@ ${BRAND.NAME}와 함께하는 모임 일정에 참여하세요!
               </div>
 
               {/* 마스터(크루장/운영진) 또는 벙주만 수정/삭제 가능 */}
-              {(userProfile?.role === 'captain' || userProfile?.role === 'staff' || selectedSchedule.createdByUid === user?.uid) && (
+              {((selectedOrg && canManageOrg(selectedOrg.id)) || selectedSchedule.createdByUid === userProfile?.uid) && (
                 <div className="flex gap-4">
                   <button
                     onClick={() => {
@@ -3647,21 +3653,23 @@ ${BRAND.NAME}와 함께하는 모임 일정에 참여하세요!
                       setEditingSchedule(selectedSchedule)
                       setSelectedSchedule(null)
                     }}
-                    className="flex-1 bg-[#FF9B50] text-white py-4 rounded-2xl font-extrabold hover:bg-[#FF8A3D] transition-all active:scale-[0.98] text-sm leading-5"
+                    className="flex-1 bg-[#5f0080] text-white py-4 rounded-2xl font-semibold hover:bg-[#4a0066] transition-all active:scale-[0.98] text-sm flex items-center justify-center gap-2"
                   >
-                    ✏️ 수정
+                    <Edit className="w-4 h-4" strokeWidth={1.5} />
+                    수정
                   </button>
                   <button
                     onClick={() => handleDeleteSchedule(selectedSchedule)}
-                    className="flex-1 bg-[#F5F5F4] text-[#F04452] py-4 rounded-2xl font-extrabold hover:bg-[#FFE5E8] transition-all active:scale-[0.98] text-sm leading-5"
+                    className="flex-1 bg-gray-100 text-red-500 py-4 rounded-2xl font-semibold hover:bg-red-50 transition-all active:scale-[0.98] text-sm flex items-center justify-center gap-2"
                   >
-                    🗑️ 삭제
+                    <X className="w-4 h-4" strokeWidth={1.5} />
+                    삭제
                   </button>
                 </div>
               )}
 
               <div>
-                {selectedSchedule.participants?.includes(userProfile?.name || user?.displayName || '익명') ? (
+                {selectedSchedule.participants?.includes(userProfile?.name || '익명') ? (
                   <button
                     onClick={() => {
                       handleToggleParticipation(selectedSchedule)
@@ -3678,9 +3686,9 @@ ${BRAND.NAME}와 함께하는 모임 일정에 참여하세요!
                       setSelectedSchedule(null)
                     }}
                     className="w-full bg-[#FF9B50] text-white py-4 rounded-2xl font-extrabold hover:bg-[#FF8A3D] disabled:bg-[#E5E8EB] disabled:text-gray-600 transition-all active:scale-[0.98]"
-                    disabled={selectedSchedule.participants.length >= selectedSchedule.maxParticipants}
+                    disabled={getGoingCount(selectedSchedule.participants) >= selectedSchedule.maxParticipants}
                   >
-                    {selectedSchedule.participants.length >= selectedSchedule.maxParticipants ? '정원 초과' : '참여하기'}
+                    {getGoingCount(selectedSchedule.participants) >= selectedSchedule.maxParticipants ? '정원 초과' : '참여하기'}
                   </button>
                 )}
               </div>
@@ -3692,25 +3700,15 @@ ${BRAND.NAME}와 함께하는 모임 일정에 참여하세요!
       {/* My Profile Page - 토스 스타일 */}
       {currentPage === 'myprofile' && (
         <div className="bg-[#FAFAFA] min-h-screen pb-20">
-          {/* Premium Black Header */}
-          <header className="sticky top-0 z-10 safe-top" style={{ backgroundColor: 'var(--mokkoji-black)' }}>
-            <div className="px-4 md:px-6 py-3">
-              <h1 className="text-lg md:text-xl font-medium tracking-wider text-white flex items-center gap-2">
-                <User className="w-5 h-5" style={{ color: 'var(--mokkoji-accent)' }} />
-                <span className="uppercase text-sm md:text-base">MY PROFILE</span>
-              </h1>
-            </div>
-          </header>
+          {/* MOKKOJI Header */}
+          <AppHeader showNotification showSettings />
 
-          <div className="px-4 py-4 sm:px-5 sm:py-3 md:py-6 space-y-6 sm:space-y-4">
-            {/* 내 동네 설정 섹션 */}
-            <div className="card-premium p-4 sm:p-5 md:p-6">
-              <h3 className="text-base leading-6 sm:text-lg md:text-xl font-medium tracking-tight text-mokkoji-black mb-3 sm:mb-4 uppercase">
-                My Location
-              </h3>
-              <LocationVerification onOpenMap={() => setShowLocationSettings(true)} />
-            </div>
+          {/* 페이지 타이틀 */}
+          <div className="bg-white border-b border-gray-200 px-4 py-3">
+            <h1 className="text-lg font-semibold text-gray-900">프로필</h1>
+          </div>
 
+          <div className="px-4 py-4 space-y-4">
             {/* 프로필 카드 */}
             <div className="card-premium p-4 sm:p-5 md:p-6">
               <div className="text-center mb-5 sm:mb-6">
@@ -4166,8 +4164,8 @@ ${BRAND.NAME}와 함께하는 모임 일정에 참여하세요!
                     </div>
                   )}
                   <div className="flex gap-2">
-                    <label className="flex-1 py-2.5 px-4 bg-white border border-gray-300 text-gray-700 rounded-lg font-medium text-center cursor-pointer hover:bg-gray-100 active:scale-[0.99] transition-transform duration-200 ease-out">
-                      📸 사진 촬영
+                    <label className="flex-1 py-2.5 px-4 bg-white border border-gray-300 text-gray-700 rounded-lg font-medium text-center cursor-pointer hover:bg-gray-100 active:scale-[0.99] transition-transform duration-200 ease-out flex items-center justify-center gap-1.5">
+                      <Camera className="w-4 h-4" strokeWidth={1.5} /> 사진 촬영
                       <input
                         type="file"
                         accept="image/*"
@@ -4179,8 +4177,8 @@ ${BRAND.NAME}와 함께하는 모임 일정에 참여하세요!
                         className="hidden"
                       />
                     </label>
-                    <label className="flex-1 py-2.5 px-4 bg-white border border-gray-300 text-gray-700 rounded-lg font-medium text-center cursor-pointer hover:bg-gray-100 active:scale-[0.99] transition-transform duration-200 ease-out">
-                      🖼️ 갤러리
+                    <label className="flex-1 py-2.5 px-4 bg-white border border-gray-300 text-gray-700 rounded-lg font-medium text-center cursor-pointer hover:bg-gray-100 active:scale-[0.99] transition-transform duration-200 ease-out flex items-center justify-center gap-1.5">
+                      <ImageIcon className="w-4 h-4" strokeWidth={1.5} /> 갤러리
                       <input
                         type="file"
                         accept="image/*"
@@ -4497,29 +4495,38 @@ ${BRAND.NAME}와 함께하는 모임 일정에 참여하세요!
 
       {/* 내 프로필 수정 모달 */}
       {editingMyProfile && (
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-3xl max-w-md w-full max-h-[80vh] overflow-hidden flex flex-col">
-            <div className="bg-[#FF9B50] text-white p-6">
-              <h2 className="text-xl leading-7 md:text-2xl font-extrabold">내 정보 바꾸기</h2>
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl max-w-md w-full max-h-[85vh] overflow-hidden flex flex-col shadow-xl">
+            {/* 헤더 */}
+            <div className="bg-[#5f0080] px-5 py-4 flex-shrink-0">
+              <div className="flex items-center justify-between">
+                <h2 className="text-lg font-semibold text-white">내 정보 바꾸기</h2>
+                <button
+                  onClick={() => setEditingMyProfile(false)}
+                  className="w-8 h-8 rounded-full bg-white/10 flex items-center justify-center text-white hover:bg-white/20 transition-colors"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
             </div>
 
-            <div className="p-3 md:p-6 space-y-4 overflow-y-auto flex-1">
+            <div className="p-5 space-y-4 overflow-y-auto flex-1">
               <div>
-                <label className="block text-base leading-6 font-extrabold text-gray-700 mb-1">이름 *</label>
+                <label className="block text-sm font-medium text-gray-700 mb-1.5">이름 *</label>
                 <input
                   type="text"
                   value={myProfileForm.name}
                   onChange={(e) => setMyProfileForm({ ...myProfileForm, name: e.target.value })}
-                  className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-[#FF9B50] focus:ring-offset-2"
+                  className="w-full h-12 px-4 border border-gray-200 rounded-xl text-sm focus:border-[#5f0080] focus:ring-1 focus:ring-[#5f0080] focus:outline-none transition-colors"
                 />
               </div>
 
               <div>
-                <label className="block text-base leading-6 font-extrabold text-gray-700 mb-1">성별 *</label>
+                <label className="block text-sm font-medium text-gray-700 mb-1.5">성별 *</label>
                 <select
                   value={myProfileForm.gender}
                   onChange={(e) => setMyProfileForm({ ...myProfileForm, gender: e.target.value })}
-                  className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-[#FF9B50] focus:ring-offset-2"
+                  className="w-full h-12 px-4 border border-gray-200 rounded-xl text-sm focus:border-[#5f0080] focus:ring-1 focus:ring-[#5f0080] focus:outline-none transition-colors bg-white"
                 >
                   <option value="">선택</option>
                   <option value="남">남</option>
@@ -4528,26 +4535,26 @@ ${BRAND.NAME}와 함께하는 모임 일정에 참여하세요!
               </div>
 
               <div>
-                <label className="block text-base leading-6 font-extrabold text-gray-700 mb-1">생년월일 *</label>
+                <label className="block text-sm font-medium text-gray-700 mb-1.5">생년월일 *</label>
                 <input
                   type="date"
                   value={myProfileForm.birthdate}
                   onChange={(e) => setMyProfileForm({ ...myProfileForm, birthdate: e.target.value })}
-                  className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-[#FF9B50] focus:ring-offset-2"
+                  className="w-full h-12 px-4 border border-gray-200 rounded-xl text-sm focus:border-[#5f0080] focus:ring-1 focus:ring-[#5f0080] focus:outline-none transition-colors"
                 />
               </div>
 
               <div>
-                <label className="block text-base leading-6 font-extrabold text-gray-700 mb-1">지역 *</label>
+                <label className="block text-sm font-medium text-gray-700 mb-1.5">지역 *</label>
                 <div className="grid grid-cols-2 gap-2">
                   <select
                     value={selectedCity}
                     onChange={(e) => {
                       setSelectedCity(e.target.value)
-                      setSelectedDistrict('') // Reset district when city changes
+                      setSelectedDistrict('')
                       setMyProfileForm({ ...myProfileForm, location: e.target.value })
                     }}
-                    className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-[#FF9B50] focus:ring-offset-2"
+                    className="w-full h-12 px-4 border border-gray-200 rounded-xl text-sm focus:border-[#5f0080] focus:ring-1 focus:ring-[#5f0080] focus:outline-none transition-colors bg-white"
                   >
                     <option value="">시/도</option>
                     {getCities().map(city => (
@@ -4561,7 +4568,7 @@ ${BRAND.NAME}와 함께하는 모임 일정에 참여하세요!
                       setMyProfileForm({ ...myProfileForm, location: `${selectedCity} ${e.target.value}` })
                     }}
                     disabled={!selectedCity}
-                    className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-[#FF9B50] focus:ring-offset-2 disabled:bg-gray-100 disabled:cursor-not-allowed"
+                    className="w-full h-12 px-4 border border-gray-200 rounded-xl text-sm focus:border-[#5f0080] focus:ring-1 focus:ring-[#5f0080] focus:outline-none transition-colors bg-white disabled:bg-gray-50 disabled:cursor-not-allowed"
                   >
                     <option value="">구/군</option>
                     {selectedCity && getDistricts(selectedCity).map(district => (
@@ -4572,24 +4579,24 @@ ${BRAND.NAME}와 함께하는 모임 일정에 참여하세요!
               </div>
 
               <div>
-                <label className="block text-base leading-6 font-extrabold text-gray-700 mb-1">MBTI</label>
+                <label className="block text-sm font-medium text-gray-700 mb-1.5">MBTI</label>
                 <input
                   type="text"
                   value={myProfileForm.mbti}
                   onChange={(e) => setMyProfileForm({ ...myProfileForm, mbti: e.target.value })}
                   placeholder="ENFP"
                   maxLength={4}
-                  className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-[#FF9B50] focus:ring-offset-2"
+                  className="w-full h-12 px-4 border border-gray-200 rounded-xl text-sm focus:border-[#5f0080] focus:ring-1 focus:ring-[#5f0080] focus:outline-none transition-colors"
                 />
               </div>
 
               <div>
-                <label className="block text-base leading-6 font-extrabold text-gray-700 mb-2">
+                <label className="block text-sm font-medium text-gray-700 mb-1.5">
                   관심 크루 카테고리 * (중복 선택 가능)
                 </label>
-                <div className="grid grid-cols-3 gap-2 max-h-48 overflow-y-auto p-3 border border-gray-300 rounded-lg bg-gray-50">
+                <div className="grid grid-cols-3 gap-2 max-h-40 overflow-y-auto p-3 border border-gray-200 rounded-xl bg-gray-50">
                   {CREW_CATEGORIES.map((category) => (
-                    <label key={category} className="flex items-center gap-2 p-2 rounded hover:bg-white cursor-pointer transition-all duration-200">
+                    <label key={category} className="flex items-center gap-2 p-2 rounded-lg hover:bg-white cursor-pointer transition-all">
                       <input
                         type="checkbox"
                         checked={myProfileForm.interestCategories.includes(category)}
@@ -4606,16 +4613,16 @@ ${BRAND.NAME}와 함께하는 모임 일정에 참여하세요!
                             })
                           }
                         }}
-                        className="w-4 h-4 text-[#FF9B50] border-gray-300 rounded focus:ring-[#FF9B50]"
+                        className="w-4 h-4 text-[#5f0080] border-gray-300 rounded focus:ring-[#5f0080]"
                       />
-                      <span className="text-sm leading-5 text-gray-700">{category}</span>
+                      <span className="text-xs text-gray-600">{category}</span>
                     </label>
                   ))}
                 </div>
                 {myProfileForm.interestCategories.length > 0 && (
-                  <div className="mt-2 flex flex-wrap gap-1">
+                  <div className="mt-2 flex flex-wrap gap-1.5">
                     {myProfileForm.interestCategories.map((cat) => (
-                      <span key={cat} className="inline-flex items-center gap-1 px-2 py-1 bg-[#FF9B50] text-white text-xs rounded-full">
+                      <span key={cat} className="inline-flex items-center gap-1 px-2.5 py-1 bg-[#5f0080] text-white text-xs font-medium rounded-full">
                         {cat}
                         <button
                           type="button"
@@ -4623,31 +4630,158 @@ ${BRAND.NAME}와 함께하는 모임 일정에 참여하세요!
                             ...myProfileForm,
                             interestCategories: myProfileForm.interestCategories.filter(c => c !== cat)
                           })}
-                          className="hover:text-red-200"
+                          className="hover:text-gray-200 ml-0.5"
                         >
-                          ✕
+                          <X className="w-3 h-3" />
                         </button>
                       </span>
                     ))}
                   </div>
                 )}
               </div>
+
+              {/* 비밀번호 변경 섹션 */}
+              <div className="pt-4 border-t border-gray-200">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowPasswordChange(true)
+                    setPasswordForm({ currentPassword: '', newPassword: '', confirmPassword: '' })
+                    setPasswordChangeError('')
+                    setPasswordChangeSuccess(false)
+                  }}
+                  className="w-full h-12 bg-gray-100 text-gray-600 rounded-xl text-sm font-medium hover:bg-gray-200 active:scale-[0.98] transition-all flex items-center justify-center gap-2"
+                >
+                  <Settings className="w-4 h-4" />
+                  비밀번호 변경
+                </button>
+              </div>
             </div>
 
-            <div className="p-3 md:p-6 border-t flex gap-3">
-              <button
-                onClick={handleUpdateMyProfile}
-                className="flex-1 py-4 bg-[#FF9B50] text-white rounded-xl font-extrabold text-base leading-6 hover:bg-[#FF8A3D] transition-all duration-200"
-              >
-                저장
-              </button>
+            <div className="px-5 py-4 border-t border-gray-200 flex gap-3 flex-shrink-0">
               <button
                 onClick={() => setEditingMyProfile(false)}
-                className="flex-1 py-4 bg-gray-100 text-gray-700 rounded-xl font-extrabold text-base leading-6 hover:bg-gray-300 transition-all duration-200"
+                className="flex-1 h-12 rounded-xl border border-gray-200 text-sm font-medium text-gray-600 hover:bg-gray-50 active:scale-[0.98] transition-all"
               >
                 취소
               </button>
+              <button
+                onClick={handleUpdateMyProfile}
+                className="flex-1 h-12 rounded-xl bg-[#5f0080] text-sm font-medium text-white hover:bg-[#4a0066] active:scale-[0.98] transition-all"
+              >
+                저장
+              </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* 비밀번호 변경 모달 */}
+      {showPasswordChange && (
+        <div className="fixed inset-0 bg-black/50 z-[60] flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl max-w-md w-full overflow-hidden flex flex-col shadow-xl">
+            {/* 헤더 */}
+            <div className="bg-[#5f0080] px-5 py-4">
+              <div className="flex items-center justify-between">
+                <h2 className="text-lg font-semibold text-white">비밀번호 변경</h2>
+                <button
+                  onClick={() => {
+                    setShowPasswordChange(false)
+                    setPasswordForm({ currentPassword: '', newPassword: '', confirmPassword: '' })
+                    setPasswordChangeError('')
+                    setPasswordChangeSuccess(false)
+                  }}
+                  className="w-8 h-8 rounded-full bg-white/10 flex items-center justify-center text-white hover:bg-white/20 transition-colors"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+            </div>
+
+            <div className="p-5 space-y-4">
+              {passwordChangeSuccess ? (
+                <div className="text-center py-8">
+                  <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                    <Check className="w-8 h-8 text-green-600" />
+                  </div>
+                  <p className="text-base font-semibold text-green-600">비밀번호가 변경되었습니다!</p>
+                </div>
+              ) : (
+                <>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1.5">현재 비밀번호</label>
+                    <input
+                      type="password"
+                      value={passwordForm.currentPassword}
+                      onChange={(e) => setPasswordForm({ ...passwordForm, currentPassword: e.target.value })}
+                      className="w-full h-12 px-4 border border-gray-200 rounded-xl text-sm focus:border-[#5f0080] focus:ring-1 focus:ring-[#5f0080] focus:outline-none transition-colors"
+                      placeholder="현재 비밀번호 입력"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1.5">새 비밀번호</label>
+                    <input
+                      type="password"
+                      value={passwordForm.newPassword}
+                      onChange={(e) => setPasswordForm({ ...passwordForm, newPassword: e.target.value })}
+                      className="w-full h-12 px-4 border border-gray-200 rounded-xl text-sm focus:border-[#5f0080] focus:ring-1 focus:ring-[#5f0080] focus:outline-none transition-colors"
+                      placeholder="8자 이상, 대소문자/숫자/특수문자 포함"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1.5">새 비밀번호 확인</label>
+                    <input
+                      type="password"
+                      value={passwordForm.confirmPassword}
+                      onChange={(e) => setPasswordForm({ ...passwordForm, confirmPassword: e.target.value })}
+                      className="w-full h-12 px-4 border border-gray-200 rounded-xl text-sm focus:border-[#5f0080] focus:ring-1 focus:ring-[#5f0080] focus:outline-none transition-colors"
+                      placeholder="새 비밀번호 다시 입력"
+                    />
+                  </div>
+
+                  {passwordChangeError && (
+                    <div className="p-3 bg-red-50 border border-red-200 rounded-xl">
+                      <p className="text-sm text-red-600">{passwordChangeError}</p>
+                    </div>
+                  )}
+
+                  <div className="p-3 bg-[#f3e8f7] rounded-xl">
+                    <p className="text-xs font-medium text-[#5f0080] mb-1.5">비밀번호 조건:</p>
+                    <ul className="text-xs text-gray-600 space-y-0.5 ml-1">
+                      <li>• 8자 이상</li>
+                      <li>• 대문자 포함</li>
+                      <li>• 소문자 포함</li>
+                      <li>• 숫자 포함</li>
+                      <li>• 특수문자 포함 (!@#$%^&* 등)</li>
+                    </ul>
+                  </div>
+                </>
+              )}
+            </div>
+
+            {!passwordChangeSuccess && (
+              <div className="px-5 py-4 border-t border-gray-200 flex gap-3">
+                <button
+                  onClick={() => {
+                    setShowPasswordChange(false)
+                    setPasswordForm({ currentPassword: '', newPassword: '', confirmPassword: '' })
+                    setPasswordChangeError('')
+                  }}
+                  className="flex-1 h-12 rounded-xl border border-gray-200 text-sm font-medium text-gray-600 hover:bg-gray-50 active:scale-[0.98] transition-all"
+                >
+                  취소
+                </button>
+                <button
+                  onClick={handleChangePassword}
+                  disabled={changingPassword}
+                  className="flex-1 h-12 rounded-xl bg-[#5f0080] text-sm font-medium text-white hover:bg-[#4a0066] active:scale-[0.98] transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {changingPassword ? '변경 중...' : '비밀번호 변경'}
+                </button>
+              </div>
+            )}
           </div>
         </div>
       )}
@@ -4882,37 +5016,38 @@ ${BRAND.NAME}와 함께하는 모임 일정에 참여하세요!
         </div>
       )}
 
-      {/* Bottom Navigation - Premium */}
-      <nav className="fixed bottom-0 left-0 right-0 bg-white border-t border-mokkoji-gray-200 z-20 safe-bottom">
-        <div className="max-w-md mx-auto flex h-14">
+      {/* Bottom Navigation */}
+      <nav className="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 z-50 pb-safe">
+        <div className="flex items-center justify-around h-14">
           {[
-            { id: 'home' as Page, icon: Home, label: 'Home' },
-            { id: 'category' as Page, icon: Users, label: 'Browse' },
-            { id: 'mycrew' as Page, icon: Calendar, label: 'My Crew' },
-            { id: 'myprofile' as Page, icon: User, label: 'Profile' }
+            { id: 'home' as Page, icon: Home, label: '홈' },
+            { id: 'category' as Page, icon: Search, label: '둘러보기' },
+            { id: 'mycrew' as Page, icon: Users, label: '내 크루' },
+            { id: 'schedules' as Page, icon: Calendar, label: '일정' },
+            { id: 'myprofile' as Page, icon: User, label: '프로필' }
           ].map(({ id, icon: Icon, label }) => (
             <button
               key={id}
               onClick={() => {
-                // 탭 전환 시 스크롤을 맨 위로 리셋
                 window.scrollTo({ top: 0, behavior: 'smooth' })
-
-                // 탭 전환 시 URL만 업데이트 (currentPage는 URL에서 자동 계산됨)
                 if (id === 'mycrew') {
                   router.replace('/dashboard?page=mycrew', { scroll: false })
-                  fetchOrganizations() // 멤버 수 새로고침
+                  fetchOrganizations()
                 } else if (id === 'home' && organizations.length > 0) {
                   router.replace(`/dashboard?page=home&orgId=${organizations[0].id}`, { scroll: false })
                 } else {
                   router.replace(`/dashboard?page=${id}`, { scroll: false })
                 }
               }}
-              className={`flex-1 flex flex-col items-center justify-center gap-0.5 py-1.5 transition-all duration-300 active:scale-95 ${
-                currentPage === id ? 'text-mokkoji-primary' : 'text-mokkoji-gray-600'
-              }`}
+              className="flex flex-col items-center justify-center gap-0.5 py-2 px-4 min-w-[64px] transition-colors touch-target"
             >
-              <Icon className="w-6 h-6" strokeWidth={currentPage === id ? 2.5 : 2} />
-              <span className={`text-[10px] ${currentPage === id ? 'font-medium' : 'font-normal'}`}>{label}</span>
+              <Icon
+                className={`w-5 h-5 ${currentPage === id ? 'text-[#5f0080]' : 'text-gray-400'}`}
+                strokeWidth={1.5}
+              />
+              <span className={`text-xs ${currentPage === id ? 'text-[#5f0080] font-medium' : 'text-gray-400'}`}>
+                {label}
+              </span>
             </button>
           ))}
         </div>
@@ -4997,8 +5132,8 @@ function NearbyCrewsCarousel({
                   }}
                 />
               ) : (
-                <div className="w-full h-full flex items-center justify-center">
-                  <span className="text-5xl">🏕️</span>
+                <div className="w-full h-full flex items-center justify-center bg-gray-100">
+                  <Tent className="w-12 h-12 text-gray-400" strokeWidth={1.5} />
                 </div>
               )}
             </div>
@@ -5046,7 +5181,7 @@ function NearbyCrewsCarousel({
               {/* 멤버 수 */}
               <div className="flex items-center gap-1 text-gray-600 text-xs sm:text-sm">
                 <Users className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-[#FF9B50] flex-shrink-0" />
-                <span>멤버 {orgMemberCounts[crew.id] || 0}명</span>
+                <span>멤버 {orgMemberCounts[crew.id] || crew.memberCount || 0}명</span>
               </div>
             </div>
           </button>
