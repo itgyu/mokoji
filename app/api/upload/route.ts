@@ -26,9 +26,14 @@ const s3Client = new S3Client({
 
 export async function POST(request: NextRequest) {
   try {
+    console.log('[upload] 업로드 요청 시작');
+
     const formData = await request.formData();
     const file = formData.get('file') as File;
     const path = formData.get('path') as string;
+
+    console.log('[upload] file:', file ? `${file.name} (${file.size} bytes)` : 'null');
+    console.log('[upload] path:', path);
 
     if (!file || !path) {
       return NextResponse.json(
@@ -53,6 +58,13 @@ export async function POST(request: NextRequest) {
     // S3 버킷 이름 가져오기
     const bucket = process.env.AWS_S3_BUCKET || process.env.NEXT_PUBLIC_AWS_S3_BUCKET;
     const region = process.env.AWS_REGION || process.env.NEXT_PUBLIC_AWS_REGION || 'ap-northeast-2';
+    const hasAccessKey = !!(process.env.AWS_ACCESS_KEY_ID || process.env.NEXT_PUBLIC_AWS_ACCESS_KEY_ID);
+    const hasSecretKey = !!(process.env.AWS_SECRET_ACCESS_KEY || process.env.NEXT_PUBLIC_AWS_SECRET_ACCESS_KEY);
+
+    console.log('[upload] bucket:', bucket);
+    console.log('[upload] region:', region);
+    console.log('[upload] hasAccessKey:', hasAccessKey);
+    console.log('[upload] hasSecretKey:', hasSecretKey);
 
     if (!bucket) {
       console.error('[upload] S3 버킷 환경변수 누락');
@@ -62,12 +74,21 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    if (!hasAccessKey || !hasSecretKey) {
+      console.error('[upload] AWS 자격증명 누락');
+      return NextResponse.json(
+        { error: 'AWS 자격증명이 설정되지 않았습니다.' },
+        { status: 500 }
+      );
+    }
+
     // S3 업로드
+    console.log('[upload] S3 업로드 시작...');
     const command = new PutObjectCommand({
       Bucket: bucket,
       Key: path,
       Body: buffer,
-      ContentType: file.type,
+      ContentType: file.type || 'image/jpeg',
       CacheControl: 'max-age=31536000', // 1년 캐시
     });
 
@@ -79,10 +100,12 @@ export async function POST(request: NextRequest) {
     console.log('[upload] 업로드 성공:', url);
 
     return NextResponse.json({ url });
-  } catch (error) {
+  } catch (error: any) {
     console.error('[upload] 업로드 실패:', error);
+    console.error('[upload] 에러 메시지:', error.message);
+    console.error('[upload] 에러 코드:', error.Code || error.code);
     return NextResponse.json(
-      { error: '파일 업로드에 실패했습니다.' },
+      { error: `파일 업로드에 실패했습니다: ${error.message}` },
       { status: 500 }
     );
   }
