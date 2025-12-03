@@ -124,20 +124,11 @@ export function ScheduleDetailClient({
   }, [localSchedule.organizationId]);
 
   // 권한 체크: 일정 작성자(벙주) 또는 크루장만 수정 가능
-  const isScheduleCreator = localSchedule.createdByUid === currentUserId;
+  // createdByUid가 없으면 hostUid, userId 등 대체 필드 확인
+  const scheduleCreatorId = localSchedule.createdByUid || (localSchedule as any).hostUid || (localSchedule as any).userId;
+  const isScheduleCreator = scheduleCreatorId === currentUserId;
   const isCrewLeader = orgData?.ownerUid === currentUserId;
   const canDelete = isScheduleCreator || isCrewLeader;
-
-  // Debug log
-  console.log('[Permission Check]', {
-    scheduleTitle: localSchedule.title,
-    currentUserId,
-    createdByUid: localSchedule.createdByUid,
-    ownerUid: orgData?.ownerUid,
-    isScheduleCreator,
-    isCrewLeader,
-    canDelete
-  });
 
   // 실시간 채팅 Hook
   const {
@@ -419,7 +410,7 @@ export function ScheduleDetailClient({
           <ParticipantStrip
             participants={localSchedule.participants}
             currentUserId={currentUserId}
-            scheduleOwnerId={localSchedule.createdByUid}
+            scheduleOwnerId={scheduleCreatorId}
             crewOwnerId={orgData?.ownerUid}
             onManageClick={canDelete ? handleOpenParticipantModal : undefined}
           />
