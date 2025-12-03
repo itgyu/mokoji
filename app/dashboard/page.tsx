@@ -896,26 +896,13 @@ export default function DashboardPage() {
     }
   }
 
-  const handleChangeAvatar = async (file: File) => {
-    if (!userProfile) return
-
-    setUploadingAvatar(true)
-    try {
-      // S3에 업로드
-      const avatarUrl = await uploadToS3(file, `avatars/${userProfile.uid}`)
-
-      // usersAPI를 사용하여 프로필 업데이트
-      await usersAPI.update(userProfile.uid, { avatar: avatarUrl })
-
-      // 페이지 새로고침
-      window.location.reload()
-    } catch (error) {
-      console.error('Error updating avatar:', error)
-      alert('프로필 사진을 바꾸는 중에 문제가 생겼어요.')
-    } finally {
-      setUploadingAvatar(false)
-    }
+  // 파일 선택 시 크롭 모달 열기
+  const handleSelectAvatarFile = (file: File) => {
+    const imageUrl = URL.createObjectURL(file)
+    setCropImageUrl(imageUrl)
+    setCropType('profile')
   }
+
 
   const handleUpdateMyProfile = async () => {
     if (!userProfile) return
@@ -1304,7 +1291,7 @@ export default function DashboardPage() {
   }
 
   // 크롭 완료 시 처리
-  const handleCropComplete = (croppedBlob: Blob) => {
+  const handleCropComplete = async (croppedBlob: Blob) => {
     // Blob을 File로 변환
     const file = new File([croppedBlob], 'cropped-image.jpg', { type: 'image/jpeg' })
 
@@ -1313,13 +1300,32 @@ export default function DashboardPage() {
       // 미리보기 URL 생성
       const previewUrl = URL.createObjectURL(file)
       setOrgAvatarPreview(previewUrl)
+      // 크롭 모달 닫기
+      setCropImageUrl(null)
+      setCropType(null)
     } else if (cropType === 'profile') {
-      setMyProfileAvatarFile(file)
-    }
+      // 프로필 사진은 바로 S3에 업로드
+      if (!userProfile) return
 
-    // 크롭 모달 닫기
-    setCropImageUrl(null)
-    setCropType(null)
+      setCropImageUrl(null)
+      setCropType(null)
+      setUploadingAvatar(true)
+
+      try {
+        const avatarUrl = await uploadToS3(file, `avatars/${userProfile.uid}`)
+        await usersAPI.update(userProfile.uid, { avatar: avatarUrl })
+        window.location.reload()
+      } catch (error) {
+        console.error('Error updating avatar:', error)
+        alert('프로필 사진을 바꾸는 중에 문제가 생겼어요.')
+      } finally {
+        setUploadingAvatar(false)
+      }
+    } else {
+      // 크롭 모달 닫기
+      setCropImageUrl(null)
+      setCropType(null)
+    }
   }
 
   // 크롭 취소
@@ -3742,8 +3748,10 @@ ${BRAND.NAME}와 함께하는 모임 일정에 참여하세요!
                       onChange={(e) => {
                         const file = e.target.files?.[0]
                         if (file) {
-                          handleChangeAvatar(file)
+                          handleSelectAvatarFile(file)
                         }
+                        // input 초기화 (같은 파일 다시 선택 가능하도록)
+                        e.target.value = ''
                       }}
                     />
                   </label>
@@ -5023,6 +5031,18 @@ ${BRAND.NAME}와 함께하는 모임 일정에 참여하세요!
             </div>
           </div>
         </div>
+      )}
+
+      {/* 프로필 사진 크롭 모달 */}
+      {cropImageUrl && cropType === 'profile' && (
+        <ImageCropModal
+          imageUrl={cropImageUrl}
+          onComplete={handleCropComplete}
+          onCancel={handleCropCancel}
+          aspectRatio={1}
+          cropShape="round"
+          title="프로필 사진 편집"
+        />
       )}
 
       {/* Bottom Navigation */}

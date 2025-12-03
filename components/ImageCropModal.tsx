@@ -10,6 +10,7 @@ interface ImageCropModalProps {
   onCancel: () => void
   aspectRatio?: number
   title?: string
+  cropShape?: 'rect' | 'round'
 }
 
 export default function ImageCropModal({
@@ -17,11 +18,13 @@ export default function ImageCropModal({
   onComplete,
   onCancel,
   aspectRatio = 1,
-  title = '이미지 자르기'
+  title = '사진 편집',
+  cropShape = 'round'
 }: ImageCropModalProps) {
   const [crop, setCrop] = useState<Point>({ x: 0, y: 0 })
   const [zoom, setZoom] = useState(1)
   const [croppedAreaPixels, setCroppedAreaPixels] = useState<Area | null>(null)
+  const [isProcessing, setIsProcessing] = useState(false)
 
   const onCropComplete = useCallback((croppedArea: Area, croppedAreaPixels: Area) => {
     setCroppedAreaPixels(croppedAreaPixels)
@@ -33,6 +36,7 @@ export default function ImageCropModal({
       return
     }
 
+    setIsProcessing(true)
     try {
       const image = await createImage(imageUrl)
       const canvas = document.createElement('canvas')
@@ -43,9 +47,12 @@ export default function ImageCropModal({
         return
       }
 
-      // 크롭 영역 크기로 캔버스 설정
-      canvas.width = croppedAreaPixels.width
-      canvas.height = croppedAreaPixels.height
+      // 출력 사이즈 (400x400 정사각형으로 최적화)
+      const outputSize = 400
+      canvas.width = outputSize
+      canvas.height = outputSize
+
+      ctx.imageSmoothingQuality = 'high'
 
       // 이미지를 캔버스에 그리기
       ctx.drawImage(
@@ -56,8 +63,8 @@ export default function ImageCropModal({
         croppedAreaPixels.height,
         0,
         0,
-        croppedAreaPixels.width,
-        croppedAreaPixels.height
+        outputSize,
+        outputSize
       )
 
       // 캔버스를 Blob으로 변환
@@ -71,73 +78,83 @@ export default function ImageCropModal({
             console.error('Blob 생성 실패')
             resolve()
           }
-        }, 'image/jpeg', 0.95)
+        }, 'image/jpeg', 0.9)
       })
     } catch (error) {
       console.error('이미지 크롭 중 오류:', error)
       alert('이미지 크롭 중 오류가 발생했습니다.')
+    } finally {
+      setIsProcessing(false)
     }
   }
 
   return (
     <div className="fixed inset-0 bg-black/90 z-50 flex flex-col">
       {/* 헤더 */}
-      <div className="bg-[#3182F6] text-white p-4 flex items-center justify-between">
-        <h2 className="text-lg font-bold">{title}</h2>
+      <div className="bg-mokkoji-primary text-white px-4 py-3 flex items-center justify-between safe-area-top">
         <button
           onClick={onCancel}
-          className="text-white text-lg hover:bg-white/10 w-8 h-8 rounded-lg flex items-center justify-center"
+          className="text-white/90 hover:text-white text-sm font-medium px-2 py-1"
         >
-          ×
+          취소
+        </button>
+        <h2 className="text-base font-semibold">{title}</h2>
+        <button
+          onClick={createCroppedImage}
+          disabled={isProcessing}
+          className="text-white font-semibold text-sm px-2 py-1 disabled:opacity-50"
+        >
+          {isProcessing ? '처리중...' : '완료'}
         </button>
       </div>
 
       {/* 크롭 영역 */}
-      <div className="flex-1 relative">
+      <div className="flex-1 relative bg-black">
         <Cropper
           image={imageUrl}
           crop={crop}
           zoom={zoom}
           aspect={aspectRatio}
+          cropShape={cropShape}
+          showGrid={false}
           onCropChange={setCrop}
           onCropComplete={onCropComplete}
           onZoomChange={setZoom}
+          style={{
+            containerStyle: {
+              background: '#000',
+            },
+            cropAreaStyle: {
+              border: '2px solid #5f0080',
+            },
+          }}
         />
       </div>
 
       {/* 컨트롤 */}
-      <div className="bg-white p-6 space-y-4">
+      <div className="bg-white px-6 py-5 space-y-4 safe-area-bottom">
         {/* 줌 슬라이더 */}
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-2">
-            확대/축소
-          </label>
+        <div className="flex items-center gap-4">
+          <svg className="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0zM13 10H7" />
+          </svg>
           <input
             type="range"
             min={1}
             max={3}
-            step={0.1}
+            step={0.01}
             value={zoom}
             onChange={(e) => setZoom(Number(e.target.value))}
-            className="w-full"
+            className="flex-1 h-1 bg-gray-200 rounded-full appearance-none cursor-pointer accent-mokkoji-primary"
           />
+          <svg className="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0zM10 7v6m3-3H7" />
+          </svg>
         </div>
 
-        {/* 버튼 */}
-        <div className="flex gap-3">
-          <button
-            onClick={onCancel}
-            className="flex-1 py-3 bg-gray-200 text-gray-700 rounded-lg font-semibold hover:bg-gray-300 transition-colors"
-          >
-            취소
-          </button>
-          <button
-            onClick={createCroppedImage}
-            className="flex-1 py-3 bg-[#3182F6] text-white rounded-lg font-semibold hover:bg-[#1B64DA] transition-colors"
-          >
-            완료
-          </button>
-        </div>
+        <p className="text-xs text-gray-400 text-center">
+          드래그하여 위치 조정, 슬라이더로 확대/축소
+        </p>
       </div>
     </div>
   )
