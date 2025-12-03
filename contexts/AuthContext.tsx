@@ -93,7 +93,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       if (userDataByEmail) {
         userProfileData = userDataByEmail
         userId = userDataByEmail.userId
-        console.log('✅ API users 테이블 데이터:', userProfileData)
+        console.log('✅ API users 테이블 데이터:', JSON.stringify(userProfileData, null, 2))
+        console.log('   - avatar:', userProfileData.avatar)
+        console.log('   - birthdate:', userProfileData.birthdate)
+        console.log('   - location:', userProfileData.location)
+        console.log('   - gender:', userProfileData.gender)
+        console.log('   - mbti:', userProfileData.mbti)
       } else {
         console.log('⚠️ API users 테이블에 데이터 없음 - 기본 프로필 생성')
         // 기본 프로필 생성
@@ -126,18 +131,21 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       let userMemberships: any[] = []
 
       try {
-        const membersData = await membersAPI.getByUser(userId)
-        console.log('✅ API members:', membersData.length, '개')
+        console.log('🔍 API members 호출 시작, userId:', userId)
+        const response = await membersAPI.getByUser(userId)
+        console.log('📦 API members 응답:', JSON.stringify(response, null, 2))
+        const membersData = response.memberships || response || []
+        console.log('✅ API members:', Array.isArray(membersData) ? membersData.length : 'undefined', '개')
 
         // OrganizationMember 타입으로 변환
-        userMemberships = membersData.map((m: any) => ({
+        userMemberships = Array.isArray(membersData) ? membersData.map((m: any) => ({
           id: m.memberId,
           userId: m.userId,
           organizationId: m.organizationId,
           role: m.role || 'member',
           joinedAt: m.joinedAt ? { seconds: Math.floor(m.joinedAt / 1000) } : null,
           status: m.status || 'active',
-        })) as OrganizationMember[]
+        })) as OrganizationMember[] : []
 
         setMemberships(userMemberships)
       } catch (error) {
