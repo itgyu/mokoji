@@ -324,12 +324,24 @@ export default function DashboardPage() {
   // 홈 화면 및 내 크루 화면에서 모든 크루의 일정을 가져오기
   useEffect(() => {
     // 홈 화면 또는 내 크루 화면이고 특정 크루가 선택되지 않은 경우, 모든 크루의 일정을 가져옴
-    if (!loading && userProfile?.uid && (currentPage === 'home' || currentPage === 'mycrew') && !selectedOrg && organizations.length > 0) {
-      const orgIds = organizations.map(org => org.id)
-      fetchAllUserSchedules(orgIds) // Promise 반환값 무시 (DynamoDB는 실시간 리스너 없음)
+    if (!loading && userProfile?.uid && (currentPage === 'home' || currentPage === 'mycrew') && !selectedOrg) {
+      // organizations가 아직 로드되지 않았어도 캐시에서 먼저 로드 시도
+      if (organizations.length > 0) {
+        const orgIds = organizations.map(org => org.id)
+        fetchAllUserSchedules(orgIds)
+      } else {
+        // organizations가 없어도 캐시된 일정 표시
+        const cached = getCachedAllSchedules()
+        if (cached) {
+          const cachedSchedules: Schedule[] = cached.schedules.map((schedule: any) => ({
+            id: schedule.scheduleId || schedule.id,
+            ...schedule
+          }))
+          setSchedules(cachedSchedules)
+        }
+      }
     }
 
-    // DynamoDB는 실시간 리스너 없으니까 cleanup 필요 없음
     return () => {}
   }, [userProfile?.uid, organizations, currentPage, selectedOrg, loading])
 
