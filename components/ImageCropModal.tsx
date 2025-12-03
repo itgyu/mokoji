@@ -31,8 +31,10 @@ export default function ImageCropModal({
   }, [])
 
   const createCroppedImage = async () => {
+    console.log('[ImageCropModal] createCroppedImage 호출됨')
+    console.log('[ImageCropModal] croppedAreaPixels:', croppedAreaPixels)
     if (!croppedAreaPixels) {
-      console.error('크롭 영역이 선택되지 않았습니다')
+      console.error('[ImageCropModal] 크롭 영역이 선택되지 않았습니다')
       return
     }
 
@@ -68,20 +70,23 @@ export default function ImageCropModal({
       )
 
       // 캔버스를 Blob으로 변환
+      console.log('[ImageCropModal] canvas.toBlob 시작...')
       return new Promise<void>((resolve) => {
         canvas.toBlob((blob) => {
           if (blob) {
-            console.log('크롭된 이미지 생성 완료:', blob.size, 'bytes')
+            console.log('[ImageCropModal] 크롭된 이미지 생성 완료:', blob.size, 'bytes')
+            console.log('[ImageCropModal] onComplete 호출 시작...')
             onComplete(blob)
+            console.log('[ImageCropModal] onComplete 호출 완료')
             resolve()
           } else {
-            console.error('Blob 생성 실패')
+            console.error('[ImageCropModal] Blob 생성 실패')
             resolve()
           }
         }, 'image/jpeg', 0.9)
       })
     } catch (error) {
-      console.error('이미지 크롭 중 오류:', error)
+      console.error('[ImageCropModal] 이미지 크롭 중 오류:', error)
       alert('이미지 크롭 중 오류가 발생했습니다.')
     } finally {
       setIsProcessing(false)

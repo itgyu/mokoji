@@ -898,9 +898,12 @@ export default function DashboardPage() {
 
   // 파일 선택 시 크롭 모달 열기
   const handleSelectAvatarFile = (file: File) => {
+    console.log('[handleSelectAvatarFile] 파일 선택됨:', file.name, file.size, 'bytes')
     const imageUrl = URL.createObjectURL(file)
+    console.log('[handleSelectAvatarFile] imageUrl 생성:', imageUrl)
     setCropImageUrl(imageUrl)
     setCropType('profile')
+    console.log('[handleSelectAvatarFile] cropType을 profile로 설정 완료')
   }
 
 
@@ -1292,6 +1295,7 @@ export default function DashboardPage() {
 
   // 크롭 완료 시 처리
   const handleCropComplete = async (croppedBlob: Blob) => {
+    console.log('[handleCropComplete] 호출됨, cropType:', cropType)
     // Blob을 File로 변환
     const file = new File([croppedBlob], 'cropped-image.jpg', { type: 'image/jpeg' })
 
@@ -1305,18 +1309,31 @@ export default function DashboardPage() {
       setCropType(null)
     } else if (cropType === 'profile') {
       // 프로필 사진은 바로 S3에 업로드
-      if (!userProfile) return
+      console.log('[Profile] 크롭 완료, 프로필 업로드 시작')
+      if (!userProfile) {
+        console.error('[Profile] userProfile이 없음!')
+        return
+      }
 
+      console.log('[Profile] userProfile.uid:', userProfile.uid)
       setCropImageUrl(null)
       setCropType(null)
       setUploadingAvatar(true)
 
       try {
-        const avatarUrl = await uploadToS3(file, `avatars/${userProfile.uid}`)
+        console.log('[Profile] S3 업로드 시작...')
+        // 타임스탬프 추가하여 브라우저 캐시 무효화
+        const timestamp = Date.now()
+        const avatarUrl = await uploadToS3(file, `avatars/${userProfile.uid}_${timestamp}`)
+        console.log('[Profile] S3 업로드 성공:', avatarUrl)
+
+        console.log('[Profile] DB 업데이트 시작...')
         await usersAPI.update(userProfile.uid, { avatar: avatarUrl })
+        console.log('[Profile] DB 업데이트 성공!')
+
         window.location.reload()
       } catch (error) {
-        console.error('Error updating avatar:', error)
+        console.error('[Profile] Error updating avatar:', error)
         alert('프로필 사진을 바꾸는 중에 문제가 생겼어요.')
       } finally {
         setUploadingAvatar(false)
@@ -3290,46 +3307,52 @@ ${BRAND.NAME}와 함께하는 모임 일정에 참여하세요!
 
       {/* 멤버 리스트 모달 */}
       {showMemberList && (
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-3xl max-w-md w-full max-h-[80vh] overflow-hidden flex flex-col">
-            <div className="bg-[#FF9B50] text-white p-6">
-              <div className="flex justify-between items-center mb-2">
+        <div className="fixed inset-0 bg-black/60 z-50 flex items-end sm:items-center justify-center overflow-y-auto">
+          <div className="bg-white rounded-t-3xl sm:rounded-3xl max-w-lg w-full max-h-[85vh] overflow-hidden flex flex-col shadow-2xl animate-slideUp">
+            {/* 드래그 핸들 */}
+            <div className="flex justify-center pt-3 pb-2 sm:hidden">
+              <div className="w-10 h-1 bg-gray-300 rounded-full"></div>
+            </div>
+
+            {/* 헤더 */}
+            <div className="px-5 pt-4 pb-4 border-b border-gray-100">
+              <div className="flex justify-between items-center mb-3">
                 <div className="flex items-center gap-3">
-                  <h2 className="text-xl leading-7 md:text-xl md:text-2xl font-bold">CREW MEMBERS</h2>
+                  <h2 className="text-xl font-extrabold tracking-tight text-gray-900">크루 멤버</h2>
                   <button
                     onClick={() => selectedOrg && fetchMembers(selectedOrg.id)}
-                    className="text-white text-xl leading-7 hover:opacity-80 bg-white/20 px-3 py-1 rounded-lg"
+                    className="text-mokkoji-primary hover:bg-mokkoji-primary/10 px-2.5 py-1 rounded-lg text-sm font-medium transition-colors"
                   >
-                    ↻
+                    새로고침
                   </button>
                 </div>
                 <button
                   onClick={() => setShowMemberList(false)}
-                  className="text-white text-xl leading-7 md:text-xl md:text-2xl hover:opacity-80"
+                  className="p-2 hover:bg-gray-100 rounded-xl transition-colors -mr-2"
                 >
-                  ×
+                  <X className="w-5 h-5 text-gray-500" />
                 </button>
               </div>
-              <p className="text-sm leading-5 opacity-90">총 {members.length}명</p>
+              <p className="text-sm text-gray-500">총 {members.length}명의 멤버</p>
 
               {/* 활동 경과일 필터 */}
               <div className="mt-3">
                 <select
                   value={memberActivityFilter}
                   onChange={(e) => setMemberActivityFilter(e.target.value as any)}
-                  className="w-full px-3 py-2 bg-white/20 text-white rounded-lg text-sm leading-5 border border-white/30"
+                  className="w-full px-3 py-2.5 bg-gray-50 text-gray-700 rounded-xl text-sm font-medium border-0 focus:ring-2 focus:ring-mokkoji-primary/20"
                 >
-                  <option value="all" className="text-gray-900">전체 멤버</option>
-                  <option value="10plus" className="text-gray-900">경과일 10일이상</option>
-                  <option value="30plus" className="text-gray-900">경과일 30일이상</option>
-                  <option value="50plus" className="text-gray-900">경과일 50일이상</option>
-                  <option value="60plus" className="text-gray-900">경과일 60일이상</option>
+                  <option value="all">전체 멤버</option>
+                  <option value="10plus">경과일 10일 이상</option>
+                  <option value="30plus">경과일 30일 이상</option>
+                  <option value="50plus">경과일 50일 이상</option>
+                  <option value="60plus">경과일 60일 이상</option>
                 </select>
               </div>
             </div>
 
             <div className="p-4 overflow-y-auto flex-1">
-              <div className="space-y-4">
+              <div className="space-y-3">
                 {membersWithDisplayNames.length === 0 ? (
                   <p className="text-gray-400 text-center py-4 md:py-8">멤버가 없습니다.</p>
                 ) : (
@@ -3398,7 +3421,7 @@ ${BRAND.NAME}와 함께하는 모임 일정에 참여하세요!
                       return (
                       <div
                         key={member.id}
-                        className="bg-gray-100 rounded-lg p-4 flex items-center gap-3"
+                        className="bg-gray-50 hover:bg-gray-100 rounded-2xl p-4 flex items-center gap-4 transition-colors"
                       >
                         <div
                           onClick={(e) => {
@@ -3407,7 +3430,7 @@ ${BRAND.NAME}와 함께하는 모임 일정에 참여하세요!
                               setSelectedAvatarUrl(img.src)
                             }
                           }}
-                          className="w-14 h-14 rounded-full flex items-center justify-center overflow-hidden cursor-pointer hover:ring-2 hover:ring-[#FF9B50] bg-gray-200"
+                          className="w-14 h-14 rounded-full flex items-center justify-center overflow-hidden cursor-pointer hover:ring-2 hover:ring-mokkoji-primary bg-white shadow-sm"
                         >
                           <img
                             src={getValidAvatarUrl(member.avatar)}
@@ -3421,38 +3444,40 @@ ${BRAND.NAME}와 함께하는 모임 일정에 참여하세요!
                             }}
                           />
                         </div>
-                        <div className="flex-1">
-                          <div className="flex items-center gap-2">
-                            <span className="font-bold">{member.displayName}</span>
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <span className="font-bold text-gray-900">{member.displayName}</span>
                             {member.isCaptain && (
-                              <span className="text-xs bg-[#FF9B50] text-white px-2 py-0.5 rounded-full">
+                              <span className="text-xs bg-mokkoji-primary text-white px-2 py-0.5 rounded-full font-medium">
                                 크루장
                               </span>
                             )}
                             {member.role === 'admin' && !member.isCaptain && (
-                              <span className="text-xs bg-blue-500 text-white px-2 py-0.5 rounded-full">
+                              <span className="text-xs bg-mokkoji-primary/70 text-white px-2 py-0.5 rounded-full font-medium">
                                 운영진
                               </span>
                             )}
                           </div>
-                          <p className="text-xs text-gray-600 mt-1">가입일: {formatTimestamp(member.joinDate)}</p>
-                          {member.birthdate && (
-                            <p className="text-xs text-gray-600 mt-0.5">생년월일: {member.birthdate}</p>
-                          )}
-                          {(member as any).location && (
-                            <p className="text-xs text-gray-600 mt-0.5">지역: {(member as any).location}</p>
-                          )}
-                          <p className="text-xs text-gray-700 mt-0.5">
+                          <div className="mt-1.5 space-y-0.5">
+                            <p className="text-xs text-gray-500">가입일: {formatTimestamp(member.joinDate)}</p>
+                            {member.birthdate && (
+                              <p className="text-xs text-gray-500">생년월일: {member.birthdate}</p>
+                            )}
+                            {(member as any).location && (
+                              <p className="text-xs text-gray-500">지역: {(member as any).location}</p>
+                            )}
+                          </div>
+                          <div className="mt-1.5">
                             {daysSinceLastParticipation === null ? (
-                              <span className="text-red-500">참여 이력 없음</span>
+                              <span className="text-xs text-red-500 font-medium">참여 이력 없음</span>
                             ) : daysSinceLastParticipation === 0 ? (
-                              <span className="text-[#FF9B50] font-bold">오늘 참여</span>
+                              <span className="text-xs text-mokkoji-primary font-bold">오늘 참여</span>
                             ) : (
-                              <span className={daysSinceLastParticipation >= 90 ? 'text-red-500' : daysSinceLastParticipation >= 60 ? 'text-orange-500' : 'text-gray-700'}>
+                              <span className={`text-xs font-medium ${daysSinceLastParticipation >= 90 ? 'text-red-500' : daysSinceLastParticipation >= 60 ? 'text-orange-500' : 'text-gray-600'}`}>
                                 마지막 참여: {daysSinceLastParticipation}일 전
                               </span>
                             )}
-                          </p>
+                          </div>
                         </div>
                       </div>
                     )
@@ -5033,15 +5058,15 @@ ${BRAND.NAME}와 함께하는 모임 일정에 참여하세요!
         </div>
       )}
 
-      {/* 프로필 사진 크롭 모달 */}
-      {cropImageUrl && cropType === 'profile' && (
+      {/* 이미지 크롭 모달 (프로필 및 크루 사진) */}
+      {cropImageUrl && (
         <ImageCropModal
           imageUrl={cropImageUrl}
           onComplete={handleCropComplete}
           onCancel={handleCropCancel}
           aspectRatio={1}
-          cropShape="round"
-          title="프로필 사진 편집"
+          cropShape={cropType === 'profile' ? 'round' : 'rect'}
+          title={cropType === 'profile' ? '프로필 사진 편집' : '크루 메인사진 자르기'}
         />
       )}
 
@@ -5081,17 +5106,6 @@ ${BRAND.NAME}와 함께하는 모임 일정에 참여하세요!
           ))}
         </div>
       </nav>
-
-      {/* 이미지 크롭 모달 */}
-      {cropImageUrl && (
-        <ImageCropModal
-          imageUrl={cropImageUrl}
-          onComplete={handleCropComplete}
-          onCancel={handleCropCancel}
-          aspectRatio={1}
-          title={cropType === 'org' ? '크루 메인사진 자르기' : '프로필 사진 자르기'}
-        />
-      )}
 
       {/* 위치 설정 모달 */}
       <LocationSettings

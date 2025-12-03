@@ -28,10 +28,11 @@ async function apiCall<T>(
       ...options.headers,
     };
 
-    // API 호출
+    // API 호출 (캐시 비활성화)
     const response = await fetch(endpoint, {
       ...options,
       headers,
+      cache: 'no-store',
     });
 
     // 에러 처리
